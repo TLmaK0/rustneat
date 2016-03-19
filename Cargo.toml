@@ -1,0 +1,7 @@
+[package]
+name = "rustneat"
+version = "0.1.0"
+authors = ["Hugo Freire <hfreire@abajar.com>"]
+
+[dependencies]
+rand = "0.3"
