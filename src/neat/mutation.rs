@@ -10,11 +10,10 @@ impl Mutation {
     }
 
     pub fn add_connection (in_node_id: u32, out_node_id: u32, genome: &mut Genome) -> (ConnectionGene) {
-        genome.global_innovation += 1;
         ConnectionGene { 
             in_node_id: in_node_id,
             out_node_id: out_node_id,
-            innovation: genome.global_innovation,
+            innovation: genome.generation.get_innovation_id(),
             ..Default::default()
         } 
     }
@@ -22,21 +21,21 @@ impl Mutation {
     pub fn add_node (gene: &mut ConnectionGene, new_node_id: u32, genome: &mut Genome) -> (ConnectionGene, ConnectionGene) {
         gene.enabled = false;
 
-        genome.global_innovation += 1;
+        let innovations = genome.generation.get_innovation_ids_by_gen(*gene);
+
         let gen1 = ConnectionGene {
             in_node_id: gene.in_node_id,
             out_node_id: new_node_id,
             weight: 1f64,
-            innovation: genome.global_innovation,
+            innovation: innovations.0,
             ..Default::default()
         };
 
-        genome.global_innovation += 1;
         let gen2 = ConnectionGene {
             in_node_id: new_node_id,
             out_node_id: gene.out_node_id,
             weight: gene.weight,
-            innovation: genome.global_innovation,
+            innovation: innovations.1,
             ..Default::default()
         };
 

@@ -1,21 +1,21 @@
 use neat::connection_gene::ConnectionGene as ConnectionGene;
 use neat::mutation::Mutation as Mutation;
+use neat::generation::Generation as Generation;
 
 #[derive(Debug)]
 pub struct Genome{
     connection_genes: Vec<ConnectionGene>,
-    pub global_innovation: u32,
+    pub generation: Generation,
 }
 
 impl Genome{
-    pub fn new() -> Genome {
-        Genome {..Default::default()}
+    pub fn new(generation: Generation) -> Genome {
+        Genome { generation: generation, connection_genes: vec![Default::default(); 0]}
     }
 
     pub fn create_gene(&mut self) -> ConnectionGene {
-        self.global_innovation += 1;
         let gene = ConnectionGene {
-            innovation: self.global_innovation,
+            innovation: self.generation.get_innovation_id(),
             ..Default::default()
         };
         self.connection_genes.push(gene);
@@ -35,12 +35,5 @@ impl Genome{
 
     pub fn mutate_add_connection(&mut self, in_node_id: u32, out_node_id: u32) -> ConnectionGene {
         Mutation::add_connection(in_node_id, out_node_id, self)
-    }
-}
-
-impl Default for Genome{
-    fn default () -> Genome {
-        Genome { global_innovation: 0,
-                 connection_genes: vec![Default::default(); 0]}
     }
 }

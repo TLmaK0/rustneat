@@ -1,7 +1,8 @@
 mod neat;
 
 fn main(){
-    let mut genome = neat::Genome::new();
+    let generation = neat::Generation::new();
+    let mut genome = neat::Genome::new(generation);
     println!("NEAT");
     println!("Genome {:?}", genome);
 
