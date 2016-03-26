@@ -5,3 +5,4 @@ authors = ["Hugo Freire <hfreire@abajar.com>"]
 
 [dependencies]
 rand = "0.3"
+conv = "0.3.2"

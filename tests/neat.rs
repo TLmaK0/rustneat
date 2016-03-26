@@ -3,9 +3,9 @@ use rustneat::neat::*;
 
 #[test]
 fn mutation_connection_weight(){
-    let generation = Generation::new(); 
-    let mut genome = Genome::new(generation);
-    let mut gene = genome.create_gene();
+    let mut generation = Generation::new(); 
+    let mut genome = generation.create_genome();
+    let mut gene = genome.create_gene(1, 1, 1f64);
     let orig_gene = gene.clone();
     genome.mutate_connection_weight(&mut gene);
 
@@ -14,20 +14,19 @@ fn mutation_connection_weight(){
 
 #[test]
 fn mutation_add_connection(){
-    let generation = Generation::new(); 
-    let mut genome = Genome::new(generation);
+    let mut generation = Generation::new(); 
+    let mut genome = generation.create_genome();
     let new_gene = genome.mutate_add_connection(1, 2);
 
     assert!(new_gene.in_node_id == 1);
     assert!(new_gene.out_node_id == 2);
-    assert!(new_gene.innovation == 1);
 }
 
 #[test]
 fn mutation_add_node(){
-    let generation = Generation::new(); 
-    let mut genome = Genome::new(generation);
-    let mut gene = genome.create_gene();
+    let mut generation = Generation::new(); 
+    let mut genome = generation.create_genome();
+    let mut gene = genome.create_gene(1, 1, 1f64);
     let (new_gene1, new_gene2) = genome.mutate_add_node(&mut gene, 3);
 
     assert!(!gene.enabled);
@@ -35,33 +34,29 @@ fn mutation_add_node(){
     assert!(new_gene1.out_node_id == 3);
     assert!(new_gene2.in_node_id == 3);
     assert!(new_gene2.out_node_id == gene.out_node_id);
-    assert!(new_gene1.innovation == 2);
-    assert!(new_gene2.innovation == 3);
 }
 
 #[test]
-fn mutation_on_same_gene_returns_same_innovation(){
-    let generation = Generation::new(); 
-    let mut genome = Genome::new(generation);
-    let mut gene = genome.create_gene();
-    let (new_gene1, new_gene2) = genome.mutate_add_node(&mut gene, 3);
-    let (new_gene3, new_gene4) = genome.mutate_add_node(&mut gene, 3);
-
-    assert!(new_gene1.innovation == new_gene3.innovation); 
-    assert!(new_gene2.innovation == new_gene4.innovation); 
+fn two_genomes_with_enought_difference_should_be_in_different_species(){
+    let mut generation = Generation::new();
+    let mut genome1 = generation.create_genome();
+    genome1.create_gene(1, 1, 1f64);
+    genome1.create_gene(1, 2, 1f64);
+    let mut genome2 = generation.create_genome();
+    genome2.create_gene(1, 1, 0f64);
+    genome2.create_gene(1, 2, 0f64);
+    genome2.create_gene(1, 3, 0f64);
+    assert!(genome1.is_same_specie(&genome2));
 }
 
 #[test]
-fn mutation_on_different_gene_returns_different_innovation(){
-    let generation = Generation::new(); 
-    let mut genome = Genome::new(generation);
-    let mut gene1 = genome.create_gene();
-    let mut gene2 = genome.create_gene();
-    let (new_gene1, new_gene2) = genome.mutate_add_node(&mut gene1, 3);
-    let (new_gene3, new_gene4) = genome.mutate_add_node(&mut gene2, 3);
-
-    assert!(new_gene1.innovation != new_gene3.innovation); 
-    assert!(new_gene2.innovation != new_gene4.innovation); 
+fn two_genomes_without_differences_should_be_in_same_specie(){
+    let mut generation = Generation::new();
+    let mut genome1 = generation.create_genome();
+    genome1.create_gene(1, 1, 1f64);
+    genome1.create_gene(1, 2, 1f64);
+    let mut genome2 = generation.create_genome();
+    genome2.create_gene(1, 1, 1f64);
+    genome2.create_gene(1, 3, 1f64);
+    assert!(genome1.is_same_specie(&genome2));
 }
-
-

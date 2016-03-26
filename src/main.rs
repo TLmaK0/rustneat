@@ -1,12 +1,12 @@
 mod neat;
 
 fn main(){
-    let generation = neat::Generation::new();
-    let mut genome = neat::Genome::new(generation);
+    let mut generation = neat::Generation::new();
+    let mut genome = generation.create_genome(); 
     println!("NEAT");
     println!("Genome {:?}", genome);
 
-    let mut gene = genome.create_gene(); 
+    let mut gene = genome.create_gene(1, 1, 1f64); 
     println!("Original gen {:?}", gene); 
     genome.mutate_connection_weight(&mut gene);
     println!("Mutated weight gen {:?}", gene); 

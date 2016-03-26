@@ -1,5 +1,4 @@
 use neat::connection_gene::ConnectionGene as ConnectionGene;
-use neat::genome::Genome as Genome;
 
 pub trait Mutation {
 }
@@ -9,25 +8,21 @@ impl Mutation {
         gene.weight = ConnectionGene::generate_weight()
     }
 
-    pub fn add_connection (in_node_id: u32, out_node_id: u32, genome: &mut Genome) -> (ConnectionGene) {
+    pub fn add_connection (in_node_id: u32, out_node_id: u32) -> (ConnectionGene) {
         ConnectionGene { 
             in_node_id: in_node_id,
             out_node_id: out_node_id,
-            innovation: genome.generation.get_innovation_id(),
             ..Default::default()
         } 
     }
 
-    pub fn add_node (gene: &mut ConnectionGene, new_node_id: u32, genome: &mut Genome) -> (ConnectionGene, ConnectionGene) {
+    pub fn add_node (gene: &mut ConnectionGene, new_node_id: u32) -> (ConnectionGene, ConnectionGene) {
         gene.enabled = false;
-
-        let innovations = genome.generation.get_innovation_ids_by_gen(*gene);
 
         let gen1 = ConnectionGene {
             in_node_id: gene.in_node_id,
             out_node_id: new_node_id,
             weight: 1f64,
-            innovation: innovations.0,
             ..Default::default()
         };
 
@@ -35,7 +30,6 @@ impl Mutation {
             in_node_id: new_node_id,
             out_node_id: gene.out_node_id,
             weight: gene.weight,
-            innovation: innovations.1,
             ..Default::default()
         };
 
