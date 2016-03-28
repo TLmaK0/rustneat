@@ -37,7 +37,7 @@ fn mutation_add_node(){
 }
 
 #[test]
-fn two_genomes_with_enought_difference_should_be_in_different_species(){
+fn two_genomes_without_differences_should_be_in_same_specie(){
     let mut generation = Generation::new();
     let mut genome1 = generation.create_genome();
     genome1.create_gene(1, 1, 1f64);
@@ -50,13 +50,13 @@ fn two_genomes_with_enought_difference_should_be_in_different_species(){
 }
 
 #[test]
-fn two_genomes_without_differences_should_be_in_same_specie(){
+fn two_genomes_with_enought_difference_should_be_in_different_species(){
     let mut generation = Generation::new();
     let mut genome1 = generation.create_genome();
     genome1.create_gene(1, 1, 1f64);
     genome1.create_gene(1, 2, 1f64);
     let mut genome2 = generation.create_genome();
-    genome2.create_gene(1, 1, 1f64);
     genome2.create_gene(1, 3, 1f64);
-    assert!(genome1.is_same_specie(&genome2));
+    genome2.create_gene(1, 4, 1f64);
+    assert!(!genome1.is_same_specie(&genome2));
 }

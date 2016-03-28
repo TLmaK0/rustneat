@@ -4,6 +4,7 @@ use neat::connection_gene::ConnectionGene as ConnectionGene;
 use neat::mutation::Mutation as Mutation;
 use self::conv::prelude::*;
 
+
 #[derive(Debug)]
 pub struct Genome{
     connection_genes: Vec<ConnectionGene>,
@@ -45,20 +46,15 @@ impl Genome{
     }
 
     //http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
+    //I have consider disjoint and excess genes as the same
     fn compatibility_distance(&self, other: &Genome) -> f64 {
-        let c1 = 0.5f64;
+        //TODO: optimize compatibility_distance
         let c2 = 0.5f64;
         let c3 = 0.5f64;
 
         //Number of excess
         let n1 = self.connection_genes.len().value_as::<f64>().unwrap();
         let n2 = other.connection_genes.len().value_as::<f64>().unwrap();
-
-        let e = if n1 > n2 {
-            n1 - n2
-        }else{
-            n2 - n1
-        };
 
         let matching_genes  = self.connection_genes.iter().filter(|i1_gene| other.connection_genes.contains(i1_gene)).collect::<Vec<&ConnectionGene>>();
 
@@ -75,6 +71,7 @@ impl Genome{
         //compatibility distance
         let n = n1.max(n2);
 
-        (c1 * e / n) + (c2 * d / n) + c3 * w
+        let delta = (c2 * d / n) + c3 * w;
+        delta
     }
 }
