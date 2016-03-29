@@ -1,16 +1,12 @@
 use neat::*;
 
 #[derive(Debug)]
-pub struct Generation {
-    genomes: Vec<Genome>,
+pub struct Generation<'a> {
+    genomes: Vec<&'a Genome>,
 }
 
-impl Generation {
-    pub fn new() -> Generation {
-        Generation { genomes: vec![]}
-    }
-
-    pub fn create_genome(&mut self) -> Genome {
-        Genome::new()
+impl<'a> Generation<'a> {
+    pub fn new() -> Generation<'a> {
+        Generation { genomes: vec![] }
     }
 }

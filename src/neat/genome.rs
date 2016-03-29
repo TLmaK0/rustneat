@@ -12,7 +12,7 @@ pub struct Genome{
 
 impl Genome{
     pub fn new() -> Genome {
-        Genome { connection_genes: vec![]}
+        Genome { connection_genes: vec![] }
     }
 
     pub fn create_gene(&mut self, in_node_id: u32, out_node_id: u32, weight: f64) -> ConnectionGene {

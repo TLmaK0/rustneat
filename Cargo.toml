@@ -6,3 +6,4 @@ authors = ["Hugo Freire <hfreire@abajar.com>"]
 [dependencies]
 rand = "0.3"
 conv = "0.3.2"
+uuid = "0.1"
