@@ -1,8 +1,11 @@
+#![allow(dead_code)]
+
 use neat::*;
 mod neat;
 
+
 fn main(){
-    let mut genome = Genome::new(); 
+    let mut genome = Genome::new(10, 10); 
     println!("NEAT");
     println!("Genome {:?}", genome);
 

@@ -8,11 +8,17 @@ use self::conv::prelude::*;
 #[derive(Debug)]
 pub struct Genome{
     connection_genes: Vec<ConnectionGene>,
+    input_nodes: usize,
+    output_nodes: usize
 }
 
 impl Genome{
-    pub fn new() -> Genome {
-        Genome { connection_genes: vec![] }
+    pub fn new(input_nodes: usize, output_nodes: usize) -> Genome {
+        Genome { 
+            connection_genes: vec![],
+            input_nodes: input_nodes,
+            output_nodes: output_nodes 
+        }
     }
 
     pub fn create_gene(&mut self, in_node_id: u32, out_node_id: u32, weight: f64) -> ConnectionGene {
@@ -43,6 +49,18 @@ impl Genome{
 
     pub fn is_same_specie(&self, other: &Genome) -> bool{
         self.compatibility_distance(other) < 1f64
+    }
+
+    pub fn total_weights(&self) -> f64{
+        let mut total = 0f64;
+        for gene in &self.connection_genes {
+            total += gene.weight;
+        }
+        total
+    }
+
+    pub fn total_genes(&self) -> usize{
+        self.connection_genes.len()
     }
 
     //http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
