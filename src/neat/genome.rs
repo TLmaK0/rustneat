@@ -1,8 +1,8 @@
 extern crate conv;
 
+use self::conv::prelude::*;
 use neat::connection_gene::ConnectionGene as ConnectionGene;
 use neat::mutation::Mutation as Mutation;
-use self::conv::prelude::*;
 
 
 #[derive(Debug, Clone)]

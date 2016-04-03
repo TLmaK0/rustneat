@@ -1,3 +1,6 @@
+extern crate conv;
+
+use self::conv::prelude::*;
 use neat::*;
 
 pub struct Population{
@@ -20,7 +23,9 @@ impl Population {
     }
 
     fn generate_offspring(&self) -> Vec<Organism>{
-        self.speciate();
+        let species = self.speciate();
+        //TODO: adjust species fitness to protect younger species
+        let average_fitness = species.iter().fold(0f64, |total, specie| total + specie.average_fitness()) / species.len().value_as::<f64>().unwrap();
         unimplemented!();
     }
 
