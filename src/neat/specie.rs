@@ -25,8 +25,13 @@ impl Specie{
     }
 
     pub fn average_fitness(&self) -> f64{
+        let organisms_count = self.organisms.len().value_as::<f64>().unwrap();
         let total_fitness = self.organisms.iter().fold(0f64, |total, organism| total + organism.fitness);
-        total_fitness / self.organisms.len().value_as::<f64>().unwrap()
+        total_fitness / organisms_count 
+    }
+
+    pub fn generate_offspring(&self, num_of_organisms: u64){
+        unimplemented!();
     }
 }
 

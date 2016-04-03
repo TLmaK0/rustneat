@@ -25,7 +25,12 @@ impl Population {
     fn generate_offspring(&self) -> Vec<Organism>{
         let species = self.speciate();
         //TODO: adjust species fitness to protect younger species
-        let average_fitness = species.iter().fold(0f64, |total, specie| total + specie.average_fitness()) / species.len().value_as::<f64>().unwrap();
+        let total_average_fitness = species.iter().fold(0f64, |total, specie| total + specie.average_fitness());
+        let num_of_organisms = self.organisms.len().value_as::<f64>().unwrap();
+        let organisms_by_average_fitness = num_of_organisms / total_average_fitness;
+        for specie in species {
+            specie.generate_offspring((specie.average_fitness() * organisms_by_average_fitness).round() as u64);
+        }
         unimplemented!();
     }
 
