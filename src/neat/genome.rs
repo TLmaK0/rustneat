@@ -5,14 +5,17 @@ use neat::mutation::Mutation as Mutation;
 use self::conv::prelude::*;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Genome{
     connection_genes: Vec<ConnectionGene>,
     input_nodes: usize,
     output_nodes: usize
 }
 
+const COMPATIBILITY_THRESHOLD: f64 = 1f64;
+
 impl Genome{
+
     pub fn new(input_nodes: usize, output_nodes: usize) -> Genome {
         Genome { 
             connection_genes: vec![],
@@ -48,7 +51,7 @@ impl Genome{
     }
 
     pub fn is_same_specie(&self, other: &Genome) -> bool{
-        self.compatibility_distance(other) < 1f64
+        self.compatibility_distance(other) < COMPATIBILITY_THRESHOLD
     }
 
     pub fn total_weights(&self) -> f64{
@@ -66,13 +69,18 @@ impl Genome{
     //http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
     //I have consider disjoint and excess genes as the same
     fn compatibility_distance(&self, other: &Genome) -> f64 {
-        //TODO: optimize compatibility_distance
+        //TODO: optimize this method
         let c2 = 0.5f64;
         let c3 = 0.5f64;
 
         //Number of excess
         let n1 = self.connection_genes.len().value_as::<f64>().unwrap();
         let n2 = other.connection_genes.len().value_as::<f64>().unwrap();
+        let n = n1.max(n2);
+
+        if n == 0f64 {
+            return 0f64; //no genes in any genome, the genomes are equal
+        }
 
         let matching_genes  = self.connection_genes.iter().filter(|i1_gene| other.connection_genes.contains(i1_gene)).collect::<Vec<&ConnectionGene>>();
 
@@ -87,8 +95,6 @@ impl Genome{
         let w = w1 / n3;
 
         //compatibility distance
-        let n = n1.max(n2);
-
         let delta = (c2 * d / n) + c3 * w;
         delta
     }
