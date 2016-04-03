@@ -65,11 +65,6 @@ fn should_be_able_to_generate_a_population(){
 #[test]
 fn population_can_evolve(){
     let mut population = Population::create_population(10, 10, 5);
-    let total_weights = population.total_weights();
-    let total_genes = population.total_genes();
-
     population.evolve();
-
-    assert!(population.size() == 5);
-    assert!(population.total_weights() != total_weights || population.total_genes() != total_genes);
+    unimplemented!();
 }

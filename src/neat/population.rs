@@ -1,56 +1,40 @@
 use neat::*;
 
 pub struct Population{
-    genomes: Vec<Genome>
+    organisms: Vec<Organism>
 }
 
 impl Population {
     pub fn create_population(input_nodes: usize, output_nodes: usize, population_size: usize) -> Population {
-        let mut population = Population { genomes: vec![] };
-        population.create_genomes(input_nodes, output_nodes, population_size);
+        let mut population = Population { organisms: vec![] };
+        population.create_organisms(input_nodes, output_nodes, population_size);
         population
     }
 
     pub fn size(&self) -> usize{
-        self.genomes.len()
-    }
-
-    pub fn total_weights(&self) -> f64{
-        let mut total = 0f64;
-        for genome in &self.genomes {
-            total += genome.total_weights();
-        }
-        total
-    }
-
-    pub fn total_genes(&self) -> usize{
-        let mut total = 0usize;
-        for genome in &self.genomes {
-            total += genome.total_genes();
-        }
-        total
+        self.organisms.len()
     }
 
     pub fn evolve(&mut self){
-        self.genomes = self.generate_offspring();
+        self.organisms = self.generate_offspring();
     }
 
-    fn generate_offspring(&self) -> Vec<Genome>{
+    fn generate_offspring(&self) -> Vec<Organism>{
         self.speciate();
         unimplemented!();
     }
 
     fn speciate(&self) -> Vec<Specie>{
         let mut species: Vec<Specie> = vec![];
-        for genome in &self.genomes{
+        for organism in &self.organisms{
             let mut species_search = species.clone(); 
-            match species_search.iter_mut().find(|specie| specie.is_owner(&genome)) {
+            match species_search.iter_mut().find(|specie| specie.match_genome(&organism)) {
                 Some(specie) => {
-                    specie.add(genome.clone());
+                    specie.add(organism.clone());
                 },
                 None => {
-                    let mut specie = Specie::new(genome.clone());
-                    specie.add(genome.clone());
+                    let mut specie = Specie::new(organism.genome.clone());
+                    specie.add(organism.clone());
                     species.push(specie);
                 }
             };
@@ -59,14 +43,14 @@ impl Population {
         species
     }
 
-    fn create_genomes(&mut self, input_nodes: usize, output_nodes: usize, population_size: usize){
-        let mut genomes = vec![];
+    fn create_organisms(&mut self, input_nodes: usize, output_nodes: usize, population_size: usize){
+        let mut organisms = vec![];
 
-        while genomes.len() < population_size {
-            genomes.push(Genome::new(input_nodes, output_nodes));
+        while organisms.len() < population_size {
+            organisms.push(Organism::new(Genome::new(input_nodes, output_nodes)));
         }
 
-        self.genomes = genomes;
+        self.organisms = organisms;
     }
 }
 
@@ -84,7 +68,7 @@ mod tests {
         genome2.create_gene(1, 4, 1f64);
 
         let mut population = Population::create_population(10, 10, 0);
-        population.genomes = vec![genome1, genome2];
+        population.organisms = vec![Organism::new(genome1), Organism::new(genome2)];
         let species = population.speciate();
         assert!(species.len() == 2usize);
     }
