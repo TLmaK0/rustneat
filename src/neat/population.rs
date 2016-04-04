@@ -28,10 +28,10 @@ impl Population {
         let total_average_fitness = species.iter().fold(0f64, |total, specie| total + specie.average_fitness());
         let num_of_organisms = self.organisms.len().value_as::<f64>().unwrap();
         let organisms_by_average_fitness = num_of_organisms / total_average_fitness;
-        for specie in species {
+        for specie in &species {
             specie.generate_offspring((specie.average_fitness() * organisms_by_average_fitness).round() as u64);
         }
-        unimplemented!();
+        species.iter().flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>()
     }
 
     fn speciate(&self) -> Vec<Specie>{
