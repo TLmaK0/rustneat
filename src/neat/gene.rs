@@ -3,24 +3,24 @@ extern crate rand;
 use std::cmp::Ordering;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ConnectionGene{
+pub struct Gene{
     pub in_node_id: u32,
     pub out_node_id: u32,
     pub weight: f64,
     pub enabled: bool,
 }
 
-impl Eq for ConnectionGene {
+impl Eq for Gene {
 }
 
-impl PartialEq for ConnectionGene{
-    fn eq(&self, other: &ConnectionGene) -> bool {
+impl PartialEq for Gene{
+    fn eq(&self, other: &Gene) -> bool {
         self.in_node_id == other.in_node_id && self.out_node_id == other.out_node_id
     }
 }
 
-impl Ord for ConnectionGene{
-    fn cmp(&self, other: &ConnectionGene) -> Ordering {
+impl Ord for Gene{
+    fn cmp(&self, other: &Gene) -> Ordering {
         if self == other {
             Ordering::Equal
         }else if self.in_node_id == other.in_node_id {
@@ -37,20 +37,20 @@ impl Ord for ConnectionGene{
     }
 }
 
-impl PartialOrd for ConnectionGene{
-    fn partial_cmp(&self, other: &ConnectionGene) -> Option<Ordering> {
+impl PartialOrd for Gene{
+    fn partial_cmp(&self, other: &Gene) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl ConnectionGene {
+impl Gene {
     pub fn generate_weight () -> f64 {
         rand::random::<f64>()
     }
 }
 
-impl Default for ConnectionGene{
-    fn default () -> ConnectionGene {
-        ConnectionGene { in_node_id: 1, out_node_id: 1, weight: ConnectionGene::generate_weight(), enabled: true }
+impl Default for Gene{
+    fn default () -> Gene {
+        Gene { in_node_id: 1, out_node_id: 1, weight: Gene::generate_weight(), enabled: true }
     }
 }

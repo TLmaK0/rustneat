@@ -1,4 +1,5 @@
 extern crate conv;
+extern crate rand;
 
 use self::conv::prelude::*;
 use neat::genome::Genome;
@@ -10,6 +11,8 @@ pub struct Specie{
     representative: Genome,
     pub organisms: Vec<Organism>
 }
+
+const MUTATION_PROBABILITY: f64 = 0.5f64;
 
 impl Specie{
     pub fn new(genome: Genome) -> Specie{
@@ -30,7 +33,21 @@ impl Specie{
         total_fitness / organisms_count 
     }
 
-    pub fn generate_offspring(&self, num_of_organisms: u64){
+    pub fn generate_offspring(&self, num_of_organisms: usize, population_organisms: &Vec<Organism>) -> Vec<Organism>{
+        let mut rng = rand::thread_rng();
+        let selected_organisms = rand::sample(&mut rng, &self.organisms, num_of_organisms); 
+        selected_organisms.iter().map(|organism| self.create_child(organism, population_organisms)).collect::<Vec<Organism>>()
+    }
+
+    fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
+        if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() == 0 {
+            organism.mutate()
+        } else {
+            self.create_child_by_mate(organism, population_organisms)
+        }
+    }
+
+    fn create_child_by_mate(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
         unimplemented!();
     }
 }

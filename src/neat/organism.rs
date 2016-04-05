@@ -8,6 +8,10 @@ pub struct Organism {
 
 impl Organism {
     pub fn new(genome: Genome) -> Organism {
-       Organism{genome: genome, fitness: 0f64}
+        Organism { genome: genome, fitness: 0f64 }
+    }
+
+    pub fn mutate(&self) -> Organism {
+        Organism::new(self.genome.clone().mutate())
     }
 }

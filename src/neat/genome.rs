@@ -1,53 +1,80 @@
 extern crate conv;
+extern crate rand;
 
 use self::conv::prelude::*;
-use neat::connection_gene::ConnectionGene as ConnectionGene;
+use neat::gene::Gene as Gene;
 use neat::mutation::Mutation as Mutation;
 
 
 #[derive(Debug, Clone)]
 pub struct Genome{
-    connection_genes: Vec<ConnectionGene>,
+    genes: Vec<Gene>,
     input_nodes: usize,
     output_nodes: usize
 }
 
 const COMPATIBILITY_THRESHOLD: f64 = 1f64;
+const MUTATE_ADD_NODE_PROBABILITY: f64 = 0.33f64;
+const MUTATE_CONNECTION_WEIGHT: f64 = 0.33f64;
+const MUTATE_ADD_CONNECTION: f64 = 0.33f64;
 
 impl Genome{
 
     pub fn new(input_nodes: usize, output_nodes: usize) -> Genome {
         Genome { 
-            connection_genes: vec![],
+            genes: vec![],
             input_nodes: input_nodes,
             output_nodes: output_nodes 
         }
     }
 
-    pub fn create_gene(&mut self, in_node_id: u32, out_node_id: u32, weight: f64) -> ConnectionGene {
-        let gene = ConnectionGene {
+    pub fn create_gene(&mut self, in_node_id: u32, out_node_id: u32, weight: f64) -> Gene {
+        let gene = Gene {
             in_node_id: in_node_id,
             out_node_id: out_node_id,
             weight: weight,
             ..Default::default()
         };
-        self.connection_genes.push(gene);
+        self.genes.push(gene);
         gene
     }
 
-    pub fn mutate_add_node(&mut self, gene: &mut ConnectionGene, new_node_id: u32) -> (ConnectionGene, ConnectionGene) {
-        let (gene1, gene2) = Mutation::add_node(gene, new_node_id);
-        self.connection_genes.push(gene1);
-        self.connection_genes.push(gene2);
-        (gene1, gene2) 
+    pub fn mutate(&self) -> Genome {
+        let random = rand::random::<f64>();
+        if random > MUTATE_ADD_NODE_PROBABILITY + MUTATE_CONNECTION_WEIGHT{
+            self.mutate_add_connection()
+        } else if random > MUTATE_ADD_NODE_PROBABILITY {
+            self.mutate_connection_weight()
+        } else {
+            self.mutate_add_node()
+        }
     }
 
-    pub fn mutate_connection_weight(&mut self, gene: &mut ConnectionGene){
+    fn mutate_add_connection(&self) -> Genome {
+        unimplemented!();
+    }
+
+    fn mutate_connection_weight(&self) -> Genome {
+        unimplemented!();
+    }
+
+    fn mutate_add_node(&self) -> Genome {
+        unimplemented!();
+    }
+
+    fn add_node(&mut self, gene: &mut Gene, new_node_id: u32) {
+        let (gene1, gene2) = Mutation::add_node(gene, new_node_id);
+        self.genes.push(gene1);
+        self.genes.push(gene2);
+    }
+
+    fn change_connection_weight(&mut self, gene: &mut Gene){
         Mutation::connection_weight(gene)
     }
 
-    pub fn mutate_add_connection(&mut self, in_node_id: u32, out_node_id: u32) -> ConnectionGene {
-        Mutation::add_connection(in_node_id, out_node_id)
+    fn add_connection(&mut self, in_node_id: u32, out_node_id: u32) {
+        let gene = Mutation::add_connection(in_node_id, out_node_id);
+        self.genes.push(gene);
     }
 
     pub fn is_same_specie(&self, other: &Genome) -> bool{
@@ -56,14 +83,14 @@ impl Genome{
 
     pub fn total_weights(&self) -> f64{
         let mut total = 0f64;
-        for gene in &self.connection_genes {
+        for gene in &self.genes {
             total += gene.weight;
         }
         total
     }
 
     pub fn total_genes(&self) -> usize{
-        self.connection_genes.len()
+        self.genes.len()
     }
 
     //http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
@@ -74,15 +101,15 @@ impl Genome{
         let c3 = 0.5f64;
 
         //Number of excess
-        let n1 = self.connection_genes.len().value_as::<f64>().unwrap();
-        let n2 = other.connection_genes.len().value_as::<f64>().unwrap();
+        let n1 = self.genes.len().value_as::<f64>().unwrap();
+        let n2 = other.genes.len().value_as::<f64>().unwrap();
         let n = n1.max(n2);
 
         if n == 0f64 {
             return 0f64; //no genes in any genome, the genomes are equal
         }
 
-        let matching_genes  = self.connection_genes.iter().filter(|i1_gene| other.connection_genes.contains(i1_gene)).collect::<Vec<&ConnectionGene>>();
+        let matching_genes  = self.genes.iter().filter(|i1_gene| other.genes.contains(i1_gene)).collect::<Vec<&Gene>>();
 
         let n3 = matching_genes.len().value_as::<f64>().unwrap();
 
@@ -90,12 +117,49 @@ impl Genome{
         let d = n1 + n2 - (2f64 * n3);
 
         //average weight differences of matching genes
-        let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| acc + (m_gene.weight + other.connection_genes.get(other.connection_genes.binary_search(m_gene).unwrap()).unwrap().weight)).abs();
+        let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| acc + (m_gene.weight + other.genes.get(other.genes.binary_search(m_gene).unwrap()).unwrap().weight)).abs();
 
         let w = w1 / n3;
 
         //compatibility distance
         let delta = (c2 * d / n) + c3 * w;
         delta
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use neat::*;
+
+    #[test]
+    fn mutation_connection_weight(){
+        let mut genome = Genome::new(10, 10);
+        let mut gene = genome.create_gene(1, 1, 1f64);
+        let orig_gene = gene.clone();
+        genome.change_connection_weight(&mut gene);
+
+        assert!(gene.weight != orig_gene.weight);
+    }
+
+    #[test]
+    fn mutation_add_connection(){
+        let mut genome = Genome::new(10, 10);
+        genome.add_connection(1, 2);
+        
+        assert!(genome.genes[0].in_node_id == 1);
+        assert!(genome.genes[0].out_node_id == 2);
+    }
+
+    #[test]
+    fn mutation_add_node(){
+        let mut genome = Genome::new(10, 10);
+        let mut gene = genome.create_gene(1, 1, 1f64);
+        genome.add_node(&mut gene, 3);
+
+        assert!(!gene.enabled);
+        assert!(genome.genes[1].in_node_id == gene.in_node_id);
+        assert!(genome.genes[1].out_node_id == 3);
+        assert!(genome.genes[2].in_node_id == 3);
+        assert!(genome.genes[2].out_node_id == gene.out_node_id);
     }
 }
