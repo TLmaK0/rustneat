@@ -13,7 +13,7 @@ pub struct Genome{
 }
 
 const COMPATIBILITY_THRESHOLD: f64 = 1f64;
-const MUTATE_ADD_NEURON_PROBABILITY: f64 = 0.33f64;
+//const MUTATE_ADD_NEURON_PROBABILITY: f64 = 0.33f64;
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.33f64;
 const MUTATE_ADD_CONNECTION: f64 = 0.33f64;
 
@@ -62,6 +62,17 @@ impl Genome{
         genome
     }
 
+    // call this method directly can create non connected neurons
+    pub fn inject_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
+        if in_neuron_id > self.last_neuron_id {
+            self.last_neuron_id = in_neuron_id;
+        }
+        if out_neuron_id > self.last_neuron_id {
+            self.last_neuron_id = out_neuron_id;
+        }
+        self.create_gene(in_neuron_id, out_neuron_id, weight)
+    }
+
     fn create_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
         let gene = Gene {
             in_neuron_id: in_neuron_id,
@@ -101,10 +112,6 @@ impl Genome{
         };
         self.genes.push(gene1);
         self.genes.push(gene2);
-    }
-
-    fn change_connection_weight(&mut self, gene: &mut Gene){
-        Mutation::connection_weight(gene)
     }
 
     fn add_connection(&mut self, in_neuron_id: u32, out_neuron_id: u32) {
