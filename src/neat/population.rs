@@ -76,22 +76,22 @@ impl Population {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use neat::*;
-
-    #[test]
-    fn population_should_be_able_to_speciate_genomes(){
-        let mut genome1 = Genome::new();
-        genome1.create_gene(1, 1, 1f64);
-        genome1.create_gene(1, 2, 1f64);
-        let mut genome2 = Genome::new();
-        genome2.create_gene(1, 3, 1f64);
-        genome2.create_gene(1, 4, 1f64);
-
-        let mut population = Population::create_population(10, 0);
-        population.organisms = vec![Organism::new(genome1), Organism::new(genome2)];
-        let species = population.speciate();
-        assert!(species.len() == 2usize);
-    }
-}
+//#[cfg(test)]
+//mod tests {
+//    use neat::*;
+//
+//    #[test]
+//    fn population_should_be_able_to_speciate_genomes(){
+//        let mut genome1 = Genome::new();
+//        genome1.create_gene(1, 1, 1f64);
+//        genome1.create_gene(1, 2, 1f64);
+//        let mut genome2 = Genome::new();
+//        genome2.create_gene(1, 3, 1f64);
+//        genome2.create_gene(1, 4, 1f64);
+//
+//        let mut population = Population::create_population(10, 0);
+//        population.organisms = vec![Organism::new(genome1), Organism::new(genome2)];
+//        let species = population.speciate();
+//        assert!(species.len() == 2usize);
+//    }
+//}

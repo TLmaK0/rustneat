@@ -8,7 +8,8 @@ use neat::mutation::Mutation as Mutation;
 
 #[derive(Debug, Clone)]
 pub struct Genome{
-    genes: Vec<Gene>
+    genes: Vec<Gene>,
+    last_neuron_id: u32
 }
 
 const COMPATIBILITY_THRESHOLD: f64 = 1f64;
@@ -20,11 +21,12 @@ impl Genome{
 
     pub fn new() -> Genome {
         Genome { 
-            genes: vec![]
+            genes: vec![],
+            last_neuron_id: 0 //we need 1 neuron to start to mutate
         }
     }
 
-    pub fn create_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
+    fn create_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
         let gene = Gene {
             in_neuron_id: in_neuron_id,
             out_neuron_id: out_neuron_id,
@@ -45,8 +47,16 @@ impl Genome{
         }
     }
 
-    fn mutate_add_connection(&self) {
-        unimplemented!();
+    fn mutate_add_connection(&mut self) {
+        let mut rng = rand::thread_rng();
+        let connections = {
+            if self.last_neuron_id == 0 {
+                vec![0, 0]
+            } else {
+                rand::sample(&mut rng, 0..self.last_neuron_id + 1, 2)
+            }
+        };
+        self.add_connection(connections[0], connections[1]);
     }
 
     fn mutate_connection_weight(&mut self) {
@@ -60,9 +70,9 @@ impl Genome{
         let (gene1, gene2) = {
             let mut rng = rand::thread_rng();
             let selected_gene = rand::sample(&mut rng, 0..self.genes.len(), 1)[0];
-            let genes_len = self.genes.len().value_as::<u32>().unwrap();
             let gene = &mut self.genes[selected_gene];
-            Mutation::add_neuron(gene, genes_len + 1)
+            self.last_neuron_id += 1;
+            Mutation::add_neuron(gene, self.last_neuron_id)
         };
         self.genes.push(gene1);
         self.genes.push(gene2);
@@ -153,13 +163,35 @@ mod tests {
     #[test]
     fn mutation_add_neuron(){
         let mut genome = Genome::new();
-        genome.create_gene(1, 2, 1f64);
+        genome.mutate_add_connection();
         genome.mutate_add_neuron();
-
         assert!(!genome.genes[0].enabled);
         assert!(genome.genes[1].in_neuron_id == genome.genes[0].in_neuron_id);
-        assert!(genome.genes[1].out_neuron_id == 2);
-        assert!(genome.genes[2].in_neuron_id == 2);
+        assert!(genome.genes[1].out_neuron_id == 1);
+        assert!(genome.genes[2].in_neuron_id == 1);
         assert!(genome.genes[2].out_neuron_id == genome.genes[0].out_neuron_id);
+    }
+
+    #[test]
+    fn two_genomes_without_differences_should_be_in_same_specie(){
+        let mut genome1 = Genome::new();
+        genome1.create_gene(1, 1, 1f64);
+        genome1.create_gene(1, 2, 1f64);
+        let mut genome2 = Genome::new();
+        genome2.create_gene(1, 1, 0f64);
+        genome2.create_gene(1, 2, 0f64);
+        genome2.create_gene(1, 3, 0f64);
+        assert!(genome1.is_same_specie(&genome2));
+    }
+
+    #[test]
+    fn two_genomes_with_enought_difference_should_be_in_different_species(){
+        let mut genome1 = Genome::new();
+        genome1.create_gene(1, 1, 1f64);
+        genome1.create_gene(1, 2, 1f64);
+        let mut genome2 = Genome::new();
+        genome2.create_gene(1, 3, 1f64);
+        genome2.create_gene(1, 4, 1f64);
+        assert!(!genome1.is_same_specie(&genome2));
     }
 }

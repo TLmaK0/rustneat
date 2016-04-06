@@ -32,7 +32,6 @@ impl Mutation {
             weight: gene.weight,
             ..Default::default()
         };
-
         (gen1, gen2)
     }
 }
