@@ -49,8 +49,11 @@ impl Genome{
         unimplemented!();
     }
 
-    fn mutate_connection_weight(&self) {
-        unimplemented!();
+    fn mutate_connection_weight(&mut self) {
+        let mut rng = rand::thread_rng();
+        let selected_gene = rand::sample(&mut rng, 0..self.genes.len(), 1)[0];
+        let gene = &mut self.genes[selected_gene];
+        Mutation::connection_weight(gene);
     }
 
     fn mutate_add_neuron(&mut self) {
