@@ -56,9 +56,10 @@ impl Genome{
     fn mutate_add_neuron(&mut self) {
         let (gene1, gene2) = {
             let mut rng = rand::thread_rng();
-            let mut selected_gen = rand::sample(&mut rng, 0..self.genes.len(), 1);
+            let selected_gene = rand::sample(&mut rng, 0..self.genes.len(), 1)[0];
             let genes_len = self.genes.len().value_as::<u32>().unwrap();
-            Mutation::add_neuron(&mut self.genes[0], genes_len + 1)
+            let gene = &mut self.genes[selected_gene];
+            Mutation::add_neuron(gene, genes_len + 1)
         };
         self.genes.push(gene1);
         self.genes.push(gene2);
