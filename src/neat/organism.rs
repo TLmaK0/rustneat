@@ -14,4 +14,8 @@ impl Organism {
     pub fn mutate(&mut self) {
         self.genome.mutate();
     }
+
+    pub fn mate(&self, other: &Organism) -> Organism {
+       Organism::new(self.genome.mate(&other.genome))
+    }
 }

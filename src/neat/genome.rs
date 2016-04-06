@@ -26,16 +26,6 @@ impl Genome{
         }
     }
 
-    fn create_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
-        let gene = Gene {
-            in_neuron_id: in_neuron_id,
-            out_neuron_id: out_neuron_id,
-            weight: weight,
-            ..Default::default()
-        };
-        self.genes.push(gene);
-    }
-
     pub fn mutate(&mut self) {
         let random = rand::random::<f64>();
         if random > MUTATE_ADD_CONNECTION + MUTATE_CONNECTION_WEIGHT && self.genes.len() > 0 {
@@ -45,6 +35,41 @@ impl Genome{
         } else {
             self.mutate_add_connection();
         }
+    }
+
+    pub fn mate(&self, other: &Genome) -> Genome{
+        if self.genes.len() > other.genes.len() {
+            self.mate_genes(other)    
+        }else{
+            other.mate_genes(self)
+        }
+    }
+
+    fn mate_genes(&self, other: &Genome) -> Genome{
+        let mut genome = Genome::new();
+        for gene in &self.genes {
+            genome.genes.push({
+                if rand::random::<f64>() > 0.5f64 {
+                    match other.genes.binary_search(&gene) {
+                        Ok(position) => other.genes[position].clone(),
+                        Err(_) => gene.clone() 
+                    }
+                } else {
+                    gene.clone()
+                }
+            });
+        }
+        genome
+    }
+
+    fn create_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
+        let gene = Gene {
+            in_neuron_id: in_neuron_id,
+            out_neuron_id: out_neuron_id,
+            weight: weight,
+            ..Default::default()
+        };
+        self.genes.push(gene);
     }
 
     fn mutate_add_connection(&mut self) {

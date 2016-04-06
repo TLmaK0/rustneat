@@ -13,6 +13,7 @@ pub struct Specie{
 }
 
 const MUTATION_PROBABILITY: f64 = 0.5f64;
+const INTERSPECIE_MATE_PROBABILITY: f64 = 0.5f64;
 
 impl Specie{
     pub fn new(genome: Genome) -> Specie{
@@ -40,7 +41,7 @@ impl Specie{
     }
 
     fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
-        if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() == 0 {
+        if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() < 2 {
             let mut new_organism = organism.clone();
             new_organism.mutate();
             new_organism
@@ -50,7 +51,14 @@ impl Specie{
     }
 
     fn create_child_by_mate(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
-        unimplemented!();
+        let mut rng = rand::thread_rng();
+        if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
+            let selected_mate = rand::sample(&mut rng, 0..self.organisms.len(), 1)[0];
+            organism.mate(&self.organisms[selected_mate])
+        }else{
+            let selected_mate = rand::sample(&mut rng, 0..population_organisms.len(), 1)[0];
+            organism.mate(&population_organisms[selected_mate])
+        }
     }
 }
 
