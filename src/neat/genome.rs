@@ -8,25 +8,23 @@ use neat::mutation::Mutation as Mutation;
 
 #[derive(Debug, Clone)]
 pub struct Genome{
-    genes: Vec<Gene>,
-    initial_neurons: usize
+    genes: Vec<Gene>
 }
 
 const COMPATIBILITY_THRESHOLD: f64 = 1f64;
-const MUTATE_ADD_NODE_PROBABILITY: f64 = 0.33f64;
+const MUTATE_ADD_NEURON_PROBABILITY: f64 = 0.33f64;
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.33f64;
 const MUTATE_ADD_CONNECTION: f64 = 0.33f64;
 
 impl Genome{
 
-    pub fn new(initial_neurons: usize) -> Genome {
+    pub fn new() -> Genome {
         Genome { 
-            genes: vec![],
-            initial_neurons: initial_neurons,
+            genes: vec![]
         }
     }
 
-    pub fn create_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) -> Gene {
+    pub fn create_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
         let gene = Gene {
             in_neuron_id: in_neuron_id,
             out_neuron_id: out_neuron_id,
@@ -34,34 +32,34 @@ impl Genome{
             ..Default::default()
         };
         self.genes.push(gene);
-        gene
     }
 
-    pub fn mutate(&self) {
+    pub fn mutate(&mut self) {
         let random = rand::random::<f64>();
-        if random > MUTATE_ADD_NODE_PROBABILITY + MUTATE_CONNECTION_WEIGHT{
-            self.mutate_add_connection();
-        } else if random > MUTATE_ADD_NODE_PROBABILITY {
+        if random > MUTATE_ADD_CONNECTION + MUTATE_CONNECTION_WEIGHT && self.genes.len() > 0 {
+            self.mutate_add_neuron();
+        } else if random > MUTATE_ADD_CONNECTION && self.genes.len() > 0 {
             self.mutate_connection_weight();
         } else {
-            self.mutate_add_neuron();
+            self.mutate_add_connection();
         }
     }
 
-    fn mutate_add_connection(&self) -> Genome {
+    fn mutate_add_connection(&self) {
         unimplemented!();
     }
 
-    fn mutate_connection_weight(&self) -> Genome {
+    fn mutate_connection_weight(&self) {
         unimplemented!();
     }
 
-    fn mutate_add_neuron(&self) -> Genome {
-        unimplemented!();
-    }
-
-    fn add_neuron(&mut self, gene: &mut Gene, new_neuron_id: u32) {
-        let (gene1, gene2) = Mutation::add_neuron(gene, new_neuron_id);
+    fn mutate_add_neuron(&mut self) {
+        let (gene1, gene2) = {
+            let mut rng = rand::thread_rng();
+            let mut selected_gen = rand::sample(&mut rng, 0..self.genes.len(), 1);
+            let genes_len = self.genes.len().value_as::<u32>().unwrap();
+            Mutation::add_neuron(&mut self.genes[0], genes_len + 1)
+        };
         self.genes.push(gene1);
         self.genes.push(gene2);
     }
@@ -131,17 +129,17 @@ mod tests {
 
     #[test]
     fn mutation_connection_weight(){
-        let mut genome = Genome::new(10);
-        let mut gene = genome.create_gene(1, 1, 1f64);
-        let orig_gene = gene.clone();
-        genome.change_connection_weight(&mut gene);
+        let mut genome = Genome::new();
+        genome.create_gene(1, 1, 1f64);
+        let orig_gene = genome.genes[0].clone();
+        genome.mutate_connection_weight();
 
-        assert!(gene.weight != orig_gene.weight);
+        assert!(genome.genes[0].weight != orig_gene.weight);
     }
 
     #[test]
     fn mutation_add_connection(){
-        let mut genome = Genome::new(10);
+        let mut genome = Genome::new();
         genome.add_connection(1, 2);
         
         assert!(genome.genes[0].in_neuron_id == 1);
@@ -150,14 +148,14 @@ mod tests {
 
     #[test]
     fn mutation_add_neuron(){
-        let mut genome = Genome::new(10);
-        let mut gene = genome.create_gene(1, 1, 1f64);
-        genome.add_neuron(&mut gene, 3);
+        let mut genome = Genome::new();
+        genome.create_gene(1, 2, 1f64);
+        genome.mutate_add_neuron();
 
-        assert!(!gene.enabled);
-        assert!(genome.genes[1].in_neuron_id == gene.in_neuron_id);
-        assert!(genome.genes[1].out_neuron_id == 3);
-        assert!(genome.genes[2].in_neuron_id == 3);
-        assert!(genome.genes[2].out_neuron_id == gene.out_neuron_id);
+        assert!(!genome.genes[0].enabled);
+        assert!(genome.genes[1].in_neuron_id == genome.genes[0].in_neuron_id);
+        assert!(genome.genes[1].out_neuron_id == 2);
+        assert!(genome.genes[2].in_neuron_id == 2);
+        assert!(genome.genes[2].out_neuron_id == genome.genes[0].out_neuron_id);
     }
 }

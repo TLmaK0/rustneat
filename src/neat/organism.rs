@@ -11,7 +11,7 @@ impl Organism {
         Organism { genome: genome, fitness: 0f64 }
     }
 
-    pub fn mutate(&self) {
+    pub fn mutate(&mut self) {
         self.genome.mutate();
     }
 }

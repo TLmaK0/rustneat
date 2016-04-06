@@ -2,7 +2,7 @@ extern crate rand;
 
 use std::cmp::Ordering;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Gene{
     pub in_neuron_id: u32,
     pub out_neuron_id: u32,

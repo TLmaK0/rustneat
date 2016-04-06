@@ -41,7 +41,7 @@ impl Specie{
 
     fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
         if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() == 0 {
-            let new_organism = organism.clone();
+            let mut new_organism = organism.clone();
             new_organism.mutate();
             new_organism
         } else {
@@ -60,14 +60,14 @@ mod tests {
 
     #[test]
     fn specie_should_return_correct_average_fitness(){
-        let mut specie = Specie::new(Genome::new(1));
-        let mut organism1 = Organism::new(Genome::new(1));
+        let mut specie = Specie::new(Genome::new());
+        let mut organism1 = Organism::new(Genome::new());
         organism1.fitness = 10f64;
 
-        let mut organism2 = Organism::new(Genome::new(1));
+        let mut organism2 = Organism::new(Genome::new());
         organism2.fitness = 15f64;
 
-        let mut organism3 = Organism::new(Genome::new(1));
+        let mut organism3 = Organism::new(Genome::new());
         organism3.fitness = 20f64;
 
         specie.add(organism1);

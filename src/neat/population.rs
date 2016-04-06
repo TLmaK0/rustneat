@@ -69,7 +69,7 @@ impl Population {
         let mut organisms = vec![];
 
         while organisms.len() < population_size {
-            organisms.push(Organism::new(Genome::new(initial_neurons)));
+            organisms.push(Organism::new(Genome::new()));
         }
 
         self.organisms = organisms;
@@ -82,10 +82,10 @@ mod tests {
 
     #[test]
     fn population_should_be_able_to_speciate_genomes(){
-        let mut genome1 = Genome::new(10);
+        let mut genome1 = Genome::new();
         genome1.create_gene(1, 1, 1f64);
         genome1.create_gene(1, 2, 1f64);
-        let mut genome2 = Genome::new(10);
+        let mut genome2 = Genome::new();
         genome2.create_gene(1, 3, 1f64);
         genome2.create_gene(1, 4, 1f64);
 
