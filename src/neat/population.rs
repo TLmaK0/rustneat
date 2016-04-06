@@ -8,9 +8,9 @@ pub struct Population{
 }
 
 impl Population {
-    pub fn create_population(input_nodes: usize, output_nodes: usize, population_size: usize) -> Population {
+    pub fn create_population(initial_neurons: usize, population_size: usize) -> Population {
         let mut population = Population { organisms: vec![] };
-        population.create_organisms(input_nodes, output_nodes, population_size);
+        population.create_organisms(initial_neurons, population_size);
         population
     }
 
@@ -25,13 +25,24 @@ impl Population {
     fn generate_offspring(&self) -> Vec<Organism>{
         let species = self.speciate();
         //TODO: adjust species fitness to protect younger species
-        let total_average_fitness = species.iter().fold(0f64, |total, specie| total + specie.average_fitness());
-        let num_of_organisms = self.organisms.len().value_as::<f64>().unwrap();
+        let total_average_fitness = species.iter()
+            .fold(0f64, |total, specie| total + specie.average_fitness());
+
+        let num_of_organisms = self.organisms.len()
+            .value_as::<f64>().unwrap();
+
         let organisms_by_average_fitness = num_of_organisms / total_average_fitness;
-        let organisms = species.iter().flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>();
+
+        let organisms = species.iter()
+            .flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>();
+
         for specie in &species {
-            specie.generate_offspring((specie.average_fitness() * organisms_by_average_fitness).round() as usize, &organisms);
+            specie.generate_offspring(
+                    (specie.average_fitness() * organisms_by_average_fitness)
+                        .round() as usize,
+                     &organisms);
         }
+
         species.iter().flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>()
     }
 
@@ -54,11 +65,11 @@ impl Population {
         species
     }
 
-    fn create_organisms(&mut self, input_nodes: usize, output_nodes: usize, population_size: usize){
+    fn create_organisms(&mut self, initial_neurons: usize, population_size: usize){
         let mut organisms = vec![];
 
         while organisms.len() < population_size {
-            organisms.push(Organism::new(Genome::new(input_nodes, output_nodes)));
+            organisms.push(Organism::new(Genome::new(initial_neurons)));
         }
 
         self.organisms = organisms;
@@ -71,14 +82,14 @@ mod tests {
 
     #[test]
     fn population_should_be_able_to_speciate_genomes(){
-        let mut genome1 = Genome::new(10, 10);
+        let mut genome1 = Genome::new(10);
         genome1.create_gene(1, 1, 1f64);
         genome1.create_gene(1, 2, 1f64);
-        let mut genome2 = Genome::new(10, 10);
+        let mut genome2 = Genome::new(10);
         genome2.create_gene(1, 3, 1f64);
         genome2.create_gene(1, 4, 1f64);
 
-        let mut population = Population::create_population(10, 10, 0);
+        let mut population = Population::create_population(10, 0);
         population.organisms = vec![Organism::new(genome1), Organism::new(genome2)];
         let species = population.speciate();
         assert!(species.len() == 2usize);

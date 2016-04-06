@@ -8,27 +8,27 @@ impl Mutation {
         gene.weight = Gene::generate_weight()
     }
 
-    pub fn add_connection (in_node_id: u32, out_node_id: u32) -> (Gene) {
+    pub fn add_connection (in_neuron_id: u32, out_neuron_id: u32) -> (Gene) {
         Gene { 
-            in_node_id: in_node_id,
-            out_node_id: out_node_id,
+            in_neuron_id: in_neuron_id,
+            out_neuron_id: out_neuron_id,
             ..Default::default()
         } 
     }
 
-    pub fn add_node (gene: &mut Gene, new_node_id: u32) -> (Gene, Gene) {
+    pub fn add_neuron (gene: &mut Gene, new_neuron_id: u32) -> (Gene, Gene) {
         gene.enabled = false;
 
         let gen1 = Gene {
-            in_node_id: gene.in_node_id,
-            out_node_id: new_node_id,
+            in_neuron_id: gene.in_neuron_id,
+            out_neuron_id: new_neuron_id,
             weight: 1f64,
             ..Default::default()
         };
 
         let gen2 = Gene {
-            in_node_id: new_node_id,
-            out_node_id: gene.out_node_id,
+            in_neuron_id: new_neuron_id,
+            out_neuron_id: gene.out_neuron_id,
             weight: gene.weight,
             ..Default::default()
         };

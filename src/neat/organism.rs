@@ -11,7 +11,7 @@ impl Organism {
         Organism { genome: genome, fitness: 0f64 }
     }
 
-    pub fn mutate(&self) -> Organism {
-        Organism::new(self.genome.clone().mutate())
+    pub fn mutate(&self) {
+        self.genome.mutate();
     }
 }
