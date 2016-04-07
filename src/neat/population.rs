@@ -3,8 +3,10 @@ extern crate conv;
 use self::conv::prelude::*;
 use neat::*;
 
+
+#[derive(Debug)]
 pub struct Population{
-    organisms: Vec<Organism>
+    pub organisms: Vec<Organism>
 }
 
 impl Population {
@@ -23,8 +25,7 @@ impl Population {
     }
 
     fn generate_offspring(&self) -> Vec<Organism>{
-        let species = self.speciate();
-        //TODO: adjust species fitness to protect younger species
+        let mut species = self.speciate();
         let total_average_fitness = species.iter()
             .fold(0f64, |total, specie| total + specie.average_fitness());
 
@@ -35,12 +36,9 @@ impl Population {
 
         let organisms = species.iter()
             .flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>();
-
-        for specie in &species {
-            specie.generate_offspring(
-                    (specie.average_fitness() * organisms_by_average_fitness)
-                        .round() as usize,
-                     &organisms);
+        for specie in &mut species {
+            let offspring_size = (specie.average_fitness() * organisms_by_average_fitness).round() as usize;
+            specie.generate_offspring(offspring_size, &organisms);
         }
 
         species.iter().flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>()
@@ -49,19 +47,19 @@ impl Population {
     fn speciate(&self) -> Vec<Specie>{
         let mut species: Vec<Specie> = vec![];
         for organism in &self.organisms{
-            let mut species_search = species.clone(); 
-            match species_search.iter_mut().find(|specie| specie.match_genome(&organism)) {
+            let mut new_specie: Option<Specie> = None;
+            match species.iter_mut().find(|specie| specie.match_genome(&organism)) {
                 Some(specie) => {
                     specie.add(organism.clone());
                 },
                 None => {
                     let mut specie = Specie::new(organism.genome.clone());
                     specie.add(organism.clone());
-                    species.push(specie);
+                    new_specie = Some(specie);
                 }
             };
+            new_specie.map(|specie| species.push(specie));
         }
-
         species
     }
 

@@ -9,7 +9,10 @@ fn should_be_able_to_generate_a_population(){
 
 #[test]
 fn population_can_evolve(){
-    let mut population = Population::create_population(5);
+    let mut population = Population::create_population(1);
     population.evolve();
+    let genome = &population.organisms[0].genome;
+    assert!(genome.total_genes() == 1);
+    assert!(genome.total_weights() != 0f64);
 }
 

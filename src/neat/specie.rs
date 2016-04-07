@@ -34,16 +34,21 @@ impl Specie{
         total_fitness / organisms_count 
     }
 
-    pub fn generate_offspring(&self, num_of_organisms: usize, population_organisms: &Vec<Organism>) -> Vec<Organism>{
+    pub fn generate_offspring(&mut self, num_of_organisms: usize, population_organisms: &Vec<Organism>){
         let mut rng = rand::thread_rng();
-        let selected_organisms = rand::sample(&mut rng, &self.organisms, num_of_organisms); 
-        selected_organisms.iter().map(|organism| self.create_child(organism, population_organisms)).collect::<Vec<Organism>>()
+        let offspring: Vec<Organism>;
+        {
+            let selected_organisms = rand::sample(&mut rng, &self.organisms, num_of_organisms); 
+            offspring = selected_organisms.iter().map(|organism| self.create_child(organism, population_organisms)).collect::<Vec<Organism>>();
+        }
+        self.organisms = offspring;
     }
 
     fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
         if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() < 2 {
             let mut new_organism = organism.clone();
             new_organism.mutate();
+
             new_organism
         } else {
             self.create_child_by_mate(organism, population_organisms)
