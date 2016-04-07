@@ -24,6 +24,12 @@ impl Population {
         self.organisms = self.generate_offspring();
     }
 
+    pub fn evaluate_in(&mut self, environment: &Environment){
+        for organism in &mut self.organisms {
+            organism.fitness = environment.test(organism);
+        }
+    }
+
     fn generate_offspring(&self) -> Vec<Organism>{
         let mut species = self.speciate();
         let total_average_fitness = species.iter()
