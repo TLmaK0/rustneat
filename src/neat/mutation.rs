@@ -8,7 +8,7 @@ impl Mutation {
         gene.weight = Gene::generate_weight()
     }
 
-    pub fn add_connection (in_neuron_id: u32, out_neuron_id: u32) -> (Gene) {
+    pub fn add_connection (in_neuron_id: usize, out_neuron_id: usize) -> (Gene) {
         Gene { 
             in_neuron_id: in_neuron_id,
             out_neuron_id: out_neuron_id,
@@ -16,7 +16,7 @@ impl Mutation {
         } 
     }
 
-    pub fn add_neuron (gene: &mut Gene, new_neuron_id: u32) -> (Gene, Gene) {
+    pub fn add_neuron (gene: &mut Gene, new_neuron_id: usize) -> (Gene, Gene) {
         gene.enabled = false;
 
         let gen1 = Gene {

@@ -87,11 +87,13 @@ mod tests {
     #[test]
     fn population_should_be_able_to_speciate_genomes(){
         let mut genome1 = Genome::new();
-        genome1.inject_gene(1, 1, 1f64);
-        genome1.inject_gene(1, 2, 1f64);
+        genome1.inject_gene(0, 0, 1f64);
+        genome1.inject_gene(0, 1, 1f64);
         let mut genome2 = Genome::new();
-        genome2.inject_gene(1, 3, 1f64);
-        genome2.inject_gene(1, 4, 1f64);
+        genome1.inject_gene(0, 0, 1f64);
+        genome1.inject_gene(0, 1, 1f64);
+        genome2.inject_gene(1, 1, 1f64);
+        genome2.inject_gene(1, 0, 1f64);
 
         let mut population = Population::create_population(0);
         population.organisms = vec![Organism::new(genome1), Organism::new(genome2)];

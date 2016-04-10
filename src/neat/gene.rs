@@ -4,8 +4,8 @@ use std::cmp::Ordering;
 
 #[derive(Debug, Clone)]
 pub struct Gene{
-    pub in_neuron_id: u32,
-    pub out_neuron_id: u32,
+    pub in_neuron_id: usize,
+    pub out_neuron_id: usize,
     pub weight: f64,
     pub enabled: bool,
 }

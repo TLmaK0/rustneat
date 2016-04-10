@@ -9,7 +9,7 @@ use neat::mutation::Mutation as Mutation;
 #[derive(Debug, Clone)]
 pub struct Genome{
     genes: Vec<Gene>,
-    last_neuron_id: u32
+    last_neuron_id: usize
 }
 
 const COMPATIBILITY_THRESHOLD: f64 = 1f64;
@@ -62,8 +62,21 @@ impl Genome{
         genome
     }
 
-    // call this method directly can create non connected neurons
-    pub fn inject_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
+    pub fn get_genes<'a>(&'a self)-> &'a Vec<Gene>{
+        &self.genes
+    }
+
+    // only allow connected nodes 
+    pub fn inject_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
+        let max_neuron_id = self.last_neuron_id + 1;
+
+        if in_neuron_id == out_neuron_id && in_neuron_id > max_neuron_id {
+            panic!("Try to create a gene neuron unconnected, max neuron id {}, {} -> {}", max_neuron_id, in_neuron_id, out_neuron_id);
+        }
+
+        assert!(in_neuron_id <= max_neuron_id, format!("in_neuron_id {} is greater than max allowed id {}", in_neuron_id, max_neuron_id));
+        assert!(out_neuron_id <= max_neuron_id, format!("out_neuron_id {} is greater than max allowed id {}", out_neuron_id, max_neuron_id));
+
         if in_neuron_id > self.last_neuron_id {
             self.last_neuron_id = in_neuron_id;
         }
@@ -73,7 +86,11 @@ impl Genome{
         self.create_gene(in_neuron_id, out_neuron_id, weight)
     }
 
-    fn create_gene(&mut self, in_neuron_id: u32, out_neuron_id: u32, weight: f64) {
+    pub fn len(&self) -> usize{
+        self.last_neuron_id + 1 //first neuron id is 0
+    }
+
+    fn create_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
         let gene = Gene {
             in_neuron_id: in_neuron_id,
             out_neuron_id: out_neuron_id,
@@ -114,7 +131,7 @@ impl Genome{
         self.genes.push(gene2);
     }
 
-    fn add_connection(&mut self, in_neuron_id: u32, out_neuron_id: u32) {
+    fn add_connection(&mut self, in_neuron_id: usize, out_neuron_id: usize) {
         let gene = Mutation::add_connection(in_neuron_id, out_neuron_id);
         self.genes.push(gene);
     }
@@ -202,6 +219,13 @@ mod tests {
         assert!(genome.genes[1].out_neuron_id == 1);
         assert!(genome.genes[2].in_neuron_id == 1);
         assert!(genome.genes[2].out_neuron_id == genome.genes[0].out_neuron_id);
+    }
+
+    #[test]
+    #[should_panic(expected = "Try to create a gene neuron unconnected, max neuron id 1, 2 -> 2")]
+    fn try_to_inject_a_unconnected_neuron_gene_should_panic(){
+        let mut genome1 = Genome::new();
+        genome1.inject_gene(2, 2, 0.5f64);
     }
 
     #[test]
