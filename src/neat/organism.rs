@@ -20,10 +20,25 @@ impl Organism {
        Organism::new(self.genome.mate(&other.genome))
     }
 
-    pub fn activate(&mut self, sensors: Vec<f64>){
+    pub fn activate(&mut self, sensors: &Vec<f64>, outputs: &mut Vec<f64>){
        if self.neurons.len() == 0 {
            self.generate_phenome();
        };
+
+       for neuron_id in 0..sensors.len() {
+           if neuron_id < self.neurons.len() {
+               self.neurons[neuron_id].as_mut().map(|neuron| neuron.stimulate(sensors[neuron_id]));
+           }
+       }
+
+       //Take outputs from next neurons after sensors
+       for neuron_id in sensors.len()..outputs.len(){
+           if neuron_id < self.neurons.len() {
+               outputs[neuron_id - sensors.len()] = self.neurons[neuron_id].as_ref().map_or(0f64, |neuron| neuron.potential());
+           } else {
+               outputs[neuron_id - sensors.len()] = 0f64;
+           }
+       }
     }
 
     fn generate_phenome(&mut self){
