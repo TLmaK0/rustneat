@@ -13,15 +13,22 @@ impl Neuron{
     }
 
     pub fn stimulate(&mut self, stimul: f64){
+        self.potential = 0f64; //potential is incorrect when we are changing input values
         self.input += stimul;
     }
 
     pub fn potential(&self) -> f64 {
         self.potential
     }
+    
+    pub fn stimulation(&self) -> f64 {
+        self.input
+    }
 
-    pub fn shot(&mut self) {
-       self.potential = 1f64 / ( 1f64 +  self.input.exp() );
-       self.input = 0f64;
+    pub fn shot(&mut self, is_sensor: bool) {
+       self.potential = 1f64 / ( 1f64 +  (-self.input).exp() );
+       if !is_sensor {
+           self.input = 0f64;
+       }
     }
 }
