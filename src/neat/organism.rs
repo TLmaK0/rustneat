@@ -7,6 +7,8 @@ pub struct Organism {
     pub neurons: Vec<Option<Neuron>>
 }
 
+const ACTIVATION_CYCLES: usize = 5;
+
 impl Organism {
     pub fn new(genome: Genome) -> Organism {
         Organism { genome: genome, fitness: 0f64, neurons: vec![] }
@@ -27,18 +29,38 @@ impl Organism {
 
        for neuron_id in 0..sensors.len() {
            if neuron_id < self.neurons.len() {
-               self.neurons[neuron_id].as_mut().map(|neuron| neuron.stimulate(sensors[neuron_id]));
+               self.neurons[neuron_id].as_mut().unwrap().stimulate(sensors[neuron_id]);
            }
        }
 
+       for _n in 0..ACTIVATION_CYCLES {
+           self.activate_neurons();
+           self.propagate_signals();
+       }
+
        //Take outputs from next neurons after sensors
-       for neuron_id in sensors.len()..outputs.len(){
+       for neuron_id in sensors.len()..(sensors.len() + outputs.len()){
            if neuron_id < self.neurons.len() {
                outputs[neuron_id - sensors.len()] = self.neurons[neuron_id].as_ref().map_or(0f64, |neuron| neuron.potential());
            } else {
                outputs[neuron_id - sensors.len()] = 0f64;
            }
        }
+    }
+
+    fn activate_neurons(&mut self){
+        for neuron in &mut self.neurons {
+          neuron.as_mut().unwrap().shot();
+        }
+    }
+
+    fn propagate_signals(&mut self){
+        for neuron_option in self.neurons.clone() {
+            let neuron = neuron_option.unwrap();
+            for connection in &neuron.connections {
+               self.neurons[connection.0].as_mut().unwrap().stimulate(neuron.potential() * connection.1);
+            }
+        }
     }
 
     fn generate_phenome(&mut self){
@@ -49,6 +71,10 @@ impl Organism {
         for gene in self.genome.get_genes() {
             if self.neurons[gene.in_neuron_id].is_none(){
                 self.neurons[gene.in_neuron_id] = Some(Neuron::new())
+            }
+
+            if self.neurons[gene.out_neuron_id].is_none(){
+                self.neurons[gene.out_neuron_id] = Some(Neuron::new())
             }
 
             let mut neuron = self.neurons[gene.in_neuron_id].as_mut().unwrap();
@@ -84,5 +110,15 @@ mod tests {
         let connection11 = &neuron1.connections[1];
         assert!(connection11.0 == 0usize);
         assert!(connection11.1 == 0.4f64);
+    }
+
+    #[test]
+    fn should_activate_outputs(){
+        let mut organism = Organism::new(Genome::new());
+        organism.genome.inject_gene(0, 1, 1f64.ln());
+        let sensors = vec![1f64];
+        let mut output = vec![0f64];
+        organism.activate(&sensors, &mut output);
+        assert!(output[0] == 0.5f64);
     }
 }
