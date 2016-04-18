@@ -48,7 +48,7 @@ impl Genome{
     fn mate_genes(&self, other: &Genome) -> Genome{
         let mut genome = Genome::new();
         for gene in &self.genes {
-            genome.genes.push({
+            genome.add_gene({
                 if rand::random::<f64>() > 0.5f64 {
                     match other.genes.binary_search(&gene) {
                         Ok(position) => other.genes[position].clone(),
@@ -97,19 +97,19 @@ impl Genome{
             weight: weight,
             ..Default::default()
         };
-        self.genes.push(gene);
+        self.add_gene(gene);
     }
 
     fn mutate_add_connection(&mut self) {
         let mut rng = rand::thread_rng();
-        let connections = {
+        let neuron_ids_to_connect = {
             if self.last_neuron_id == 0 {
                 vec![0, 0]
             } else {
                 rand::sample(&mut rng, 0..self.last_neuron_id + 1, 2)
             }
         };
-        self.add_connection(connections[0], connections[1]);
+        self.add_connection(neuron_ids_to_connect[0], neuron_ids_to_connect[1]);
     }
 
     fn mutate_connection_weight(&mut self) {
@@ -127,13 +127,19 @@ impl Genome{
             self.last_neuron_id += 1;
             Mutation::add_neuron(gene, self.last_neuron_id)
         };
-        self.genes.push(gene1);
-        self.genes.push(gene2);
+        self.add_gene(gene1);
+        self.add_gene(gene2);
     }
 
     fn add_connection(&mut self, in_neuron_id: usize, out_neuron_id: usize) {
         let gene = Mutation::add_connection(in_neuron_id, out_neuron_id);
-        self.genes.push(gene);
+        self.add_gene(gene);
+    }
+
+    fn add_gene(&mut self, gene: Gene){
+        if !self.genes.contains(&gene) {
+            self.genes.push(gene);
+        }
     }
 
     pub fn is_same_specie(&self, other: &Genome) -> bool{
@@ -249,5 +255,14 @@ mod tests {
         genome2.create_gene(1, 3, 1f64);
         genome2.create_gene(1, 4, 1f64);
         assert!(!genome1.is_same_specie(&genome2));
+    }
+
+    #[test]
+    fn already_existing_gene_should_be_not_duplicated(){
+        let mut genome1 = Genome::new();
+        genome1.create_gene(0, 0, 1f64);
+        genome1.add_connection(0, 0);
+        assert!(genome1.genes.len() == 1);
+        assert!(genome1.get_genes()[0].weight == 1f64);
     }
 }
