@@ -34,7 +34,7 @@ impl Organism {
        }
 
        for _n in 0..ACTIVATION_CYCLES {
-           self.activate_neurons(sensors.len(), outputs.len());
+           self.activate_neurons(sensors.len());
            self.propagate_signals();
        }
 
@@ -48,7 +48,7 @@ impl Organism {
        }
     }
 
-    fn activate_neurons(&mut self, sensor_neurons_size: usize, output_neurons_size: usize){
+    fn activate_neurons(&mut self, sensor_neurons_size: usize){
         //Don't reset sensor neurons during activation
         for neuron_id in 0..sensor_neurons_size {
             self.neurons[neuron_id].as_mut().unwrap().shot(true);
@@ -128,4 +128,38 @@ mod tests {
     }
 
 
+    fn sigmoid(x: f64) -> f64 {
+       1f64 / ( 1f64 +  (-x).exp() )
+    }
+
+    #[test]
+    fn should_propagate_signal_over_hidden_layers(){
+        let mut organism = Organism::new(Genome::new());
+        organism.genome.inject_gene(0, 1, 0f64); //disable connection
+        organism.genome.inject_gene(0, 2, 1f64);
+        organism.genome.inject_gene(2, 1, 1f64);
+        let sensors = vec![0f64];
+        let mut output = vec![0f64];
+        organism.activate(&sensors, &mut output);
+        assert!(output[0] == sigmoid(sigmoid(sensors[0])), format!("{:?} is not 0.5", output[0]));
+    }
+
+    #[test]
+    fn should_work_with_cyclic_networks(){
+        let mut organism = Organism::new(Genome::new());
+        organism.genome.inject_gene(0, 1, 1f64); 
+        organism.genome.inject_gene(1, 2, 1f64);
+        organism.genome.inject_gene(2, 1, 1f64);
+        let sensors = vec![0f64];
+        let mut output = vec![0f64];
+        organism.activate(&sensors, &mut output);
+        let mut n1 = 0f64;
+        let mut n2 = 0f64;
+        for _n in 0..5 {
+            let temp = n1;
+            n1 = sigmoid(0f64) + sigmoid(n2);
+            n2 = sigmoid(temp); 
+        }
+        assert!(output[0] == n1, format!("{:?} is not {:?}", output[0], n1));
+    }
 }
