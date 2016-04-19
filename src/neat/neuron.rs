@@ -13,7 +13,6 @@ impl Neuron{
     }
 
     pub fn stimulate(&mut self, stimul: f64){
-        self.potential = 0f64; //potential is incorrect when we are changing input values
         self.input += stimul;
     }
 

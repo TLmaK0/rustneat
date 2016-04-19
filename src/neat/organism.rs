@@ -41,7 +41,7 @@ impl Organism {
        //Take outputs from next neurons after sensors
        for neuron_id in sensors.len()..(sensors.len() + outputs.len()){
            if neuron_id < self.neurons.len() {
-               outputs[neuron_id - sensors.len()] = self.neurons[neuron_id].as_ref().map_or(0f64, |neuron| neuron.stimulation());
+               outputs[neuron_id - sensors.len()] = self.neurons[neuron_id].as_ref().map_or(0f64, |neuron| neuron.potential());
            } else {
                outputs[neuron_id - sensors.len()] = 0f64;
            }
@@ -91,8 +91,8 @@ mod tests {
         let mut organism = Organism::new(Genome::new());
         organism.genome.inject_gene(0, 0, 0.1f64);
         organism.genome.inject_gene(0, 1, 0.2f64);
-        organism.genome.inject_gene(1, 1, 0.3f64);
-        organism.genome.inject_gene(1, 0, 0.4f64);
+        organism.genome.inject_gene(1, 0, 0.3f64);
+        organism.genome.inject_gene(1, 1, 0.4f64);
         organism.generate_phenome();
         assert!(organism.neurons.len() == 2);
         let neuron0 = &organism.neurons[0].as_ref().unwrap();
@@ -104,10 +104,10 @@ mod tests {
         assert!(connection01.1 == 0.2f64);
         let neuron1 = &organism.neurons[1].as_ref().unwrap();
         let connection10 = &neuron1.connections[0];
-        assert!(connection10.0 == 1usize);
+        assert!(connection10.0 == 0usize);
         assert!(connection10.1 == 0.3f64);
         let connection11 = &neuron1.connections[1];
-        assert!(connection11.0 == 0usize);
+        assert!(connection11.0 == 1usize);
         assert!(connection11.1 == 0.4f64);
     }
 
