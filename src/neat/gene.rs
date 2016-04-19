@@ -54,3 +54,23 @@ impl Default for Gene{
         Gene { in_neuron_id: 1, out_neuron_id: 1, weight: Gene::generate_weight(), enabled: true }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use neat::*;
+
+    fn g(n_in: usize, n_out: usize)-> Gene {
+        Gene{ in_neuron_id: n_in, out_neuron_id: n_out, ..Gene::default() }
+    }
+
+    #[test]
+    fn should_be_able_to_binary_search_for_a_gene(){
+        let mut genome = vec![g(0,1), g(0,2), g(3,2), g(2,3), g(1,5)];
+        genome.sort();
+        genome.binary_search(&g(0,1)).unwrap();
+        genome.binary_search(&g(0,2)).unwrap();
+        genome.binary_search(&g(1,5)).unwrap();
+        genome.binary_search(&g(2,3)).unwrap();
+        genome.binary_search(&g(3,2)).unwrap();
+    }
+}

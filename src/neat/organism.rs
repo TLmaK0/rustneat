@@ -51,7 +51,9 @@ impl Organism {
     fn activate_neurons(&mut self, sensor_neurons_size: usize){
         //Don't reset sensor neurons during activation
         for neuron_id in 0..sensor_neurons_size {
-            self.neurons[neuron_id].as_mut().unwrap().shot(true);
+            if neuron_id < self.neurons.len() {
+                self.neurons[neuron_id].as_mut().unwrap().shot(true);
+            }
         }
 
         for neuron_id in sensor_neurons_size..self.neurons.len() {
@@ -71,17 +73,9 @@ impl Organism {
     fn generate_phenome(&mut self){
         let neurons_to_generate = self.genome.len();
 
-        self.neurons = vec![None; neurons_to_generate as usize];
+        self.neurons = vec![Some(Neuron::new()); neurons_to_generate as usize];
 
         for gene in self.genome.get_genes() {
-            if self.neurons[gene.in_neuron_id].is_none(){
-                self.neurons[gene.in_neuron_id] = Some(Neuron::new())
-            }
-
-            if self.neurons[gene.out_neuron_id].is_none(){
-                self.neurons[gene.out_neuron_id] = Some(Neuron::new())
-            }
-
             let mut neuron = self.neurons[gene.in_neuron_id].as_mut().unwrap();
             neuron.connections.push(Connection(gene.out_neuron_id, gene.weight));
         }
@@ -161,5 +155,14 @@ mod tests {
             n2 = sigmoid(temp); 
         }
         assert!(output[0] == n1, format!("{:?} is not {:?}", output[0], n1));
+    }
+
+    #[test]
+    fn activate_organims_sensor_without_enough_neurons_should_ignore_it(){
+        let mut organism = Organism::new(Genome::new());
+        organism.genome.inject_gene(0, 1, 1f64); 
+        let sensors = vec![0f64,0f64,0f64];
+        let mut output = vec![0f64];
+        organism.activate(&sensors, &mut output);
     }
 }

@@ -140,6 +140,7 @@ impl Genome{
             Ok(pos) => self.genes[pos].enabled = true,
             Err(_) => self.genes.push(gene)
         }
+        self.genes.sort();
     }
 
     pub fn is_same_specie(&self, other: &Genome) -> bool{
@@ -175,7 +176,6 @@ impl Genome{
         }
 
         let matching_genes  = self.genes.iter().filter(|i1_gene| other.genes.contains(i1_gene)).collect::<Vec<&Gene>>();
-
         let n3 = matching_genes.len().value_as::<f64>().unwrap();
 
         //Disjoint genes

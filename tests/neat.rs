@@ -7,8 +7,27 @@ mod test{
     struct MyEnvironment;
 
     impl Environment for MyEnvironment{
-        fn test(&self, _: &Organism) -> f64 {
+        fn test(&self, _: &mut Organism) -> f64 {
             0.1234f64
+        }
+    }
+
+    struct XORClassification;
+
+    impl Environment for XORClassification{
+        fn test(&self, organism: &mut Organism) -> f64 {
+            let mut output = vec![0f64];
+            let mut distance: f64;
+
+            organism.activate(&vec![0f64,0f64], &mut output); 
+            distance = (0f64 - output[0]).abs();
+            organism.activate(&vec![0f64,1f64], &mut output); 
+            distance += (0f64 - output[0]).abs();
+            organism.activate(&vec![1f64,0f64], &mut output); 
+            distance += (1f64 - output[0]).abs();
+            organism.activate(&vec![1f64,1f64], &mut output); 
+            distance += (1f64 - output[0]).abs();
+            (4f64 - distance).powi(2)
         }
     }
 
@@ -33,5 +52,34 @@ mod test{
         let environment = MyEnvironment;
         population.evaluate_in(&environment);
         assert!(population.organisms[0].fitness == 0.1234f64);
+    }
+
+    #[test]
+    fn network_should_be_able_to_solve_xor_classification(){
+        let mut population = Population::create_population(10);
+        let environment = XORClassification;
+        let mut found = false;
+        let mut champion: Option<Organism> = None;
+        let mut generation = 0;
+        let mut actual_fitness = 0f64;
+        while !found {
+            population.evaluate_in(&environment);
+            for organism in &population.organisms {
+                if organism.fitness > actual_fitness {
+                    actual_fitness = organism.fitness
+                }
+
+                if organism.fitness > 15.9f64 {
+                    champion = Some(organism.clone());
+                    found = true;
+                }
+            }
+            population.evolve();
+            generation += 1;
+            if generation == 50 {
+                found = true;
+            }
+        }
+        assert!(champion.is_some(), "Not able to solve XOR classification");
     }
 }
