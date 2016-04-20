@@ -46,13 +46,14 @@ impl Specie{
 
     fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
         if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() < 2 {
-            let mut new_organism = organism.clone();
-            new_organism.mutate();
-
-            new_organism
+            self.create_child_by_mutation(organism)
         } else {
             self.create_child_by_mate(organism, population_organisms)
         }
+    }
+
+    fn create_child_by_mutation(&self, organism: &Organism) -> Organism {
+        organism.mutate()
     }
 
     fn create_child_by_mate(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {

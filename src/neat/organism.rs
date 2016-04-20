@@ -7,19 +7,21 @@ pub struct Organism {
     pub neurons: Vec<Option<Neuron>>
 }
 
-const ACTIVATION_CYCLES: usize = 5;
+const ACTIVATION_CYCLES: usize = 1;
 
 impl Organism {
     pub fn new(genome: Genome) -> Organism {
         Organism { genome: genome, fitness: 0f64, neurons: vec![] }
     }
 
-    pub fn mutate(&mut self) {
-        self.genome.mutate();
+    pub fn mutate(&self) -> Organism {
+        let mut new_genome = self.genome.clone();
+        new_genome.mutate();
+        Organism::new(new_genome)
     }
 
     pub fn mate(&self, other: &Organism) -> Organism {
-       Organism::new(self.genome.mate(&other.genome))
+        Organism::new(self.genome.mate(&other.genome))
     }
 
     pub fn activate(&mut self, sensors: &Vec<f64>, outputs: &mut Vec<f64>){

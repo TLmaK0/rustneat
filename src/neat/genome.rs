@@ -12,9 +12,10 @@ pub struct Genome{
     last_neuron_id: usize
 }
 
-const COMPATIBILITY_THRESHOLD: f64 = 1f64;
-const MUTATE_CONNECTION_WEIGHT: f64 = 0.33f64;
-const MUTATE_ADD_CONNECTION: f64 = 0.33f64;
+const COMPATIBILITY_THRESHOLD: f64 = 3f64;
+
+const MUTATE_CONNECTION_WEIGHT: f64 = 0.80f64;
+const MUTATE_ADD_CONNECTION: f64 = 0.19f64;
 
 impl Genome{
 
@@ -163,8 +164,8 @@ impl Genome{
     //I have consider disjoint and excess genes as the same
     fn compatibility_distance(&self, other: &Genome) -> f64 {
         //TODO: optimize this method
-        let c2 = 0.5f64;
-        let c3 = 0.5f64;
+        let c2 = 1f64;
+        let c3 = 0.4f64;
 
         //Number of excess
         let n1 = self.genes.len().value_as::<f64>().unwrap();

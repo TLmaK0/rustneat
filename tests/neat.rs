@@ -47,8 +47,8 @@ mod test{
     }
 
     #[test]
-    fn pupulation_can_be_tested_on_environment(){
-        let mut population = Population::create_population(1);
+    fn population_can_be_tested_on_environment(){
+        let mut population = Population::create_population(10);
         let environment = MyEnvironment;
         population.evaluate_in(&environment);
         assert!(population.organisms[0].fitness == 0.1234f64);
@@ -60,14 +60,17 @@ mod test{
         let environment = XORClassification;
         let mut found = false;
         let mut champion: Option<Organism> = None;
+        let mut partial_champion: Option<Organism> = None;
         let mut generation = 0;
         let mut actual_fitness = 0f64;
         let mut max_neurons = 0;
         while !found {
+            population.evolve();
             population.evaluate_in(&environment);
             for organism in &population.organisms {
                 if organism.fitness > actual_fitness {
-                    actual_fitness = organism.fitness
+                    partial_champion = Some(organism.clone());
+                    actual_fitness = organism.fitness;
                 }
 
                 if organism.genome.len() > max_neurons {
@@ -80,7 +83,7 @@ mod test{
                 }
             }
             println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
-            population.evolve();
+//println!("{:?}", partial_champion.as_ref().unwrap().neurons);
             generation += 1;
             if generation == 500 {
                 found = true;
