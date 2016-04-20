@@ -20,13 +20,13 @@ mod test{
             let mut distance: f64;
 
             organism.activate(&vec![0f64,0f64], &mut output); 
-            distance = (0f64 - output[0]).abs();
+            distance = (output[0]).abs();
             organism.activate(&vec![0f64,1f64], &mut output); 
-            distance += (0f64 - output[0]).abs();
+            distance += (1f64 - output[0]).abs();
             organism.activate(&vec![1f64,0f64], &mut output); 
             distance += (1f64 - output[0]).abs();
             organism.activate(&vec![1f64,1f64], &mut output); 
-            distance += (1f64 - output[0]).abs();
+            distance += (output[0]).abs();
             (4f64 - distance).powi(2)
         }
     }
@@ -83,7 +83,6 @@ mod test{
                 }
             }
             println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
-//println!("{:?}", partial_champion.as_ref().unwrap().neurons);
             generation += 1;
             if generation == 500 {
                 found = true;

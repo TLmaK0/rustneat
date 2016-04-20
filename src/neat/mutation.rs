@@ -4,8 +4,12 @@ pub trait Mutation {
 }
 
 impl Mutation {
-    pub fn connection_weight (gene: &mut Gene) {
-        gene.weight = Gene::generate_weight()
+    pub fn connection_weight (gene: &mut Gene, perturbation: bool) {
+        let mut new_weight = Gene::generate_weight();
+        if perturbation {
+            new_weight = gene.weight + new_weight;
+        }
+        gene.weight = new_weight; 
     }
 
     pub fn add_connection (in_neuron_id: usize, out_neuron_id: usize) -> (Gene) {

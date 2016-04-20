@@ -14,8 +14,10 @@ pub struct Genome{
 
 const COMPATIBILITY_THRESHOLD: f64 = 3f64;
 
-const MUTATE_CONNECTION_WEIGHT: f64 = 0.80f64;
-const MUTATE_ADD_CONNECTION: f64 = 0.19f64;
+const MUTATE_CONNECTION_WEIGHT: f64 = 0.92f64;
+const MUTATE_ADD_CONNECTION: f64 = 0.05f64;
+
+const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 
 impl Genome{
 
@@ -110,7 +112,7 @@ impl Genome{
         let mut rng = rand::thread_rng();
         let selected_gene = rand::sample(&mut rng, 0..self.genes.len(), 1)[0];
         let gene = &mut self.genes[selected_gene];
-        Mutation::connection_weight(gene);
+        Mutation::connection_weight(gene, rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY);
     }
 
     fn mutate_add_neuron(&mut self) {
