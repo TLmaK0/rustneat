@@ -188,7 +188,6 @@ impl Genome{
         let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| acc + (m_gene.weight + other.genes.get(other.genes.binary_search(m_gene).unwrap()).unwrap().weight)).abs();
 
         let w = w1 / n3;
-
         //compatibility distance
         let delta = (c2 * d / n) + c3 * w;
         delta
@@ -255,10 +254,12 @@ mod tests {
         genome1.inject_gene(0, 0, 1f64);
         genome1.inject_gene(0, 1, 1f64);
         let mut genome2 = Genome::new();
-        genome2.inject_gene(0, 0, 1f64);
-        genome2.inject_gene(0, 1, 1f64);
+        genome2.inject_gene(0, 0, 5f64);
+        genome2.inject_gene(0, 1, 5f64);
         genome2.inject_gene(0, 2, 1f64);
         genome2.inject_gene(0, 3, 1f64);
+        genome2.inject_gene(0, 4, 1f64);
+        genome2.inject_gene(0, 5, 1f64);
         assert!(!genome1.is_same_specie(&genome2));
     }
 

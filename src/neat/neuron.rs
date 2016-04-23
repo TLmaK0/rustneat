@@ -24,10 +24,15 @@ impl Neuron{
         self.input
     }
 
-    pub fn shot(&mut self, is_sensor: bool) {
-       self.potential = 1f64 / ( 1f64 +  (-self.input).exp() );
-       if !is_sensor {
-           self.input = 0f64;
-       }
+    pub fn shot(&mut self) {
+       self.potential = Neuron::activation_function(self.input);
+    }
+
+    pub fn relax(&mut self) {
+        self.input = 0f64;
+    }
+
+    pub fn activation_function(input: f64) -> f64{
+        1f64 / ( 1f64 + (-4f64 * input).exp() )
     }
 }

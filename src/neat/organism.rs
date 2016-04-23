@@ -7,7 +7,7 @@ pub struct Organism {
     pub neurons: Vec<Option<Neuron>>
 }
 
-const ACTIVATION_CYCLES: usize = 1;
+const ACTIVATION_CYCLES: usize = 3;
 
 impl Organism {
     pub fn new(genome: Genome) -> Organism {
@@ -29,37 +29,37 @@ impl Organism {
            self.generate_phenome();
        };
 
-       for neuron_id in 0..sensors.len() {
-           if neuron_id < self.neurons.len() {
-               self.neurons[neuron_id].as_mut().unwrap().stimulate(sensors[neuron_id]);
-           }
-       }
-
        for _n in 0..ACTIVATION_CYCLES {
-           self.activate_neurons(sensors.len());
+           for neuron_id in 0..sensors.len() {
+               if neuron_id < self.neurons.len() {
+                   self.neurons[neuron_id].as_mut().unwrap().stimulate(sensors[neuron_id]);
+               }
+           }
+
+           self.activate_neurons();
            self.propagate_signals();
        }
 
+       for neuron in &mut self.neurons {
+           if neuron.is_some() {
+               neuron.as_mut().unwrap().relax();
+           }
+       }
+
        //Take outputs from next neurons after sensors
-       for neuron_id in sensors.len()..(sensors.len() + outputs.len()){
+       let sensors_len = sensors.len();
+       for neuron_id in sensors_len..(sensors_len + outputs.len()){
            if neuron_id < self.neurons.len() {
-               outputs[neuron_id - sensors.len()] = self.neurons[neuron_id].as_ref().map_or(0f64, |neuron| neuron.potential());
+               outputs[neuron_id - sensors_len] = self.neurons[neuron_id].as_ref().map_or(0f64, |neuron| neuron.potential());
            } else {
-               outputs[neuron_id - sensors.len()] = 0f64;
+               outputs[neuron_id - sensors_len] = 0f64;
            }
        }
     }
 
-    fn activate_neurons(&mut self, sensor_neurons_size: usize){
-        //Don't reset sensor neurons during activation
-        for neuron_id in 0..sensor_neurons_size {
-            if neuron_id < self.neurons.len() {
-                self.neurons[neuron_id].as_mut().unwrap().shot(true);
-            }
-        }
-
-        for neuron_id in sensor_neurons_size..self.neurons.len() {
-            self.neurons[neuron_id].as_mut().unwrap().shot(false);
+    fn activate_neurons(&mut self){
+        for neuron_id in 0..self.neurons.len() {
+            self.neurons[neuron_id].as_mut().unwrap().shot();
         }
     }
 
@@ -123,7 +123,6 @@ mod tests {
         assert!(output[0] == 0.5f64, format!("{:?} is not 0.5", output[0]));
     }
 
-
     fn sigmoid(x: f64) -> f64 {
        1f64 / ( 1f64 +  (-x).exp() )
     }
@@ -137,7 +136,8 @@ mod tests {
         let sensors = vec![0f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);
-        assert!(output[0] == sigmoid(sigmoid(sensors[0])), format!("{:?} is not 0.5", output[0]));
+        let func = Neuron::activation_function;
+        assert!(output[0] == func(func(func(sensors[0]))), format!("{:?} is not {:?}", output[0], func(func(func(sensors[0])))));
     }
 
     #[test]
