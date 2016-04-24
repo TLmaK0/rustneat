@@ -172,10 +172,14 @@ impl Genome{
         //Number of excess
         let n1 = self.genes.len().value_as::<f64>().unwrap();
         let n2 = other.genes.len().value_as::<f64>().unwrap();
-        let n = n1.max(n2);
+        let mut n = n1.max(n2);
 
         if n == 0f64 {
             return 0f64; //no genes in any genome, the genomes are equal
+        }
+
+        if n < 20f64 {
+            n = 1f64;
         }
 
         let matching_genes  = self.genes.iter().filter(|i1_gene| other.genes.contains(i1_gene)).collect::<Vec<&Gene>>();
@@ -185,9 +189,14 @@ impl Genome{
         let d = n1 + n2 - (2f64 * n3);
 
         //average weight differences of matching genes
-        let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| acc + (m_gene.weight + other.genes.get(other.genes.binary_search(m_gene).unwrap()).unwrap().weight)).abs();
+        let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| acc + (m_gene.weight - other.genes.get(other.genes.binary_search(m_gene).unwrap()).unwrap().weight).abs());
 
-        let w = w1 / n3;
+        let w = if n3 == 0f64 {
+            0f64
+        }else {
+            w1 / n3
+        };
+
         //compatibility distance
         let delta = (c2 * d / n) + c3 * w;
         delta
@@ -258,8 +267,6 @@ mod tests {
         genome2.inject_gene(0, 1, 5f64);
         genome2.inject_gene(0, 2, 1f64);
         genome2.inject_gene(0, 3, 1f64);
-        genome2.inject_gene(0, 4, 1f64);
-        genome2.inject_gene(0, 5, 1f64);
         assert!(!genome1.is_same_specie(&genome2));
     }
 
@@ -283,5 +290,23 @@ mod tests {
         assert!(genome1.genes[0].enabled);
         assert!(genome1.genes[0].weight == 0f64);
         assert!(genome1.genes.len() == 3);
+    }
+
+    #[test]
+    fn genomes_with_same_genes_with_little_differences_on_weight_should_be_in_same_specie(){
+        let mut genome1 = Genome::new();
+        genome1.inject_gene(0, 0, 16f64);
+        let mut genome2 = Genome::new();
+        genome2.inject_gene(0, 0, 16.1f64);
+        assert!(genome1.is_same_specie(&genome2));
+    }
+
+    #[test]
+    fn genomes_with_same_genes_with_big_differences_on_weight_should_be_in_other_specie(){
+        let mut genome1 = Genome::new();
+        genome1.inject_gene(0, 0, 5f64);
+        let mut genome2 = Genome::new();
+        genome2.inject_gene(0, 0, 15f64);
+        assert!(!genome1.is_same_specie(&genome2));
     }
 }

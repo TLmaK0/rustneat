@@ -32,7 +32,7 @@ impl Population {
 
     fn generate_offspring(&self) -> Vec<Organism>{
         let mut species = self.speciate();
-        let total_average_fitness = species.iter()
+        let mut total_average_fitness = species.iter()
             .fold(0f64, |total, specie| total + specie.average_fitness());
 
         let num_of_organisms = self.organisms.len()
@@ -43,10 +43,12 @@ impl Population {
         let organisms = species.iter()
             .flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>();
         for specie in &mut species {
-            let offspring_size = (specie.average_fitness() * organisms_by_average_fitness).round() as usize;
+            let mut offspring_size = (specie.average_fitness() * organisms_by_average_fitness).round() as usize;
+            if total_average_fitness == 0f64 {
+                offspring_size = specie.organisms.len();
+            }
             specie.generate_offspring(offspring_size, &organisms);
         }
-
         species.iter().flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>()
     }
 
@@ -64,7 +66,9 @@ impl Population {
                     new_specie = Some(specie);
                 }
             };
-            new_specie.map(|specie| species.push(specie));
+            if new_specie.is_some() {
+                species.push(new_specie.unwrap());
+            }
         }
         species
     }
@@ -99,5 +103,14 @@ mod tests {
         population.organisms = vec![Organism::new(genome1), Organism::new(genome2)];
         let species = population.speciate();
         assert!(species.len() == 2usize);
+    }
+
+    #[test]
+    fn after_population_evolve_population_should_be_the_same(){
+        let mut population = Population::create_population(150);
+        for _ in 0..150 {
+            population.evolve();
+        }
+        assert!(population.organisms.len() == 150);
     }
 }

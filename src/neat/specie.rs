@@ -4,6 +4,7 @@ extern crate rand;
 use self::conv::prelude::*;
 use neat::genome::Genome;
 use neat::organism::Organism;
+use self::rand::distributions::{IndependentSample, Range};
 
 
 #[derive(Debug, Clone)]
@@ -39,9 +40,18 @@ impl Specie{
         let offspring: Vec<Organism>;
         {
             let selected_organisms = rand::sample(&mut rng, &self.organisms, num_of_organisms); 
-            offspring = selected_organisms.iter().map(|organism| self.create_child(organism, population_organisms)).collect::<Vec<Organism>>();
+            let mut selected_organisms = vec![];
+            let range = Range::new(0, self.organisms.len());
+            for _ in 0..num_of_organisms {
+                selected_organisms.push(range.ind_sample(&mut rng));
+            }
+            offspring = selected_organisms.iter().map(|organism_pos| self.create_child(&self.organisms[*organism_pos], population_organisms)).collect::<Vec<Organism>>();
         }
         self.organisms = offspring;
+    }
+
+    pub fn get_representative_genome(&self) -> Genome {
+        self.representative.clone()
     }
 
     fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
