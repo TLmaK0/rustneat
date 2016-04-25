@@ -32,7 +32,7 @@ impl Population {
 
     fn generate_offspring(&self) -> Vec<Organism>{
         let mut species = self.speciate();
-        let mut total_average_fitness = species.iter()
+        let total_average_fitness = species.iter()
             .fold(0f64, |total, specie| total + specie.average_fitness());
 
         let num_of_organisms = self.organisms.len()

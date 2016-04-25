@@ -40,12 +40,6 @@ impl Organism {
            self.propagate_signals();
        }
 
-       for neuron in &mut self.neurons {
-           if neuron.is_some() {
-               neuron.as_mut().unwrap().relax();
-           }
-       }
-
        //Take outputs from next neurons after sensors
        let sensors_len = sensors.len();
        for neuron_id in sensors_len..(sensors_len + outputs.len()){
@@ -53,6 +47,12 @@ impl Organism {
                outputs[neuron_id - sensors_len] = self.neurons[neuron_id].as_ref().map_or(0f64, |neuron| neuron.potential());
            } else {
                outputs[neuron_id - sensors_len] = 0f64;
+           }
+       }
+
+       for neuron in &mut self.neurons {
+           if neuron.is_some() {
+               neuron.as_mut().unwrap().relax();
            }
        }
     }
@@ -114,17 +114,20 @@ mod tests {
     }
 
     #[test]
-    fn should_propagate_signal(){
+    fn should_propagate_signal_without_hidden_layers(){
         let mut organism = Organism::new(Genome::new());
         organism.genome.inject_gene(0, 1, 1f64);
-        let sensors = vec![0f64];
+        let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);        
-        assert!(output[0] == 0.5f64, format!("{:?} is not 0.5", output[0]));
-    }
+        assert!(output[0] > 0.9f64, format!("{:?} is not bigger than 0.9", output[0]));
 
-    fn sigmoid(x: f64) -> f64 {
-       1f64 / ( 1f64 +  (-x).exp() )
+        let mut organism = Organism::new(Genome::new());
+        organism.genome.inject_gene(0, 1, -1f64);
+        let sensors = vec![1f64];
+        let mut output = vec![0f64];
+        organism.activate(&sensors, &mut output);        
+        assert!(output[0] < 0.1f64, format!("{:?} is not smaller than 0.1", output[0]));
     }
 
     #[test]
@@ -136,8 +139,7 @@ mod tests {
         let sensors = vec![0f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);
-        let func = Neuron::activation_function;
-        assert!(output[0] == func(func(func(sensors[0]))), format!("{:?} is not {:?}", output[0], func(func(func(sensors[0])))));
+        assert!(output[0] > 0.9f64, format!("{:?} is not bigger than 0.9", output[0]));
     }
 
     #[test]
@@ -146,17 +148,17 @@ mod tests {
         organism.genome.inject_gene(0, 1, 1f64); 
         organism.genome.inject_gene(1, 2, 1f64);
         organism.genome.inject_gene(2, 1, 1f64);
-        let sensors = vec![0f64];
         let mut output = vec![0f64];
-        organism.activate(&sensors, &mut output);
-        let mut n1 = 0f64;
-        let mut n2 = 0f64;
-        for _n in 0..5 {
-            let temp = n1;
-            n1 = sigmoid(0f64) + sigmoid(n2);
-            n2 = sigmoid(temp); 
-        }
-        assert!(output[0] == n1, format!("{:?} is not {:?}", output[0], n1));
+        organism.activate(&vec![1f64], &mut output);
+        assert!(output[0] > 0.9, format!("{:?} is not bigger than 0.9", output[0]));
+
+        let mut organism = Organism::new(Genome::new());
+        organism.genome.inject_gene(0, 1, -1f64); 
+        organism.genome.inject_gene(1, 2, -1f64);
+        organism.genome.inject_gene(2, 1, -1f64);
+        let mut output = vec![0f64];
+        organism.activate(&vec![1f64], &mut output);
+        assert!(output[0] < 0.1, format!("{:?} is not smaller than 0.1", output[0]));
     }
 
     #[test]

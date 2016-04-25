@@ -109,10 +109,9 @@ impl Genome{
     }
 
     fn mutate_connection_weight(&mut self) {
-        let mut rng = rand::thread_rng();
-        let selected_gene = rand::sample(&mut rng, 0..self.genes.len(), 1)[0];
-        let gene = &mut self.genes[selected_gene];
-        Mutation::connection_weight(gene, rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY);
+        for gene in &mut self.genes {
+            Mutation::connection_weight(gene, rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY);
+        }
     }
 
     fn mutate_add_neuron(&mut self) {

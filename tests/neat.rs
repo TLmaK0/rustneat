@@ -60,7 +60,6 @@ mod test{
         let environment = XORClassification;
         let mut found = false;
         let mut champion: Option<Organism> = None;
-        let mut partial_champion: Option<Organism> = None;
         let mut generation = 0;
         let mut actual_fitness = 0f64;
         let mut max_neurons = 0;
@@ -70,7 +69,6 @@ mod test{
             population.evaluate_in(&environment);
             for organism in &population.organisms {
                 if organism.fitness > actual_fitness {
-                    partial_champion = Some(organism.clone());
                     actual_fitness = organism.fitness;
                 }
 
@@ -83,13 +81,13 @@ mod test{
                     found = true;
                 }
             }
-//           println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
+           //println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
 //println!("{:?}", population.organisms.last().as_ref().unwrap());            
             generation += 1;
             if generation == 100 {
                 found = true;
             }
         }
-        //assert!(champion.is_some(), "Not able to solve XOR classification");
+        assert!(champion.is_some(), "Not able to solve XOR classification");
     }
 }

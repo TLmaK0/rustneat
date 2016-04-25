@@ -33,6 +33,6 @@ impl Neuron{
     }
 
     pub fn activation_function(input: f64) -> f64{
-        1f64 / ( 1f64 + (-4f64 * input).exp() )
+        1f64 / ( 1f64 + (-4.9f64 * input).exp() )
     }
 }

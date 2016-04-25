@@ -39,7 +39,6 @@ impl Specie{
         let mut rng = rand::thread_rng();
         let offspring: Vec<Organism>;
         {
-            let selected_organisms = rand::sample(&mut rng, &self.organisms, num_of_organisms); 
             let mut selected_organisms = vec![];
             let range = Range::new(0, self.organisms.len());
             for _ in 0..num_of_organisms {
