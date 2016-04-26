@@ -36,16 +36,28 @@ impl Specie{
     }
 
     pub fn generate_offspring(&mut self, num_of_organisms: usize, population_organisms: &Vec<Organism>){
+
+        let champion: Option<Organism> = self.organisms.iter().fold(None, |champion, organism| {
+            if champion.is_none() || champion.as_ref().unwrap().fitness < organism.fitness {
+                Some(organism.clone())
+            } else {
+                champion
+            }
+        });
+
         let mut rng = rand::thread_rng();
-        let offspring: Vec<Organism>;
+        let mut offspring: Vec<Organism>;
         {
             let mut selected_organisms = vec![];
             let range = Range::new(0, self.organisms.len());
-            for _ in 0..num_of_organisms {
+            for _ in 0..num_of_organisms - 1 {
                 selected_organisms.push(range.ind_sample(&mut rng));
             }
             offspring = selected_organisms.iter().map(|organism_pos| self.create_child(&self.organisms[*organism_pos], population_organisms)).collect::<Vec<Organism>>();
         }
+
+        offspring.push(champion.unwrap());
+
         self.organisms = offspring;
     }
 
