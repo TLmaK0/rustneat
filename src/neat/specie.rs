@@ -45,19 +45,20 @@ impl Specie{
             }
         });
 
+        let copy_champion = if champion.as_ref().unwrap().genome.total_genes() > 5 { 1 } else { 0 };
+
         let mut rng = rand::thread_rng();
         let mut offspring: Vec<Organism>;
         {
             let mut selected_organisms = vec![];
             let range = Range::new(0, self.organisms.len());
-            for _ in 0..num_of_organisms - 1 {
+            for _ in 0..num_of_organisms - copy_champion {
                 selected_organisms.push(range.ind_sample(&mut rng));
             }
             offspring = selected_organisms.iter().map(|organism_pos| self.create_child(&self.organisms[*organism_pos], population_organisms)).collect::<Vec<Organism>>();
         }
 
-        offspring.push(champion.unwrap());
-
+        if copy_champion == 1 { offspring.push(champion.unwrap()); };
         self.organisms = offspring;
     }
 

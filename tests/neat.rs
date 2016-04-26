@@ -42,7 +42,7 @@ mod test{
         let mut population = Population::create_population(1);
         population.evolve();
         let genome = &population.organisms[0].genome;
-        assert!(genome.total_genes() == 1);
+        assert_eq!(genome.total_genes(), 1);
         assert!(genome.total_weights() != 0f64);
     }
 
@@ -81,7 +81,7 @@ mod test{
                     found = true;
                 }
             }
-           //println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
+           println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
 //println!("{:?}", population.organisms.last().as_ref().unwrap());            
             generation += 1;
             if generation == 100 {
