@@ -38,4 +38,30 @@ impl Mutation {
         };
         (gen1, gen2)
     }
+
+    pub fn toggle_expression(gene: &mut Gene){
+        gene.enabled = !gene.enabled;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use neat::*;
+    use neat::mutation::Mutation as Mutation;
+
+    #[test]
+    fn mutate_toggle_gene_should_toggle(){
+        let mut gene = Gene {
+            in_neuron_id: 0,
+            out_neuron_id: 1,
+            weight: 1f64,
+            enabled: false
+        };
+
+        Mutation::toggle_expression(&mut gene);
+        assert!(gene.enabled == true);
+
+        Mutation::toggle_expression(&mut gene);
+        assert!(gene.enabled == false);
+    }
 }

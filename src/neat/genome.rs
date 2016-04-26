@@ -14,8 +14,10 @@ pub struct Genome{
 
 const COMPATIBILITY_THRESHOLD: f64 = 3f64;
 
-const MUTATE_CONNECTION_WEIGHT: f64 = 0.92f64;
+const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
 const MUTATE_ADD_CONNECTION: f64 = 0.05f64;
+const MUTATE_ADD_NEURON: f64 = 0.05f64;
+const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
 
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 
@@ -29,14 +31,21 @@ impl Genome{
     }
 
     pub fn mutate(&mut self) {
-        let random = rand::random::<f64>();
-        if random > MUTATE_ADD_CONNECTION + MUTATE_CONNECTION_WEIGHT && self.genes.len() > 0 {
+        if rand::random::<f64>() < MUTATE_ADD_NEURON && self.genes.len() > 0 {
             self.mutate_add_neuron();
-        } else if random > MUTATE_ADD_CONNECTION && self.genes.len() > 0 {
+        };
+       
+        if rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT {
             self.mutate_connection_weight();
-        } else {
+        }; 
+
+        if rand::random::<f64>() < MUTATE_ADD_CONNECTION {
             self.mutate_add_connection();
-        }
+        };
+
+        if rand::random::<f64>() < MUTATE_TOGGLE_EXPRESSION {
+            self.mutate_toggle_expression();
+        };
     }
 
     pub fn mate(&self, other: &Genome) -> Genome{
@@ -112,6 +121,12 @@ impl Genome{
         for gene in &mut self.genes {
             Mutation::connection_weight(gene, rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY);
         }
+    }
+
+    fn mutate_toggle_expression(&mut self){
+        let mut rng = rand::thread_rng();
+        let selected_gene = rand::sample(&mut rng, 0..self.genes.len(), 1)[0];
+        Mutation::toggle_expression(&mut self.genes[selected_gene]);
     }
 
     fn mutate_add_neuron(&mut self) {
