@@ -45,7 +45,7 @@ impl Specie{
             }
         });
 
-        let copy_champion = if champion.as_ref().unwrap().genome.total_genes() > 5 { 1 } else { 0 };
+        let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
 
         let mut rng = rand::thread_rng();
         let mut offspring: Vec<Organism>;
