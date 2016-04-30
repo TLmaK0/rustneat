@@ -31,17 +31,17 @@ impl Genome{
     }
 
     pub fn mutate(&mut self) {
-        if rand::random::<f64>() < MUTATE_ADD_NEURON && self.genes.len() > 0 {
+        if rand::random::<f64>() < MUTATE_ADD_CONNECTION || self.genes.len() == 0 {
+            self.mutate_add_connection();
+        };
+
+        if rand::random::<f64>() < MUTATE_ADD_NEURON {
             self.mutate_add_neuron();
         };
        
         if rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT {
             self.mutate_connection_weight();
         }; 
-
-        if rand::random::<f64>() < MUTATE_ADD_CONNECTION {
-            self.mutate_add_connection();
-        };
 
         if rand::random::<f64>() < MUTATE_TOGGLE_EXPRESSION {
             self.mutate_toggle_expression();
