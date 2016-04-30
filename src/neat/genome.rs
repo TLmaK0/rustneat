@@ -15,8 +15,8 @@ pub struct Genome{
 const COMPATIBILITY_THRESHOLD: f64 = 3f64;
 
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
-const MUTATE_ADD_CONNECTION: f64 = 0.05f64;
-const MUTATE_ADD_NEURON: f64 = 0.05f64;
+const MUTATE_ADD_CONNECTION: f64 = 0.01f64;
+const MUTATE_ADD_NEURON: f64 = 0.005f64;
 const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
 
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
@@ -48,25 +48,29 @@ impl Genome{
         };
     }
 
-    pub fn mate(&self, other: &Genome) -> Genome{
+    pub fn mate(&self, other: &Genome, fittest: bool) -> Genome{
         if self.genes.len() > other.genes.len() {
-            self.mate_genes(other)    
+            self.mate_genes(other, fittest)    
         }else{
-            other.mate_genes(self)
+            other.mate_genes(self, !fittest)
         }
     }
 
-    fn mate_genes(&self, other: &Genome) -> Genome{
+    fn mate_genes(&self, other: &Genome, fittest: bool) -> Genome{
         let mut genome = Genome::new();
         for gene in &self.genes {
             genome.add_gene({
-                if rand::random::<f64>() > 0.5f64 {
-                    match other.genes.binary_search(&gene) {
-                        Ok(position) => other.genes[position].clone(),
-                        Err(_) => gene.clone() 
-                    }
-                } else {
+                if !fittest {
                     gene.clone()
+                }else{
+                    if rand::random::<f64>() > 0.5f64 {
+                        gene.clone()
+                    } else {
+                        match other.genes.binary_search(&gene) {
+                            Ok(position) => other.genes[position].clone(),
+                            Err(_) => gene.clone() 
+                        }
+                    }
                 }
             });
         }

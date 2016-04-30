@@ -21,7 +21,7 @@ impl Organism {
     }
 
     pub fn mate(&self, other: &Organism) -> Organism {
-        Organism::new(self.genome.mate(&other.genome))
+        Organism::new(self.genome.mate(&other.genome, self.fitness < other.fitness))
     }
 
     pub fn activate(&mut self, sensors: &Vec<f64>, outputs: &mut Vec<f64>){

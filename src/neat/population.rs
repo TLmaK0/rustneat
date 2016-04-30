@@ -39,7 +39,6 @@ impl Population {
             .value_as::<f64>().unwrap();
 
         let organisms_by_average_fitness = num_of_organisms / total_average_fitness;
-
         let organisms = species.iter()
             .flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>();
         for specie in &mut species {

@@ -81,7 +81,7 @@ mod test{
                     found = true;
                 }
             }
-//           println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
+           //println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
 //println!("{:?}", population.organisms.last().as_ref().unwrap());            
             generation += 1;
             if generation == 100 {
