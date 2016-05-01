@@ -13,21 +13,31 @@ mod test{
     }
 
     struct XORClassification;
-
-    impl Environment for XORClassification{
-        fn test(&self, organism: &mut Organism) -> f64 {
+    impl XORClassification{
+        fn debug(&self, organism: &mut Organism, print: bool) -> f64 {
             let mut output = vec![0f64];
             let mut distance: f64;
             organism.activate(&vec![0f64,0f64], &mut output); 
+if print { print!("{:?}, ", output[0]); }
             distance = (0f64 - output[0]).abs();
             organism.activate(&vec![0f64,1f64], &mut output); 
+if print { print!("{:?}, ", output[0]); }
             distance += (1f64 - output[0]).abs();
             organism.activate(&vec![1f64,0f64], &mut output); 
+if print { print!("{:?}, ", output[0]); }
             distance += (1f64 - output[0]).abs();
             organism.activate(&vec![1f64,1f64], &mut output); 
+if print { println!("{:?}", output[0]); }
             distance += (0f64 - output[0]).abs();
             let fitness = (4f64 - distance).powi(2);
             fitness
+        }
+
+    }
+
+    impl Environment for XORClassification{
+        fn test(&self, organism: &mut Organism) -> f64 {
+            self.debug(organism, false)
         }
     }
 
@@ -41,7 +51,7 @@ mod test{
     fn population_can_evolve(){
         let mut population = Population::create_population(1);
         population.evolve();
-        let genome = &population.organisms[0].genome;
+        let genome = &population.get_organisms()[0].genome;
         assert_eq!(genome.total_genes(), 1);
         assert!(genome.total_weights() != 0f64);
     }
@@ -49,9 +59,10 @@ mod test{
     #[test]
     fn population_can_be_tested_on_environment(){
         let mut population = Population::create_population(10);
+println!("{:?}", population);        
         let environment = MyEnvironment;
         population.evaluate_in(&environment);
-        assert!(population.organisms[0].fitness == 0.1234f64);
+        assert!(population.get_organisms()[0].fitness == 0.1234f64);
     }
 
     #[test]
@@ -67,9 +78,10 @@ mod test{
             population.evolve();
 //println!("pop: {:?}", population.organisms.len());            
             population.evaluate_in(&environment);
-            for organism in &population.organisms {
+            for organism in &population.get_organisms() {
                 if organism.fitness > actual_fitness {
                     actual_fitness = organism.fitness;
+                    environment.debug(&mut organism.clone(), true);
                 }
 
                 if organism.genome.len() > max_neurons {
@@ -81,8 +93,7 @@ mod test{
                     found = true;
                 }
             }
-           //println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
-//println!("{:?}", population.organisms.last().as_ref().unwrap());            
+//           println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
             generation += 1;
             if generation == 100 {
                 found = true;
