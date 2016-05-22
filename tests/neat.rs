@@ -93,7 +93,7 @@ println!("{:?}", population);
                     found = true;
                 }
             }
-//           println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
+           println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
             generation += 1;
             if generation == 100 {
                 found = true;

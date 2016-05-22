@@ -38,7 +38,7 @@ impl Population {
 
     fn generate_offspring(&mut self){
         self.speciate();
-        let total_average_fitness = self.species.iter()
+        let total_average_fitness = self.species.iter_mut()
             .fold(0f64, |total, specie| total + specie.average_fitness());
 
         let num_of_organisms = self.size()
@@ -57,10 +57,14 @@ impl Population {
     }
 
     fn speciate(&mut self){
-        let mut species: Vec<Specie> = vec![];
-        for organism in &self.get_organisms(){
+        let organisms = &self.get_organisms();
+        for specie in &mut self.species {
+            specie.remove_organisms();
+        }
+
+        for organism in organisms{
             let mut new_specie: Option<Specie> = None;
-            match species.iter_mut().find(|specie| specie.match_genome(&organism)) {
+            match self.species.iter_mut().find(|specie| specie.match_genome(&organism)) {
                 Some(specie) => {
                     specie.add(organism.clone());
                 },
@@ -71,10 +75,9 @@ impl Population {
                 }
             };
             if new_specie.is_some() {
-                species.push(new_specie.unwrap());
+                self.species.push(new_specie.unwrap());
             }
         }
-        self.species = species
     }
 
     fn create_organisms(&mut self, population_size: usize){

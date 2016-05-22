@@ -10,6 +10,7 @@ use self::rand::distributions::{IndependentSample, Range};
 #[derive(Debug, Clone)]
 pub struct Specie{
     representative: Genome,
+    fitness: f64,
     pub organisms: Vec<Organism>
 }
 
@@ -18,7 +19,7 @@ const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001f64;
 
 impl Specie{
     pub fn new(genome: Genome) -> Specie{
-        Specie{ organisms: vec![], representative: genome }
+        Specie{ organisms: vec![], representative: genome, fitness: 0f64 }
     }
 
     pub fn add(&mut self, organism: Organism){
@@ -29,10 +30,11 @@ impl Specie{
         self.representative.is_same_specie(&organism.genome)
     }
 
-    pub fn average_fitness(&self) -> f64{
+    pub fn average_fitness(&mut self) -> f64{
         let organisms_count = self.organisms.len().value_as::<f64>().unwrap();
         let total_fitness = self.organisms.iter().fold(0f64, |total, organism| total + organism.fitness);
-        total_fitness / organisms_count 
+        self.fitness = total_fitness / organisms_count;
+        self.fitness
     }
 
     pub fn generate_offspring(&mut self, num_of_organisms: usize, population_organisms: &Vec<Organism>){
@@ -65,6 +67,10 @@ impl Specie{
 
     pub fn get_representative_genome(&self) -> Genome {
         self.representative.clone()
+    }
+
+    pub fn remove_organisms(&mut self) {
+        self.organisms = vec![];
     }
 
     fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
