@@ -59,7 +59,6 @@ if print { println!("{:?}", output[0]); }
     #[test]
     fn population_can_be_tested_on_environment(){
         let mut population = Population::create_population(10);
-println!("{:?}", population);        
         let environment = MyEnvironment;
         population.evaluate_in(&environment);
         assert!(population.get_organisms()[0].fitness == 0.1234f64);
