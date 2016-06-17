@@ -11,6 +11,7 @@ use self::rand::distributions::{IndependentSample, Range};
 pub struct Specie{
     representative: Genome,
     fitness: f64,
+    age: usize,
     pub organisms: Vec<Organism>
 }
 
@@ -19,7 +20,7 @@ const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001f64;
 
 impl Specie{
     pub fn new(genome: Genome) -> Specie{
-        Specie{ organisms: vec![], representative: genome, fitness: 0f64 }
+        Specie{ organisms: vec![], representative: genome, fitness: 0f64, age: 0 }
     }
 
     pub fn add(&mut self, organism: Organism){
@@ -71,6 +72,7 @@ impl Specie{
 
     pub fn remove_organisms(&mut self) {
         self.organisms = vec![];
+        self.age += 1;
     }
 
     fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
