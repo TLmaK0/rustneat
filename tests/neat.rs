@@ -77,6 +77,7 @@ if print { println!("{:?}", output[0]); }
             population.evolve();
 //println!("pop: {:?}", population.organisms.len());            
             population.evaluate_in(&environment);
+            println!("Epochs without improvements: {:?}", population.epochs_without_improvements());
             for organism in &population.get_organisms() {
                 if organism.fitness > actual_fitness {
                     actual_fitness = organism.fitness;
