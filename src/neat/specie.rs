@@ -52,7 +52,6 @@ impl Specie{
             total + organism.fitness
         });
 
-        //TODO: check if total fitness should be an average or champion fitness
         let new_fitness = total_fitness / organisms_count;
 
         if new_fitness > self.average_fitness {

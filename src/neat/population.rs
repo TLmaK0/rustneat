@@ -73,47 +73,40 @@ println!("Specie organisms: {:?}", specie.organisms.len());
         let mut second_best_fitness = 0f64;
             
 
-        if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
-            let fitness_sorted = self.get_species_fitness();
-            champion_fitness = fitness_sorted[0];
-            if fitness_sorted.len() > 1 {
-                second_best_fitness = fitness_sorted[1];
-            }
-println!("Set champion fitness {:?}", champion_fitness);                    
-println!("Set second fitness {:?}", second_best_fitness);                    
-        }
-println!("Champ fitness: {:?}, Second fitnes: {:?}", champion_fitness, second_best_fitness);
         let num_of_organisms = self.size();
-
-        let organisms_by_average_fitness = num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
-
-        let organisms = self.get_organisms();
-println!("Num of organisms {:?}", organisms.len());        
-
         let num_species = self.species.len();
+        let organisms = self.get_organisms();
+println!("Num of organisms {:?}", num_of_organisms);        
 
-        for specie in &mut self.species {
-            let specie_fitness = specie.calculate_average_fitness();
-            let mut offspring_size = (specie_fitness * organisms_by_average_fitness).round() as usize;
+        if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
+    //        for specie in &mut self.species {
+    //            specie.remove_organisms();
+    //        }
 
-            if total_average_fitness == 0f64 {
-                offspring_size = specie.organisms.len();
-            }
+    //        for specie in &mut self.get_best_species() {
+    //            specie.generate_offspring(num_of_organisms.checked_div(2).unwrap(), &organisms);
+    //        }
+        } else {
+println!("Champ fitness: {:?}, Second fitnes: {:?}", champion_fitness, second_best_fitness);
 
-            if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS && num_species > 1 {
-                if specie.calculate_champion_fitness() >= second_best_fitness {
-println!("Champion fitness: {:?}", specie.calculate_champion_fitness());                    
-                    offspring_size = num_of_organisms.checked_div(2).unwrap();
-                } else {
-                    offspring_size = 0;
+            let organisms_by_average_fitness = num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
+
+
+            for specie in &mut self.species {
+                let specie_fitness = specie.calculate_average_fitness();
+                let mut offspring_size = (specie_fitness * organisms_by_average_fitness).round() as usize;
+
+                if total_average_fitness == 0f64 {
+                    offspring_size = specie.organisms.len();
                 }
-            }
-println!("Offspring {:?}, specie_fitness {:?}", offspring_size, specie_fitness);
-            if offspring_size > 0 {
-                //TODO: check if offspring is for organisms fitness also, not only by specie
-                specie.generate_offspring(offspring_size, &organisms);
-            } else {
-                specie.remove_organisms();
+
+    println!("Offspring {:?}, specie_fitness {:?}", offspring_size, specie_fitness);
+                if offspring_size > 0 {
+                    //TODO: check if offspring is for organisms fitness also, not only by specie
+                    specie.generate_offspring(offspring_size, &organisms);
+                } else {
+                    specie.remove_organisms();
+                }
             }
         }
         if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
@@ -121,14 +114,6 @@ println!("Offspring {:?}, specie_fitness {:?}", offspring_size, specie_fitness);
             self.epochs_without_improvements = 0;
         }
 println!("Total generated {:?}", self.get_organisms().len());        
-    }
-
-    fn get_species_fitness(&self) -> Vec<f64>{
-        let mut fitness: Vec<f64> = self.species.iter().map(|specie| {
-            specie.calculate_champion_fitness()
-        }).collect::<Vec<f64>>();
-        fitness.sort_by(|a, b| b.partial_cmp(a).unwrap());
-        fitness
     }
 
     fn speciate(&mut self){

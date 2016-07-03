@@ -95,7 +95,7 @@ if print { println!("{:?}", output[0]); }
             }
            println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
             generation += 1;
-            if generation == 100 {
+            if generation == 1000 {
                 found = true;
             }
         }
