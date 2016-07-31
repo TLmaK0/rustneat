@@ -6,12 +6,13 @@ use neat::genome::Genome;
 use neat::organism::Organism;
 use self::rand::distributions::{IndependentSample, Range};
 
-
 #[derive(Debug, Clone)]
 pub struct Specie{
     representative: Genome,
-    fitness: f64,
+    average_fitness: f64,
+    champion_fitness: f64,
     age: usize,
+    age_last_improvement: usize,
     pub organisms: Vec<Organism>
 }
 
@@ -20,7 +21,7 @@ const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001f64;
 
 impl Specie{
     pub fn new(genome: Genome) -> Specie{
-        Specie{ organisms: vec![], representative: genome, fitness: 0f64, age: 0 }
+        Specie{ organisms: vec![], representative: genome, average_fitness: 0f64, champion_fitness: 0f64, age: 0, age_last_improvement: 0 }
     }
 
     pub fn add(&mut self, organism: Organism){
@@ -31,14 +32,38 @@ impl Specie{
         self.representative.is_same_specie(&organism.genome)
     }
 
-    pub fn average_fitness(&mut self) -> f64{
+    pub fn calculate_champion_fitness(&self) -> f64{
+        self.organisms.iter().fold(0f64, |max, organism| {
+            if organism.fitness > max {
+                organism.fitness
+            } else {
+                max
+            }
+        })
+    }
+
+    pub fn calculate_average_fitness(&mut self) -> f64{
         let organisms_count = self.organisms.len().value_as::<f64>().unwrap();
-        let total_fitness = self.organisms.iter().fold(0f64, |total, organism| total + organism.fitness);
-        self.fitness = total_fitness / organisms_count;
-        self.fitness
+        if organisms_count == 0f64 {
+            return 0f64;
+        }
+
+        let total_fitness = self.organisms.iter().fold(0f64, |total, organism| {
+            total + organism.fitness
+        });
+
+        let new_fitness = total_fitness / organisms_count;
+
+        if new_fitness > self.average_fitness {
+            self.age_last_improvement = self.age;
+        }
+
+        self.average_fitness = new_fitness;
+        self.average_fitness
     }
 
     pub fn generate_offspring(&mut self, num_of_organisms: usize, population_organisms: &Vec<Organism>){
+        self.age += 1;
 
         let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
 
@@ -71,8 +96,12 @@ impl Specie{
     }
 
     pub fn remove_organisms(&mut self) {
+        self.adjust_fitness();
         self.organisms = vec![];
-        self.age += 1;
+    }
+
+    pub fn adjust_fitness(&mut self) {
+        //TODO: adjust fitness
     }
 
     fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
@@ -119,7 +148,7 @@ mod tests {
         specie.add(organism2);
         specie.add(organism3);
 
-        assert!(specie.average_fitness() == 15f64);
+        assert!(specie.calculate_average_fitness() == 15f64);
     }
 }
 

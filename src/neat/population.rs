@@ -6,12 +6,21 @@ use neat::*;
 
 #[derive(Debug)]
 pub struct Population{
-    pub species: Vec<Specie>
+    pub species: Vec<Specie>,
+    champion_fitness: f64,
+    epochs_without_improvements: usize
 }
+
+const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
 
 impl Population {
     pub fn create_population(population_size: usize) -> Population{
-        let mut population = Population { species: vec![] };
+        let mut population = Population { 
+            species: vec![], 
+            champion_fitness: 0f64, 
+            epochs_without_improvements: 0usize
+        };
+
         population.create_organisms(population_size);
         population
     }
@@ -25,35 +34,102 @@ impl Population {
     }
 
     pub fn evaluate_in(&mut self, environment: &Environment){
+        let mut improvement = false;
+        
         for specie in &mut self.species {
             for organism in &mut specie.organisms {
                 organism.fitness = environment.test(organism);
+                if organism.fitness > self.champion_fitness {
+                    self.champion_fitness = organism.fitness;
+                    self.epochs_without_improvements = 0usize;
+                    improvement = true;
+                }
             }
+        }
+
+        if !improvement {
+            self.epochs_without_improvements += 1;
         }
     }
 
     pub fn get_organisms(&self)-> Vec<Organism>{
-        self.species.iter().flat_map(|specie| specie.organisms.clone()).collect::<Vec<Organism>>()
+        self.species.iter().flat_map(|specie| {
+                                     specie.organisms.clone()
+        }).collect::<Vec<Organism>>()
+    }
+
+    pub fn epochs_without_improvements(&self) -> usize {
+        self.epochs_without_improvements
     }
 
     fn generate_offspring(&mut self){
         self.speciate();
+
         let total_average_fitness = self.species.iter_mut()
-            .fold(0f64, |total, specie| total + specie.average_fitness());
+            .fold(0f64, |total, specie| total + specie.calculate_average_fitness());
 
-        let num_of_organisms = self.size()
-            .value_as::<f64>().unwrap();
-
-        let organisms_by_average_fitness = num_of_organisms / total_average_fitness;
+        let num_of_organisms = self.size();
+        let num_species = self.species.len();
         let organisms = self.get_organisms();
 
-        for specie in &mut self.species {
-            let mut offspring_size = (specie.average_fitness() * organisms_by_average_fitness).round() as usize;
-            if total_average_fitness == 0f64 {
-                offspring_size = specie.organisms.len();
+        if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
+            let mut best_species = self.get_best_species();
+            let num_of_selected = best_species.len();
+            for specie in &mut best_species {
+                specie.generate_offspring(num_of_organisms.checked_div(num_of_selected).unwrap(), &organisms);
             }
-            specie.generate_offspring(offspring_size, &organisms);
+        } else {
+            let organisms_by_average_fitness = num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
+
+
+            for specie in &mut self.species {
+                let specie_fitness = specie.calculate_average_fitness();
+                let mut offspring_size = (specie_fitness * organisms_by_average_fitness).round() as usize;
+
+                if total_average_fitness == 0f64 {
+                    offspring_size = specie.organisms.len();
+                }
+
+                if offspring_size > 0 {
+                    //TODO: check if offspring is for organisms fitness also, not only by specie
+                    specie.generate_offspring(offspring_size, &organisms);
+                } else {
+                    specie.remove_organisms();
+                }
+            }
         }
+        if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
+            self.epochs_without_improvements = 0;
+        }
+    }
+
+    fn get_best_species(&self) -> Vec<Specie>{
+        let mut result = vec![];
+
+        if self.species.len() < 2 {
+            return self.species.clone()
+        }
+
+        for specie in &self.species {
+            if result.len() < 1 {
+                result.push(specie.clone())
+            } else if result.len() < 2 {
+                if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
+                    result.insert(0, specie.clone());
+                } else {
+                    result.push(specie.clone());
+                }
+            } else {
+                if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
+                    result[1] = result[0].clone();
+                    result[0] = specie.clone();
+                } else if result[1].calculate_champion_fitness() < specie.calculate_champion_fitness() {
+                    result[1] = specie.clone();
+                }
+            }
+        }
+
+        result
     }
 
     fn speciate(&mut self){
