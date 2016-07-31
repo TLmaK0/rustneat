@@ -95,9 +95,6 @@ if print { println!("{:?}", output[0]); }
             }
            println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
             generation += 1;
-            if generation == 1000 {
-                found = true;
-            }
         }
         assert!(champion.is_some(), "Not able to solve XOR classification");
     }

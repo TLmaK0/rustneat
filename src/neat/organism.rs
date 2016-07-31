@@ -7,7 +7,7 @@ pub struct Organism {
     pub neurons: Vec<Option<Neuron>>
 }
 
-const ACTIVATION_CYCLES: usize = 5;
+const ACTIVATION_CYCLES: usize = 10;
 
 impl Organism {
     pub fn new(genome: Genome) -> Organism {
