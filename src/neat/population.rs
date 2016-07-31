@@ -54,7 +54,6 @@ impl Population {
 
     pub fn get_organisms(&self)-> Vec<Organism>{
         self.species.iter().flat_map(|specie| {
-println!("Specie organisms: {:?}", specie.organisms.len());
                                      specie.organisms.clone()
         }).collect::<Vec<Organism>>()
     }
@@ -72,17 +71,11 @@ println!("Specie organisms: {:?}", specie.organisms.len());
         let num_of_organisms = self.size();
         let num_species = self.species.len();
         let organisms = self.get_organisms();
-println!("Num of organisms {:?}", num_of_organisms);        
 
         if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
             let mut best_species = self.get_best_species();
-println!("---------6");            
-println!("{:?}   1", best_species[0].organisms.len());
-println!("{:?}   2", best_species[1].organisms.len());
             let num_of_selected = best_species.len();
-println!("---------7");            
             for specie in &mut best_species {
-println!("---------8");            
                 specie.generate_offspring(num_of_organisms.checked_div(num_of_selected).unwrap(), &organisms);
             }
         } else {
@@ -97,7 +90,6 @@ println!("---------8");
                     offspring_size = specie.organisms.len();
                 }
 
-    println!("Offspring {:?}, specie_fitness {:?}", offspring_size, specie_fitness);
                 if offspring_size > 0 {
                     //TODO: check if offspring is for organisms fitness also, not only by specie
                     specie.generate_offspring(offspring_size, &organisms);
@@ -107,10 +99,8 @@ println!("---------8");
             }
         }
         if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
-            println!("--------------");
             self.epochs_without_improvements = 0;
         }
-println!("Total generated {:?}", self.get_organisms().len());        
     }
 
     fn get_best_species(&self) -> Vec<Specie>{
@@ -121,21 +111,15 @@ println!("Total generated {:?}", self.get_organisms().len());
         }
 
         for specie in &self.species {
-println!("Len: {:?}", result.len());            
             if result.len() < 1 {
-println!("--------1");                
                 result.push(specie.clone())
             } else if result.len() < 2 {
-println!("--------2");                
                 if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
-println!("--------4");                
                     result.insert(0, specie.clone());
                 } else {
-println!("--------5");                
                     result.push(specie.clone());
                 }
             } else {
-println!("--------3");                
                 if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
                     result[1] = result[0].clone();
                     result[0] = specie.clone();

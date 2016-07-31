@@ -88,7 +88,6 @@ impl Specie{
 
             offspring.push(champion.unwrap());
         }
-println!("Generated: #{:?}", offspring.len());
         self.organisms = offspring;
     }
 

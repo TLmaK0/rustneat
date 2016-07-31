@@ -13,31 +13,20 @@ mod test{
     }
 
     struct XORClassification;
-    impl XORClassification{
-        fn debug(&self, organism: &mut Organism, print: bool) -> f64 {
-            let mut output = vec![0f64];
-            let mut distance: f64;
-            organism.activate(&vec![0f64,0f64], &mut output); 
-if print { print!("{:?}, ", output[0]); }
-            distance = (0f64 - output[0]).abs();
-            organism.activate(&vec![0f64,1f64], &mut output); 
-if print { print!("{:?}, ", output[0]); }
-            distance += (1f64 - output[0]).abs();
-            organism.activate(&vec![1f64,0f64], &mut output); 
-if print { print!("{:?}, ", output[0]); }
-            distance += (1f64 - output[0]).abs();
-            organism.activate(&vec![1f64,1f64], &mut output); 
-if print { println!("{:?}", output[0]); }
-            distance += (0f64 - output[0]).abs();
-            let fitness = (4f64 - distance).powi(2);
-            fitness
-        }
-
-    }
 
     impl Environment for XORClassification{
         fn test(&self, organism: &mut Organism) -> f64 {
-            self.debug(organism, false)
+            let mut output = vec![0f64];
+            let mut distance: f64;
+            organism.activate(&vec![0f64,0f64], &mut output); 
+            distance = (0f64 - output[0]).abs();
+            organism.activate(&vec![0f64,1f64], &mut output); 
+            distance += (1f64 - output[0]).abs();
+            organism.activate(&vec![1f64,0f64], &mut output); 
+            distance += (1f64 - output[0]).abs();
+            organism.activate(&vec![1f64,1f64], &mut output); 
+            distance += (0f64 - output[0]).abs();
+            (4f64 - distance).powi(2)
         }
     }
 
@@ -70,18 +59,14 @@ if print { println!("{:?}", output[0]); }
         let environment = XORClassification;
         let mut found = false;
         let mut champion: Option<Organism> = None;
-        let mut generation = 0;
         let mut actual_fitness = 0f64;
         let mut max_neurons = 0;
         while !found {
             population.evolve();
-//println!("pop: {:?}", population.organisms.len());            
             population.evaluate_in(&environment);
-            println!("Epochs without improvements: {:?}", population.epochs_without_improvements());
             for organism in &population.get_organisms() {
                 if organism.fitness > actual_fitness {
                     actual_fitness = organism.fitness;
-                    environment.debug(&mut organism.clone(), true);
                 }
 
                 if organism.genome.len() > max_neurons {
@@ -93,8 +78,6 @@ if print { println!("{:?}", output[0]); }
                     found = true;
                 }
             }
-           println!("Generation: {:?}, fitness: {:?}, neurons: {:?}", generation, actual_fitness, max_neurons);
-            generation += 1;
         }
         assert!(champion.is_some(), "Not able to solve XOR classification");
     }
