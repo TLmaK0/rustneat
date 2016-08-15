@@ -57,16 +57,25 @@ mod test{
     fn network_should_be_able_to_solve_xor_classification(){
         let mut population = Population::create_population(150);
         let environment = XORClassification;
-        let mut champion: Option<Organism> = None;
-        while champion.is_none() {
+        let mut champion_option: Option<Organism> = None;
+        while champion_option.is_none() {
             population.evolve();
             population.evaluate_in(&environment);
             for organism in &population.get_organisms() {
                 if organism.fitness > 15.9f64 {
-                    champion = Some(organism.clone());
+                    champion_option = Some(organism.clone());
                 }
             }
         }
-        assert!(champion.is_some(), "Not able to solve XOR classification");
+        let mut champion = champion_option.as_mut().unwrap();
+        let mut output = vec![0f64];
+        champion.activate(&vec![0f64,0f64], &mut output); 
+        assert!(output[0] < 0.01f64);
+        champion.activate(&vec![0f64,1f64], &mut output); 
+        assert!(output[0] > 0.99f64);
+        champion.activate(&vec![1f64,0f64], &mut output); 
+        assert!(output[0] > 0.99f64);
+        champion.activate(&vec![1f64,1f64], &mut output); 
+        assert!(output[0] < 0.01f64);
     }
 }
