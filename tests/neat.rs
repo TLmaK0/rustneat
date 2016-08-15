@@ -57,25 +57,13 @@ mod test{
     fn network_should_be_able_to_solve_xor_classification(){
         let mut population = Population::create_population(150);
         let environment = XORClassification;
-        let mut found = false;
         let mut champion: Option<Organism> = None;
-        let mut actual_fitness = 0f64;
-        let mut max_neurons = 0;
-        while !found {
+        while champion.is_none() {
             population.evolve();
             population.evaluate_in(&environment);
             for organism in &population.get_organisms() {
-                if organism.fitness > actual_fitness {
-                    actual_fitness = organism.fitness;
-                }
-
-                if organism.genome.len() > max_neurons {
-                    max_neurons = organism.genome.len();
-                }
-
                 if organism.fitness > 15.9f64 {
                     champion = Some(organism.clone());
-                    found = true;
                 }
             }
         }

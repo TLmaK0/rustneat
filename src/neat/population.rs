@@ -69,7 +69,6 @@ impl Population {
             .fold(0f64, |total, specie| total + specie.calculate_average_fitness());
 
         let num_of_organisms = self.size();
-        let num_species = self.species.len();
         let organisms = self.get_organisms();
 
         if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
