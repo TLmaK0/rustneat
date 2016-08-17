@@ -70,12 +70,12 @@ mod test{
         let mut champion = champion_option.as_mut().unwrap();
         let mut output = vec![0f64];
         champion.activate(&vec![0f64,0f64], &mut output); 
-        assert!(output[0] < 0.01f64);
+        assert!(output[0] < 0.1f64);
         champion.activate(&vec![0f64,1f64], &mut output); 
-        assert!(output[0] > 0.99f64);
+        assert!(output[0] > 0.9f64);
         champion.activate(&vec![1f64,0f64], &mut output); 
-        assert!(output[0] > 0.99f64);
+        assert!(output[0] > 0.9f64);
         champion.activate(&vec![1f64,1f64], &mut output); 
-        assert!(output[0] < 0.01f64);
+        assert!(output[0] < 0.1f64);
     }
 }
