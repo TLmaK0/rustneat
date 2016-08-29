@@ -82,6 +82,17 @@ impl Organism {
             neuron.connections.push(Connection(gene.out_neuron_id, gene.weight));
         }
     }
+
+    fn get_weights_matrix(&self) -> Vec<Vec<f64>>{
+        let neurons_len = self.genome.len();
+        let mut matrix = vec![vec![0.0; neurons_len]; neurons_len];
+        for gene in self.genome.get_genes() {
+            if gene.enabled {
+                matrix[gene.in_neuron_id][gene.out_neuron_id] = gene.weight
+            }
+        }
+        matrix
+    }
 }
 
 #[cfg(test)]
@@ -168,5 +179,23 @@ mod tests {
         let sensors = vec![0f64,0f64,0f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);
+    }
+
+    #[test]
+    fn should_be_able_to_get_matrix_representation_of_the_neuron_connections(){
+        let mut organism = Organism::new(Genome::new());
+        organism.genome.inject_gene(0, 1, 1f64); 
+        organism.genome.inject_gene(1, 2, 0.5f64);
+        organism.genome.inject_gene(2, 1, 0.5f64);
+        organism.genome.inject_gene(2, 2, 0.75f64);
+        organism.genome.inject_gene(1, 0, 1f64);
+        assert_eq!(
+            organism.get_weights_matrix(),
+            [
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, 0.5],  
+                [0.0, 0.5, 0.75]
+            ]
+        );
     }
 }
