@@ -9,3 +9,13 @@ license = "MIT"
 rand = "0.3"
 conv = "0.3.2"
 uuid = "0.1"
+lazy_static = "0.1.*"
+collenchyma = { version = "0.0.8", default-features = false }
+collenchyma-nn = { version = "0.3.4", default-features = false }
+collenchyma-blas = { version = "0.2.0", default-features = false }
+
+[features]
+default = ["native"]
+native  = ["collenchyma/native", "collenchyma-blas/native", "collenchyma-nn/native"]
+cuda    = ["collenchyma/cuda", "collenchyma-blas/cuda", "collenchyma-nn/cuda"]
+opencl  = ["collenchyma/opencl", "collenchyma-blas/opencl", "collenchyma-nn/opencl"]
