@@ -24,7 +24,7 @@ impl Organism {
         Organism::new(self.genome.mate(&other.genome, self.fitness < other.fitness))
     }
 
-    pub fn activate(&mut self, sensors: &Vec<f64>, outputs: &mut Vec<f64>){
+    pub fn activate_old(&mut self, sensors: &Vec<f64>, outputs: &mut Vec<f64>){
        if self.neurons.len() == 0 {
            self.generate_phenome();
        };
@@ -57,6 +57,23 @@ impl Organism {
        }
     }
 
+    pub fn activate(&mut self, sensors: &Vec<f64>, outputs: &mut Vec<f64>){
+
+        let neurons_len = self.genome.len();
+        let gamma = vec![0.0; neurons_len];
+        let tau = vec![10.0; neurons_len];
+        let theta = vec![0.0; neurons_len];
+        let wik = vec![1.0; sensors.len() * neurons_len];
+        let i = sensors.clone();
+        let activations = Ctrnn::new().activate(30, &gamma, 1.0, &tau, &self.get_weights_matrix(), &theta, &(neurons_len, sensors.len(), wik), &i); 
+        if sensors.len() < neurons_len {
+            let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
+            for n in 0..outputs_activations.len() {
+                outputs[n] = outputs_activations[n];
+            }
+        }
+    }
+
     fn activate_neurons(&mut self){
         for neuron_id in 0..self.neurons.len() {
             self.neurons[neuron_id].as_mut().unwrap().shot();
@@ -83,15 +100,15 @@ impl Organism {
         }
     }
 
-    fn get_weights_matrix(&self) -> Vec<Vec<f64>>{
+    fn get_weights_matrix(&self) -> (usize, usize, Vec<f64>){
         let neurons_len = self.genome.len();
-        let mut matrix = vec![vec![0.0; neurons_len]; neurons_len];
+        let mut matrix = vec![0.0; neurons_len * neurons_len];
         for gene in self.genome.get_genes() {
             if gene.enabled {
-                matrix[gene.in_neuron_id][gene.out_neuron_id] = gene.weight
+                matrix[(gene.in_neuron_id * neurons_len) + gene.out_neuron_id] = gene.weight
             }
         }
-        matrix
+        (neurons_len, neurons_len, matrix)
     }
 }
 
@@ -127,14 +144,14 @@ mod tests {
     #[test]
     fn should_propagate_signal_without_hidden_layers(){
         let mut organism = Organism::new(Genome::new());
-        organism.genome.inject_gene(0, 1, 1f64);
+        organism.genome.inject_gene(0, 1, 5f64);
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);        
-        assert!(output[0] > 0.9f64, format!("{:?} is not bigger than 0.9", output[0]));
+        assert!(output[0] > 0f64, format!("{:?} is not bigger than 0", output[0]));
 
         let mut organism = Organism::new(Genome::new());
-        organism.genome.inject_gene(0, 1, -1f64);
+        organism.genome.inject_gene(0, 1, -5f64);
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);        
@@ -191,11 +208,11 @@ mod tests {
         organism.genome.inject_gene(1, 0, 1f64);
         assert_eq!(
             organism.get_weights_matrix(),
-            [
-                [0.0, 1.0, 0.0],
-                [1.0, 0.0, 0.5],  
-                [0.0, 0.5, 0.75]
-            ]
+                (3, 3, vec![
+                        0.0, 1.0, 0.0,
+                        1.0, 0.0, 0.5,  
+                        0.0, 0.5, 0.75
+                    ])
         );
     }
 }
