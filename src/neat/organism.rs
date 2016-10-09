@@ -105,7 +105,7 @@ impl Organism {
         let mut matrix = vec![0.0; neurons_len * neurons_len];
         for gene in self.genome.get_genes() {
             if gene.enabled {
-                matrix[(gene.in_neuron_id * neurons_len) + gene.out_neuron_id] = gene.weight
+                matrix[(gene.out_neuron_id * neurons_len) + gene.in_neuron_id] = gene.weight
             }
         }
         (neurons_len, neurons_len, matrix)
@@ -144,14 +144,14 @@ mod tests {
     #[test]
     fn should_propagate_signal_without_hidden_layers(){
         let mut organism = Organism::new(Genome::new());
-        organism.genome.inject_gene(0, 1, 5f64);
+        organism.genome.inject_gene(0, 1, 2f64);
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);        
-        assert!(output[0] > 0f64, format!("{:?} is not bigger than 0", output[0]));
+        assert!(output[0] > 0f64, format!("{:?} is not bigger than 0.9", output[0]));
 
         let mut organism = Organism::new(Genome::new());
-        organism.genome.inject_gene(0, 1, -5f64);
+        organism.genome.inject_gene(0, 1, -2f64);
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);        
