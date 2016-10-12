@@ -1,9 +1,17 @@
 [package]
 name = "rustneat"
-version = "0.1.1"
+version = "0.1.4"
 authors = ["Hugo Freire <hfreire@abajar.com>"]
 description = "Implementation of NeuroEvolution of Augmenting Topologies NEAT http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf"
+
 license = "MIT"
+license-file = "LICENSE.md"
+
+documentation = "https://github.com/TLmaK0/rustneat"
+homepage = "https://github.com/TLmaK0/rustneat"
+repository = "https://github.com/TLmaK0/rustneat"
+
+keywords = ["neuro", "evolution", "neat", "genetic", "algorithm"]
 
 [dependencies]
 rand = "0.3"
