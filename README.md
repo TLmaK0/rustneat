@@ -4,7 +4,7 @@ Implementation of NeuroEvolution of Augmenting Topologies NEAT http://nn.cs.utex
 
 with some kind of Discrete-time recurrent neural network processing
 
-## Sample of usage
+## Sample usage
 
 Create a new cargo project:
 
