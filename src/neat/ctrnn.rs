@@ -13,7 +13,7 @@ impl Ctrnn {
     }
 
     pub fn activate(&self, steps: usize, gamma_v: &Vec<f64>, delta_t: f64, tau_v: &Vec<f64>, wij_v: &(usize, usize, Vec<f64>), theta_v: &Vec<f64>, wik_v: &(usize, usize, Vec<f64>), i_v: &Vec<f64>) -> Vec<f64> {
-        let mut gamma = Ctrnn::matrix_from_vector(gamma_v); 
+        let mut state = Ctrnn::matrix_from_vector(gamma_v); 
         let theta = Ctrnn::matrix_from_vector(theta_v); 
         let wij = Ctrnn::matrix_from_matrix(wij_v); 
         let wik = Ctrnn::matrix_from_matrix(wik_v); 
@@ -21,9 +21,9 @@ impl Ctrnn {
         let tau = Ctrnn::matrix_from_vector(tau_v);
         let delta_t_tau = tau.apply( &(|x| 1.0/x) ) * delta_t;
         for _ in 0..steps { 
-            gamma = &gamma + delta_t_tau.elemul(&( (&wij * ( &gamma - &theta ).apply(&Ctrnn::sigmoid)) - &gamma + (&wik * &i)));
+            state = &state + delta_t_tau.elemul(&( (&wij * ( &state - &theta ).apply(&Ctrnn::sigmoid)) - &state + (&wik * &i)));
         }
-        return gamma.into_vec();
+        return state.apply(&(|x| (x - 3.0) * 2.0)).apply(&Ctrnn::sigmoid).into_vec();
     }
 
     fn sigmoid(y: f64) -> f64 {

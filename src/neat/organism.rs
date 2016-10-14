@@ -65,7 +65,7 @@ impl Organism {
         let theta = vec![0.0; neurons_len];
         let wik = vec![1.0; sensors.len() * neurons_len];
         let i = sensors.clone();
-        let activations = Ctrnn::new().activate(30, &gamma, 1.0, &tau, &self.get_weights_matrix(), &theta, &(neurons_len, sensors.len(), wik), &i); 
+        let activations = Ctrnn::new().activate(30, &gamma, 10.0, &tau, &self.get_weights_matrix(), &theta, &(neurons_len, sensors.len(), wik), &i); 
         if sensors.len() < neurons_len {
             let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
             for n in 0..outputs.len() {

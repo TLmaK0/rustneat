@@ -45,7 +45,7 @@ impl PartialOrd for Gene{
 
 impl Gene {
     pub fn generate_weight () -> f64 {
-        rand::random::<f64>() * 2f64 - 1f64
+        rand::random::<f64>() * 8f64 - 4f64
     }
 }
 
