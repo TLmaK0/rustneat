@@ -12,7 +12,7 @@ To speed up tests, run they with ```--release``` (XOR classification should take
 cargo test --release
 ```
 
-## Sample of usage
+## Sample usage
 
 Create a new cargo project:
 
