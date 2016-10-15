@@ -4,8 +4,6 @@ pub use self::organism::Organism;
 pub use self::population::Population;
 pub use self::gene::Gene;
 pub use self::environment::Environment;
-pub use self::neuron::Neuron;
-pub use self::connection::Connection;
 pub use self::ctrnn::Ctrnn;
 
 mod genome;
@@ -15,6 +13,4 @@ mod population;
 mod mutation;
 mod gene;
 mod environment;
-mod neuron;
-mod connection;
 mod ctrnn;
