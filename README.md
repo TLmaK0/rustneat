@@ -2,7 +2,15 @@
 
 Implementation of NeuroEvolution of Augmenting Topologies NEAT http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf
 
-with some kind of Discrete-time recurrent neural network processing
+This implementations uses a Continous-Time Recurrent Neural Network (CTRNN) (Yamauchi and Beer, 1994).
+
+## Run test
+
+To speed up tests, run they with ```--release``` (XOR classification should take less than a minute)
+
+```
+cargo test --release
+```
 
 ## Sample usage
 
@@ -16,7 +24,7 @@ cd rustneatsample
 Add rustneat to Cargo.toml
 ```
 [dependencies]
-rustneat = "0.1.1"
+rustneat = "0.1.5"
 ```
 
 Remove src/lib.rs and create a src/main.rs with:
