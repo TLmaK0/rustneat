@@ -54,7 +54,7 @@ impl Environment for XORClassification{
 
 fn main(){
     let mut population = Population::create_population(150);
-    let environment = XORClassification;
+    let mut environment = XORClassification;
     let mut champion: Option<Organism> = None;
     while champion.is_none() {
         population.evolve();
