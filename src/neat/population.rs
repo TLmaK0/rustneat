@@ -33,7 +33,7 @@ impl Population {
         self.generate_offspring();
     }
 
-    pub fn evaluate_in(&mut self, environment: &Environment){
+    pub fn evaluate_in(&mut self, environment: &mut Environment){
         let mut improvement = false;
         
         for specie in &mut self.species {
