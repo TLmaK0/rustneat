@@ -22,7 +22,7 @@ impl Ctrnn {
         Ctrnn {}
     }
 
-    pub fn activate_nn(&self, steps: usize, nn: CtrnnNeuralNetwork) -> Vec<f64> {
+    pub fn activate_nn(&self, steps: usize, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
         let mut state = Ctrnn::matrix_from_vector(nn.gamma); 
         let theta = Ctrnn::matrix_from_vector(nn.theta); 
         let wij = Ctrnn::matrix_from_matrix(nn.wij); 
@@ -38,7 +38,7 @@ impl Ctrnn {
 
     #[deprecated(since="0.1.7", note="please use `activate_nn` instead")]
     pub fn activate(&self, steps: usize, gamma: &Vec<f64>, delta_t: f64, tau: &Vec<f64>, wij: &(usize, usize, Vec<f64>), theta: &Vec<f64>, wik: &(usize, usize, Vec<f64>), i: &Vec<f64>) -> Vec<f64> {
-        self.activate_nn(steps, CtrnnNeuralNetwork {
+        self.activate_nn(steps, &CtrnnNeuralNetwork {
             gamma: gamma.as_slice(),
             delta_t: delta_t, 
             tau: tau.as_slice(),
@@ -80,22 +80,32 @@ mod tests {
                             -3.45899, -1.27388]);
         let i =             vec![0.98856, 0.31540];
 
+        let nn = CtrnnNeuralNetwork {
+            gamma: gamma.as_slice(),
+            delta_t: delta_t, 
+            tau: tau.as_slice(),
+            wij: &(wij.0, wij.1, wij.2.as_slice()),
+            theta: theta.as_slice(),
+            wik: &(wik.0, wik.1, wik.2.as_slice()),
+            i: i.as_slice()
+        };
+
         let ctrnn = Ctrnn::new();
 
-        assert_eq!( ctrnn.activate(1, &gamma, delta_t, &tau, &wij, &theta, &wik, &i),
+        assert_eq!( ctrnn.activate_nn(1, &nn),
             vec![0.0012732326259646935, 0.0000007804325967431104, 0.00013984620250072583]);
 
-        assert_eq!( ctrnn.activate(2, &gamma, delta_t, &tau, &wij, &theta, &wik, &i),
+        assert_eq!( ctrnn.activate_nn(2, &nn),
             vec![0.00043073019717790323, 0.000000009937039489593933, 0.000034080215678448577]);
 
-        assert_eq!( ctrnn.activate(10, &gamma, delta_t, &tau, &wij, &theta, &wik, &i),
+        assert_eq!( ctrnn.activate_nn(10, &nn), 
             vec![0.00007325263764065628, 0.00000012140174814281648, 0.000004220860839220797]);
 
-        assert_eq!( ctrnn.activate(30, &gamma, delta_t, &tau, &wij, &theta, &wik, &i),
+        assert_eq!( ctrnn.activate_nn(30, &nn), 
             vec![0.00006952721528466206, 0.00000012669416324530944, 0.000004043510745829741]);
 
         //converges
-        assert_eq!( ctrnn.activate(100, &gamma, delta_t, &tau, &wij, &theta, &wik, &i),
+        assert_eq!( ctrnn.activate_nn(100, &nn), 
             vec![0.00006952654167069687, 0.0000001266951605597891, 0.000004043479141786699]);
     }
 }

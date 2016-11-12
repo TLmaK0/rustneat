@@ -31,7 +31,7 @@ impl Organism {
         let i = sensors.clone();
         let wij = self.get_weights_matrix();
 
-        let activations = Ctrnn::new().activate_nn(30, CtrnnNeuralNetwork {
+        let activations = Ctrnn::new().activate_nn(30, &CtrnnNeuralNetwork {
             gamma: gamma.as_slice(),
             delta_t: 10.0, 
             tau: tau.as_slice(),
