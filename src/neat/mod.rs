@@ -5,6 +5,7 @@ pub use self::population::Population;
 pub use self::gene::Gene;
 pub use self::environment::Environment;
 pub use self::ctrnn::Ctrnn;
+pub use neat::ctrnn::CtrnnNeuralNetwork;
 
 mod genome;
 mod specie;

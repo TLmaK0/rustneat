@@ -4,38 +4,61 @@ use self::rulinalg::matrix::Matrix;
 use self::rulinalg::matrix::BaseMatrix;
 use self::rulinalg::matrix::BaseMatrixMut;
 
+pub struct CtrnnNeuralNetwork<'a> {
+    pub gamma: &'a[f64],
+    pub delta_t: f64,
+    pub tau: &'a[f64],
+    pub wij: &'a(usize, usize, &'a[f64]),
+    pub theta: &'a[f64],
+    pub wik: &'a(usize, usize, &'a[f64]),
+    pub i: &'a[f64]
+}
+
 pub struct Ctrnn {
 }
 
 impl Ctrnn {
-    pub fn new() -> Ctrnn{
+    pub fn new() -> Ctrnn {
         Ctrnn {}
     }
 
-    pub fn activate(&self, steps: usize, gamma_v: &Vec<f64>, delta_t: f64, tau_v: &Vec<f64>, wij_v: &(usize, usize, Vec<f64>), theta_v: &Vec<f64>, wik_v: &(usize, usize, Vec<f64>), i_v: &Vec<f64>) -> Vec<f64> {
-        let mut state = Ctrnn::matrix_from_vector(gamma_v); 
-        let theta = Ctrnn::matrix_from_vector(theta_v); 
-        let wij = Ctrnn::matrix_from_matrix(wij_v); 
-        let wik = Ctrnn::matrix_from_matrix(wik_v); 
-        let i = Ctrnn::matrix_from_vector(i_v); 
-        let tau = Ctrnn::matrix_from_vector(tau_v);
-        let delta_t_tau = tau.apply( &(|x| 1.0/x) ) * delta_t;
+    pub fn activate_nn(&self, steps: usize, nn: CtrnnNeuralNetwork) -> Vec<f64> {
+        let mut state = Ctrnn::matrix_from_vector(nn.gamma); 
+        let theta = Ctrnn::matrix_from_vector(nn.theta); 
+        let wij = Ctrnn::matrix_from_matrix(nn.wij); 
+        let wik = Ctrnn::matrix_from_matrix(nn.wik); 
+        let i = Ctrnn::matrix_from_vector(nn.i); 
+        let tau = Ctrnn::matrix_from_vector(nn.tau);
+        let delta_t_tau = tau.apply( &(|x| 1.0/x) ) * nn.delta_t;
         for _ in 0..steps { 
             state = &state + delta_t_tau.elemul(&( (&wij * ( &state - &theta ).apply(&Ctrnn::sigmoid)) - &state + (&wik * &i)));
         }
         return state.apply(&(|x| (x - 3.0) * 2.0)).apply(&Ctrnn::sigmoid).into_vec();
     }
 
+    #[deprecated(since="0.1.7", note="please use `activate_nn` instead")]
+    pub fn activate(&self, steps: usize, gamma: &Vec<f64>, delta_t: f64, tau: &Vec<f64>, wij: &(usize, usize, Vec<f64>), theta: &Vec<f64>, wik: &(usize, usize, Vec<f64>), i: &Vec<f64>) -> Vec<f64> {
+        self.activate_nn(steps, CtrnnNeuralNetwork {
+            gamma: gamma.as_slice(),
+            delta_t: delta_t, 
+            tau: tau.as_slice(),
+            wij: &(wij.0, wij.1, wij.2.as_slice()),
+            theta: theta.as_slice(),
+            wik: &(wik.0, wik.1, wik.2.as_slice()),
+            i: i.as_slice()
+        })
+    }
+
     fn sigmoid(y: f64) -> f64 {
         1f64 / (1f64 + (-y).exp())
     }
 
-    fn matrix_from_vector(vector: &Vec<f64>) -> Matrix<f64> {
-        Matrix::new(vector.len(), 1, vector.as_slice())
+    fn matrix_from_vector(vector: &[f64]) -> Matrix<f64> {
+        Matrix::new(vector.len(), 1, vector)
     }
 
-    fn matrix_from_matrix(matrix: &(usize, usize, Vec<f64>)) -> Matrix<f64> {
-        Matrix::new(matrix.0, matrix.1, matrix.2.as_slice())
+    fn matrix_from_matrix(matrix: &(usize, usize, &[f64])) -> Matrix<f64> {
+        Matrix::new(matrix.0, matrix.1, matrix.2)
     }
 }
 

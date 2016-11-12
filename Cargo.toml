@@ -1,6 +1,6 @@
 [package]
 name = "rustneat"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Hugo Freire <hfreire@abajar.com>"]
 description = "Implementation of NeuroEvolution of Augmenting Topologies NEAT http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf with a Continuous-Time Recurrent Neural Networks"
 

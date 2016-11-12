@@ -29,7 +29,18 @@ impl Organism {
         let theta = vec![0.0; neurons_len];
         let wik = vec![1.0; sensors.len() * neurons_len];
         let i = sensors.clone();
-        let activations = Ctrnn::new().activate(30, &gamma, 10.0, &tau, &self.get_weights_matrix(), &theta, &(neurons_len, sensors.len(), wik), &i); 
+        let wij = self.get_weights_matrix();
+
+        let activations = Ctrnn::new().activate_nn(30, CtrnnNeuralNetwork {
+            gamma: gamma.as_slice(),
+            delta_t: 10.0, 
+            tau: tau.as_slice(),
+            wij: &(wij.0, wij.1, wij.2.as_slice()),
+            theta: theta.as_slice(),
+            wik: &(neurons_len, sensors.len(), wik.as_slice()),
+            i: i.as_slice()
+        });
+
         if sensors.len() < neurons_len {
             let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
             for n in 0..outputs.len() {
