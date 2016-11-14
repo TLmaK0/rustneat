@@ -13,7 +13,7 @@ To speed up tests, run they with `--release` (XOR classification/simple_sample s
 ```
 ## Run example
 
-`cargo run --example simple_sample`
+`cargo run --release --example simple_sample`
 
 ## Sample usage
 
