@@ -34,21 +34,13 @@ impl Population {
     }
 
     pub fn evaluate_in(&mut self, environment: &mut Environment){
-        let mut improvement = false;
-        
-        for specie in &mut self.species {
-            for organism in &mut specie.organisms {
-                organism.fitness = environment.test(organism);
-                if organism.fitness > self.champion_fitness {
-                    self.champion_fitness = organism.fitness;
-                    self.epochs_without_improvements = 0usize;
-                    improvement = true;
-                }
-            }
-        }
+        let champion_fitness = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
-        if !improvement {
+        if self.champion_fitness > champion_fitness {
             self.epochs_without_improvements += 1;
+        } else {
+            self.champion_fitness = champion_fitness;
+            self.epochs_without_improvements = 0usize;
         }
     }
 
