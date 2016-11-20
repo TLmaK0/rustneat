@@ -1,4 +1,2 @@
 language: rust
-rust:
-  - 1.9.0
-script: cargo test --release
+script: cargo build --release && cargo test --release
