@@ -27,7 +27,7 @@ rustneat = "0.1.5"
 
 Then use the library i.e. to implement the above example, use the library as follows:
 
-```
+```rust
 extern crate rustneat;
 use rustneat::neat::Environment;
 use rustneat::neat::Organism;
