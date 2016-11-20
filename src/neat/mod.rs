@@ -6,6 +6,7 @@ pub use self::gene::Gene;
 pub use self::environment::Environment;
 pub use self::ctrnn::Ctrnn;
 pub use neat::ctrnn::CtrnnNeuralNetwork;
+pub use self::species_evaluator::SpeciesEvaluator;
 
 mod genome;
 mod specie;
@@ -15,3 +16,4 @@ mod mutation;
 mod gene;
 mod environment;
 mod ctrnn;
+mod species_evaluator;
