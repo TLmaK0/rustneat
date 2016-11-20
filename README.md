@@ -1,4 +1,5 @@
 ### Rust NEAT
+![travis-ci](https://img.shields.io/travis/TLmaK0/rustneat/master.svg)
 
 Implementation of NeuroEvolution of Augmenting Topologies NEAT http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf
 

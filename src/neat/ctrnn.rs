@@ -65,6 +65,13 @@ impl Ctrnn {
 #[cfg(test)]
 mod tests {
     use neat::*;
+    macro_rules! assert_delta_vector {
+        ($x:expr, $y:expr, $d:expr) => {
+            for pos in 0..$x.len(){
+                if !(($x[pos] - $y[pos]).abs() <= $d) { panic!("Element at position {:?} -> {:?} is not equal to {:?}", pos, $x[pos], $y[pos]); }
+            }
+        }
+    }
 
     #[test]
     fn neural_network_activation_should_return_correct_values(){
@@ -92,20 +99,20 @@ mod tests {
 
         let ctrnn = Ctrnn::new();
 
-        assert_eq!( ctrnn.activate_nn(1, &nn),
-            vec![0.0012732326259646935, 0.0000007804325967431104, 0.00013984620250072583]);
+        assert_delta_vector!( ctrnn.activate_nn(1, &nn),
+            vec![0.0012732326259646935, 0.0000007804325967431104, 0.00013984620250072583], 0.00000000000000000001);
 
-        assert_eq!( ctrnn.activate_nn(2, &nn),
-            vec![0.00043073019717790323, 0.000000009937039489593933, 0.000034080215678448577]);
+        assert_delta_vector!( ctrnn.activate_nn(2, &nn),
+            vec![0.00043073019717790323, 0.000000009937039489593933, 0.000034080215678448577], 0.00000000000000000001);
 
-        assert_eq!( ctrnn.activate_nn(10, &nn), 
-            vec![0.00007325263764065628, 0.00000012140174814281648, 0.000004220860839220797]);
+        assert_delta_vector!( ctrnn.activate_nn(10, &nn), 
+            vec![0.00007325263764065628, 0.00000012140174814281648, 0.000004220860839220797], 0.00000000000000000001);
 
-        assert_eq!( ctrnn.activate_nn(30, &nn), 
-            vec![0.00006952721528466206, 0.00000012669416324530944, 0.000004043510745829741]);
+        assert_delta_vector!( ctrnn.activate_nn(30, &nn), 
+            vec![0.00006952721528466206, 0.00000012669416324530944, 0.000004043510745829741], 0.00000000000000000001);
 
         //converges
-        assert_eq!( ctrnn.activate_nn(100, &nn), 
-            vec![0.00006952654167069687, 0.0000001266951605597891, 0.000004043479141786699]);
+        assert_delta_vector!( ctrnn.activate_nn(100, &nn), 
+            vec![0.00006952654167069687, 0.0000001266951605597891, 0.000004043479141786699], 0.00000000000000000001);
     }
 }
