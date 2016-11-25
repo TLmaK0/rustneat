@@ -8,6 +8,8 @@ os:
  - linux
  - osx
 cache: cargo
+before_cache:
+ - cargo prune
 env:
   global:
     - PATH=$PATH:$HOME/.cargo/bin
