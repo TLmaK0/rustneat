@@ -1,2 +1,16 @@
+sudo: false
 language: rust
-script: cargo build --release && cargo test --release
+rust:
+ - stable
+ - beta
+ - nightly
+os:
+ - linux
+ - osx
+cache: cargo
+before_script: (cargo install rustfmt || true)
+script:
+- |
+  cargo fmt -- --write-mode=diff &&
+  cargo build --release &&
+  cargo test --release
