@@ -15,6 +15,6 @@ before_script:
   (which cargo-prune && cargo install-update cargo-prune) || cargo install cargo-prune
 script:
 - |
-  cargo fmt -- --write-mode=diff &&
-  cargo build --release &&
+  cargo fmt -- --write-mode=diff
+  cargo build --release
   cargo test --release

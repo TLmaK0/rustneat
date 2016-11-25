@@ -67,7 +67,7 @@ impl Genome {
                     } else {
                         match other.genes.binary_search(&gene) {
                             Ok(position) => other.genes[position].clone(),
-                            Err(_) => gene.clone(), 
+                            Err(_) => gene.clone(),
                         }
                     }
                 }

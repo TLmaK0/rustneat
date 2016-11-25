@@ -81,7 +81,9 @@ mod tests {
     macro_rules! assert_delta_vector {
         ($x:expr, $y:expr, $d:expr) => {
             for pos in 0..$x.len(){
-                if !(($x[pos] - $y[pos]).abs() <= $d) { panic!("Element at position {:?} -> {:?} is not equal to {:?}", pos, $x[pos], $y[pos]); }
+                if !(($x[pos] - $y[pos]).abs() <= $d) {
+                    panic!("Element at position {:?} -> {:?} \
+                           is not equal to {:?}", pos, $x[pos], $y[pos]); }
             }
         }
     }
@@ -93,8 +95,8 @@ mod tests {
         let tau = vec![61.694, 10.149, 16.851];
         let wij = (3,
                    3,
-                   vec![-2.94737, 2.70665, -0.57046, -3.27553, 3.67193, 1.83218, 2.32476, 0.24739,
-                        0.58587]);
+                   vec![-2.94737, 2.70665, -0.57046, -3.27553, 3.67193, 1.83218, 2.32476,
+                        0.24739, 0.58587]);
         let theta = vec![-0.695126, -0.677891, -0.072129];
         let wik = (3, 2, vec![-0.10097, -3.04457, -4.86594, 1.79273, -3.45899, -1.27388]);
         let i = vec![0.98856, 0.31540];

@@ -1,4 +1,3 @@
-
 pub use neat::ctrnn::CtrnnNeuralNetwork;
 pub use self::ctrnn::Ctrnn;
 pub use self::environment::Environment;
