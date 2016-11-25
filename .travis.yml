@@ -19,5 +19,4 @@ before_script:
 script:
 - |
   cargo fmt -- --write-mode=diff
-  cargo build --release
   cargo test --release
