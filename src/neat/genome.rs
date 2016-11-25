@@ -67,7 +67,7 @@ impl Genome {
                     } else {
                         match other.genes.binary_search(&gene) {
                             Ok(position) => other.genes[position].clone(),
-                            Err(_) => gene.clone(), 
+                            Err(_) => gene.clone(),
                         }
                     }
                 }
@@ -161,14 +161,14 @@ impl Genome {
     }
 
     fn add_gene(&mut self, gene: Gene) {
-        if gene.in_neuron_id > self.last_neuron_id {
-            self.last_neuron_id = gene.in_neuron_id;
+        if gene.in_neuron_id() > self.last_neuron_id {
+            self.last_neuron_id = gene.in_neuron_id();
         }
-        if gene.out_neuron_id > self.last_neuron_id {
-            self.last_neuron_id = gene.out_neuron_id;
+        if gene.out_neuron_id() > self.last_neuron_id {
+            self.last_neuron_id = gene.out_neuron_id();
         }
         match self.genes.binary_search(&gene) {
-            Ok(pos) => self.genes[pos].enabled = true,
+            Ok(pos) => self.genes[pos].set_enabled(),
             Err(_) => self.genes.push(gene),
         }
         self.genes.sort();
@@ -181,7 +181,7 @@ impl Genome {
     pub fn total_weights(&self) -> f64 {
         let mut total = 0f64;
         for gene in &self.genes {
-            total += gene.weight;
+            total += gene.weight();
         }
         total
     }
@@ -222,8 +222,8 @@ impl Genome {
         // average weight differences of matching genes
         let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| {
             acc +
-            (m_gene.weight -
-             other.genes.get(other.genes.binary_search(m_gene).unwrap()).unwrap().weight)
+            (m_gene.weight() -
+             other.genes.get(other.genes.binary_search(m_gene).unwrap()).unwrap().weight())
                 .abs()
         });
 

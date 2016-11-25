@@ -58,8 +58,8 @@ impl Organism {
         let neurons_len = self.genome.len();
         let mut matrix = vec![0.0; neurons_len * neurons_len];
         for gene in self.genome.get_genes() {
-            if gene.enabled {
-                matrix[(gene.out_neuron_id * neurons_len) + gene.in_neuron_id] = gene.weight
+            if gene.enabled() {
+                matrix[(gene.out_neuron_id() * neurons_len) + gene.in_neuron_id()] = gene.weight()
             }
         }
         (neurons_len, neurons_len, matrix)
