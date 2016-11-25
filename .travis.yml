@@ -8,6 +8,9 @@ os:
  - linux
  - osx
 cache: cargo
+env:
+  global:
+    - PATH=$PATH:$HOME/.cargo/bin
 before_script:
 - |
   (cargo-install-update --version  && cargo install-update cargo-update) || cargo install cargo-update &&
