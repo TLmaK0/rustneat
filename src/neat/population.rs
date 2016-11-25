@@ -1,39 +1,39 @@
 extern crate conv;
 
-use self::conv::prelude::*;
 use neat::*;
+use self::conv::prelude::*;
 
 
 #[derive(Debug)]
-pub struct Population{
+pub struct Population {
     pub species: Vec<Specie>,
     champion_fitness: f64,
-    epochs_without_improvements: usize
+    epochs_without_improvements: usize,
 }
 
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
 
 impl Population {
-    pub fn create_population(population_size: usize) -> Population{
-        let mut population = Population { 
-            species: vec![], 
-            champion_fitness: 0f64, 
-            epochs_without_improvements: 0usize
+    pub fn create_population(population_size: usize) -> Population {
+        let mut population = Population {
+            species: vec![],
+            champion_fitness: 0f64,
+            epochs_without_improvements: 0usize,
         };
 
         population.create_organisms(population_size);
         population
     }
 
-    pub fn size(&self) -> usize{
+    pub fn size(&self) -> usize {
         self.species.iter().fold(0usize, |total, specie| total + specie.organisms.len())
     }
 
-    pub fn evolve(&mut self){
+    pub fn evolve(&mut self) {
         self.generate_offspring();
     }
 
-    pub fn evaluate_in(&mut self, environment: &mut Environment){
+    pub fn evaluate_in(&mut self, environment: &mut Environment) {
         let champion_fitness = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
         if self.champion_fitness > champion_fitness {
@@ -44,21 +44,24 @@ impl Population {
         }
     }
 
-    pub fn get_organisms(&self)-> Vec<Organism>{
-        self.species.iter().flat_map(|specie| {
-                                     specie.organisms.clone()
-        }).collect::<Vec<Organism>>()
+    pub fn get_organisms(&self) -> Vec<Organism> {
+        self.species
+            .iter()
+            .flat_map(|specie| specie.organisms.clone())
+            .collect::<Vec<Organism>>()
     }
 
     pub fn epochs_without_improvements(&self) -> usize {
         self.epochs_without_improvements
     }
 
-    fn generate_offspring(&mut self){
+    fn generate_offspring(&mut self) {
         self.speciate();
 
-        let total_average_fitness = self.species.iter_mut()
-            .fold(0f64, |total, specie| total + specie.calculate_average_fitness());
+        let total_average_fitness = self.species
+            .iter_mut()
+            .fold(0f64,
+                  |total, specie| total + specie.calculate_average_fitness());
 
         let num_of_organisms = self.size();
         let organisms = self.get_organisms();
@@ -67,22 +70,25 @@ impl Population {
             let mut best_species = self.get_best_species();
             let num_of_selected = best_species.len();
             for specie in &mut best_species {
-                specie.generate_offspring(num_of_organisms.checked_div(num_of_selected).unwrap(), &organisms);
+                specie.generate_offspring(num_of_organisms.checked_div(num_of_selected).unwrap(),
+                                          &organisms);
             }
         } else {
-            let organisms_by_average_fitness = num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
+            let organisms_by_average_fitness = num_of_organisms.value_as::<f64>().unwrap() /
+                                               total_average_fitness;
 
 
             for specie in &mut self.species {
                 let specie_fitness = specie.calculate_average_fitness();
-                let mut offspring_size = (specie_fitness * organisms_by_average_fitness).round() as usize;
+                let mut offspring_size = (specie_fitness * organisms_by_average_fitness)
+                    .round() as usize;
 
                 if total_average_fitness == 0f64 {
                     offspring_size = specie.organisms.len();
                 }
 
                 if offspring_size > 0 {
-                    //TODO: check if offspring is for organisms fitness also, not only by specie
+                    // TODO: check if offspring is for organisms fitness also, not only by specie
                     specie.generate_offspring(offspring_size, &organisms);
                 } else {
                     specie.remove_organisms();
@@ -94,11 +100,11 @@ impl Population {
         }
     }
 
-    fn get_best_species(&self) -> Vec<Specie>{
+    fn get_best_species(&self) -> Vec<Specie> {
         let mut result = vec![];
 
         if self.species.len() < 2 {
-            return self.species.clone()
+            return self.species.clone();
         }
 
         for specie in &self.species {
@@ -114,7 +120,8 @@ impl Population {
                 if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
                     result[1] = result[0].clone();
                     result[0] = specie.clone();
-                } else if result[1].calculate_champion_fitness() < specie.calculate_champion_fitness() {
+                } else if result[1].calculate_champion_fitness() <
+                          specie.calculate_champion_fitness() {
                     result[1] = specie.clone();
                 }
             }
@@ -123,18 +130,18 @@ impl Population {
         result
     }
 
-    fn speciate(&mut self){
+    fn speciate(&mut self) {
         let organisms = &self.get_organisms();
         for specie in &mut self.species {
             specie.remove_organisms();
         }
 
-        for organism in organisms{
+        for organism in organisms {
             let mut new_specie: Option<Specie> = None;
             match self.species.iter_mut().find(|specie| specie.match_genome(&organism)) {
                 Some(specie) => {
                     specie.add(organism.clone());
-                },
+                }
                 None => {
                     let mut specie = Specie::new(organism.genome.clone());
                     specie.add(organism.clone());
@@ -147,7 +154,7 @@ impl Population {
         }
     }
 
-    fn create_organisms(&mut self, population_size: usize){
+    fn create_organisms(&mut self, population_size: usize) {
         self.species = vec![];
         let mut organisms = vec![];
 
@@ -166,7 +173,7 @@ mod tests {
     use neat::*;
 
     #[test]
-    fn population_should_be_able_to_speciate_genomes(){
+    fn population_should_be_able_to_speciate_genomes() {
         let mut genome1 = Genome::new();
         genome1.inject_gene(0, 0, 1f64);
         genome1.inject_gene(0, 1, 1f64);
@@ -186,7 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn after_population_evolve_population_should_be_the_same(){
+    fn after_population_evolve_population_should_be_the_same() {
         let mut population = Population::create_population(150);
         for _ in 0..150 {
             population.evolve();

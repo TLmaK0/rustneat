@@ -1,26 +1,25 @@
-use neat::gene::Gene as Gene;
+use neat::gene::Gene;
 
-pub trait Mutation {
-}
+pub trait Mutation {}
 
 impl Mutation {
-    pub fn connection_weight (gene: &mut Gene, perturbation: bool) {
+    pub fn connection_weight(gene: &mut Gene, perturbation: bool) {
         let mut new_weight = Gene::generate_weight();
         if perturbation {
             new_weight = gene.weight + new_weight;
         }
-        gene.weight = new_weight; 
+        gene.weight = new_weight;
     }
 
-    pub fn add_connection (in_neuron_id: usize, out_neuron_id: usize) -> (Gene) {
-        Gene { 
+    pub fn add_connection(in_neuron_id: usize, out_neuron_id: usize) -> (Gene) {
+        Gene {
             in_neuron_id: in_neuron_id,
             out_neuron_id: out_neuron_id,
             ..Default::default()
-        } 
+        }
     }
 
-    pub fn add_neuron (gene: &mut Gene, new_neuron_id: usize) -> (Gene, Gene) {
+    pub fn add_neuron(gene: &mut Gene, new_neuron_id: usize) -> (Gene, Gene) {
         gene.enabled = false;
 
         let gen1 = Gene {
@@ -39,7 +38,7 @@ impl Mutation {
         (gen1, gen2)
     }
 
-    pub fn toggle_expression(gene: &mut Gene){
+    pub fn toggle_expression(gene: &mut Gene) {
         gene.enabled = !gene.enabled;
     }
 }
@@ -47,15 +46,15 @@ impl Mutation {
 #[cfg(test)]
 mod tests {
     use neat::*;
-    use neat::mutation::Mutation as Mutation;
+    use neat::mutation::Mutation;
 
     #[test]
-    fn mutate_toggle_gene_should_toggle(){
+    fn mutate_toggle_gene_should_toggle() {
         let mut gene = Gene {
             in_neuron_id: 0,
             out_neuron_id: 1,
             weight: 1f64,
-            enabled: false
+            enabled: false,
         };
 
         Mutation::toggle_expression(&mut gene);
