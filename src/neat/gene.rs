@@ -4,11 +4,10 @@ use std::cmp::Ordering;
 
 #[derive(Debug, Clone)]
 pub struct Gene {
-    in_neuron_id: usize,
-    out_neuron_id: usize,
-    weight: f64,
-    enabled: bool,
-    innovation: u64,
+    pub in_neuron_id: usize,
+    pub out_neuron_id: usize,
+    pub weight: f64,
+    pub enabled: bool,
 }
 
 impl Eq for Gene {}
