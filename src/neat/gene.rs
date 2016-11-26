@@ -4,10 +4,11 @@ use std::cmp::Ordering;
 
 #[derive(Debug, Clone)]
 pub struct Gene {
-    pub in_neuron_id: usize,
-    pub out_neuron_id: usize,
-    pub weight: f64,
-    pub enabled: bool,
+    in_neuron_id: usize,
+    out_neuron_id: usize,
+    weight: f64,
+    enabled: bool,
+    innovation: u64,
 }
 
 impl Eq for Gene {}
@@ -46,6 +47,32 @@ impl Gene {
     pub fn generate_weight() -> f64 {
         rand::random::<f64>() * 2f64 - 1f64
     }
+
+    pub fn in_neuron_id(&self) -> usize {
+        self.in_neuron_id
+    }
+
+    pub fn out_neuron_id(&self) -> usize {
+        self.out_neuron_id
+    }
+    pub fn weight(&self) -> f64 {
+        self.weight
+    }
+    pub fn set_weight(&self, weight: f64) -> f64 {
+        self.weight = weight;
+    }
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+    pub fn set_enabled(&mut self) {
+        self.enabled = true;
+    }
+    pub fn set_disabled(&mut self) {
+        self.enabled = false;
+    }
+    pub fn innovation(&self) -> u64 {
+        self.innovation
+    }
 }
 
 impl Default for Gene {
@@ -55,6 +82,7 @@ impl Default for Gene {
             out_neuron_id: 1,
             weight: Gene::generate_weight(),
             enabled: true,
+            innovation: 1,
         }
     }
 }

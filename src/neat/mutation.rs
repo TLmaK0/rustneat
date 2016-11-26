@@ -6,9 +6,9 @@ impl Mutation {
     pub fn connection_weight(gene: &mut Gene, perturbation: bool) {
         let mut new_weight = Gene::generate_weight();
         if perturbation {
-            new_weight = gene.weight + new_weight;
+            new_weight = gene.weight() + new_weight;
         }
-        gene.weight = new_weight;
+        gene.set_weight(new_weight);
     }
 
     pub fn add_connection(in_neuron_id: usize, out_neuron_id: usize) -> (Gene) {
@@ -20,10 +20,10 @@ impl Mutation {
     }
 
     pub fn add_neuron(gene: &mut Gene, new_neuron_id: usize) -> (Gene, Gene) {
-        gene.enabled = false;
+        gene.set_disabled();
 
         let gen1 = Gene {
-            in_neuron_id: gene.in_neuron_id,
+            in_neuron_id: gene.in_neuron_id(),
             out_neuron_id: new_neuron_id,
             weight: 1f64,
             ..Default::default()
@@ -31,15 +31,19 @@ impl Mutation {
 
         let gen2 = Gene {
             in_neuron_id: new_neuron_id,
-            out_neuron_id: gene.out_neuron_id,
-            weight: gene.weight,
+            out_neuron_id: gene.out_neuron_id(),
+            weight: gene.weight(),
             ..Default::default()
         };
         (gen1, gen2)
     }
 
     pub fn toggle_expression(gene: &mut Gene) {
-        gene.enabled = !gene.enabled;
+        if gene.enabled() {
+            gene.set_disabled()
+        } else {
+            gene.set_enabled()
+        }
     }
 }
 
