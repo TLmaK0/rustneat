@@ -1,2 +1,30 @@
+sudo: false
 language: rust
-script: cargo build --release && cargo test --release
+rust:
+ - stable
+ - beta
+ - nightly
+os:
+ - linux
+ - osx
+cache: cargo
+before_cache:
+ - cargo prune
+env:
+  global:
+    - PATH=$PATH:$HOME/.cargo/bin
+    - RUST_BACKTRACE=1
+before_script:
+- |
+  (which cargo-install-update   && cargo install-update cargo-update) || cargo install cargo-update &&
+  (which rustfmt && cargo install-update rustfmt) || cargo install rustfmt &&
+  (which cargo-prune && cargo install-update cargo-prune) || cargo install cargo-prune
+
+script:
+  - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
+      (
+        set -x;
+        cargo fmt -- --write-mode=diff
+      );
+    fi
+  - cargo test  --verbose --release
