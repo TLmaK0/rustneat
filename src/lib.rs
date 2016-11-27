@@ -8,7 +8,10 @@
 #![cfg_attr(feature="clippy", deny(clippy, unicode_not_nfc, wrong_pub_self_convention))]
 #![cfg_attr(feature="clippy", allow(use_debug, too_many_arguments))]
 
-//! A rust implementaton of NEAT with the addition of a CTRNN
+//! Implementation of NeuroEvolution of Augmenting Topologies [NEAT]
+//! (http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf)
+//! This implementation uses a Continuous-Time Recurrent Neural Network (CTRNN)
+//! (Yamauchi and Beer, 1994).
 
 #[macro_use]
 extern crate lazy_static;
