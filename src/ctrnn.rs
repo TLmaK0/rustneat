@@ -1,5 +1,6 @@
 use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
-
+#[allow(missing_docs)]
+#[derive(Debug)]
 pub struct CtrnnNeuralNetwork<'a> {
     pub gamma: &'a [f64],
     pub delta_t: f64,
@@ -10,11 +11,14 @@ pub struct CtrnnNeuralNetwork<'a> {
     pub i: &'a [f64],
 }
 
-#[derive(Default)]
+#[allow(missing_docs)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct Ctrnn {
 }
 
 impl Ctrnn {
+    /// Activate the NN
+    // TODO Not sure steps are required here?
     pub fn activate_nn(&self, steps: usize, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
         let mut state = Ctrnn::matrix_from_vector(nn.gamma);
         let theta = Ctrnn::matrix_from_vector(nn.theta);
@@ -32,6 +36,7 @@ impl Ctrnn {
         state.apply(&(|x| (x - 3.0) * 2.0)).apply(&Ctrnn::sigmoid).into_vec()
     }
 
+    #[allow(missing_docs)]
     #[deprecated(since="0.1.7", note="please use `activate_nn` instead")]
     pub fn activate(&self,
                     steps: usize,

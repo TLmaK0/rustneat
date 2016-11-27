@@ -6,12 +6,14 @@ use specie::Specie;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
+/// Calculate fitness and champions for a species
 pub struct SpeciesEvaluator<'a> {
     threads: usize,
     environment: &'a mut Environment,
 }
 
 impl<'a> SpeciesEvaluator<'a> {
+    /// Take an environment that will test organisms.
     pub fn new(environment: &mut Environment) -> SpeciesEvaluator {
         SpeciesEvaluator {
             threads: num_cpus::get(),
@@ -19,7 +21,7 @@ impl<'a> SpeciesEvaluator<'a> {
         }
     }
 
-    // return champion fitness
+    /// return champion fitness
     pub fn evaluate(&self, species: &mut Vec<Specie>) -> f64 {
         let mut champion_fitness = 0f64;
         for specie in species {

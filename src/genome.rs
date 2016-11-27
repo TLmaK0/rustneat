@@ -3,7 +3,8 @@ use gene::Gene;
 use mutation::Mutation;
 use rand;
 
-
+/// Vector of Genes
+/// Holds a count of last neuron added, similar to Innovation number
 #[derive(Default, Debug, Clone)]
 pub struct Genome {
     genes: Vec<Gene>,
@@ -20,6 +21,8 @@ const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 
 impl Genome {
+    /// May add a connection &| neuron &| mutat connection weight &|
+    /// enable/disable connection
     pub fn mutate(&mut self) {
         if rand::random::<f64>() < MUTATE_ADD_CONNECTION || self.genes.is_empty() {
             self.mutate_add_connection();
@@ -38,6 +41,7 @@ impl Genome {
         };
     }
 
+    /// Mate two genes
     pub fn mate(&self, other: &Genome, fittest: bool) -> Genome {
         if self.genes.len() > other.genes.len() {
             self.mate_genes(other, fittest)
@@ -51,23 +55,23 @@ impl Genome {
         for gene in &self.genes {
             genome.add_gene({
                 if !fittest || rand::random::<f64>() > 0.5f64 {
-                    gene.clone()
+                    *gene
                 } else {
                     match other.genes.binary_search(gene) {
-                        Ok(position) => other.genes[position].clone(),
-                        Err(_) => gene.clone(),
+                        Ok(position) => other.genes[position],
+                        Err(_) => *gene,
                     }
                 }
             });
         }
         genome
     }
-
+    /// Get vector of all genes in this genome
     pub fn get_genes(&self) -> &Vec<Gene> {
         &self.genes
     }
 
-    // only allow connected nodes
+    /// only allow connected nodes
     pub fn inject_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
         let max_neuron_id = self.last_neuron_id + 1;
 
@@ -89,11 +93,11 @@ impl Genome {
 
         self.create_gene(in_neuron_id, out_neuron_id, weight)
     }
-
+    /// Number of genes
     pub fn len(&self) -> usize {
         self.last_neuron_id + 1 //first neuron id is 0
     }
-
+    /// is genome empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -160,10 +164,13 @@ impl Genome {
         self.genes.sort();
     }
 
+    /// Compare another Genome for species equality
+    // TODO This should be impl Eq
     pub fn is_same_specie(&self, other: &Genome) -> bool {
         self.compatibility_distance(other) < COMPATIBILITY_THRESHOLD
     }
 
+    /// Total weigths of all genes
     pub fn total_weights(&self) -> f64 {
         let mut total = 0f64;
         for gene in &self.genes {
@@ -172,6 +179,8 @@ impl Genome {
         total
     }
 
+    /// Total num genes
+    // TODO len() is enough
     pub fn total_genes(&self) -> usize {
         self.genes.len()
     }
@@ -228,7 +237,7 @@ mod tests {
     fn mutation_connection_weight() {
         let mut genome = Genome::default();
         genome.inject_gene(0, 0, 1f64);
-        let orig_gene = genome.genes[0].clone();
+        let orig_gene = genome.genes[0];
         genome.mutate_connection_weight();
         // These should not be same size
         assert!((genome.genes[0].weight() - orig_gene.weight()).abs() > EPSILON);

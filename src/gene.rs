@@ -1,9 +1,10 @@
 extern crate rand;
 
-use rand::Rng;
+use rand::Closed01;
 use std::cmp::Ordering;
 
-#[derive(Debug, Clone)]
+/// A connection Gene
+#[derive(Debug, Copy, Clone)]
 pub struct Gene {
     in_neuron_id: usize,
     out_neuron_id: usize,
@@ -55,7 +56,10 @@ impl Gene {
     }
     /// Generate a weight between 0 & 1
     pub fn generate_weight() -> f64 {
-        rand::random::<f64>() * 2f64 - 1f64
+        // TODO Weight of nodes perhaps should be between 0 & 1 (closed)
+        // rand::random::<f64>() * 2f64 - 1f64
+        rand::random::<Closed01<f64>>().0 * 2f64 - 1f64
+
         // rand::thread_rng().next_f64()
     }
     /// Connection in ->

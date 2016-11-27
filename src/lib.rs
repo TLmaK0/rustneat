@@ -1,7 +1,15 @@
+#![deny(missing_docs,
+        trivial_casts, trivial_numeric_casts,
+        unsafe_code,
+        unused_import_braces, unused_qualifications)]
+
 #![cfg_attr(feature="clippy", feature(plugin))]
 #![cfg_attr(feature="clippy", plugin(clippy))]
 #![cfg_attr(feature="clippy", deny(clippy, unicode_not_nfc, wrong_pub_self_convention))]
-#![cfg_attr(feature="clippy", allow(use_debug))]
+#![cfg_attr(feature="clippy", allow(use_debug, too_many_arguments))]
+
+//! A rust implementaton of NEAT with the addition of a CTRNN
+
 #[macro_use]
 extern crate lazy_static;
 extern crate conv;
@@ -20,12 +28,16 @@ pub use self::population::Population;
 pub use self::specie::Specie;
 pub use self::species_evaluator::SpeciesEvaluator;
 
+/// A collection of genes
 pub mod genome;
 mod specie;
+/// A genome plus fitness
 pub mod organism;
+/// A collection of species with champion
 pub mod population;
 mod mutation;
 mod gene;
+/// Trait to define test parameter
 pub mod environment;
 mod ctrnn;
 mod species_evaluator;

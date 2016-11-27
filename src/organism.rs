@@ -1,6 +1,9 @@
 use ctrnn::{Ctrnn, CtrnnNeuralNetwork};
 use genome::Genome;
 
+/// An organism is a Genome with fitness.
+/// Also maitain a fitenss measure of the organism
+#[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct Organism {
     pub genome: Genome,
@@ -8,23 +11,24 @@ pub struct Organism {
 }
 
 impl Organism {
+    /// Create a new organmism form a single genome.
     pub fn new(genome: Genome) -> Organism {
         Organism {
             genome: genome,
             fitness: 0f64,
         }
     }
-
+    /// Return a new Orgnaism by mutating this Genome and fitness of zero
     pub fn mutate(&self) -> Organism {
         let mut new_genome = self.genome.clone();
         new_genome.mutate();
         Organism::new(new_genome)
     }
-
+    /// Mate this organism with another
     pub fn mate(&self, other: &Organism) -> Organism {
         Organism::new(self.genome.mate(&other.genome, self.fitness < other.fitness))
     }
-
+    /// Activate this organism in the NN
     pub fn activate(&mut self, sensors: &[f64], outputs: &mut Vec<f64>) {
 
         let neurons_len = self.genome.len();
