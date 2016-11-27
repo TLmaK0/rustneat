@@ -1,5 +1,6 @@
 extern crate rand;
 
+use rand::Rng;
 use std::cmp::Ordering;
 
 #[derive(Debug, Clone)]
@@ -43,6 +44,7 @@ impl PartialOrd for Gene {
 }
 
 impl Gene {
+    /// Create a new gene
     pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64, enabled: bool) -> Gene {
         Gene {
             in_neuron_id: in_neuron_id,
@@ -51,29 +53,36 @@ impl Gene {
             enabled: enabled,
         }
     }
+    /// Generate a weight between 0 & 1
     pub fn generate_weight() -> f64 {
         rand::random::<f64>() * 2f64 - 1f64
+        // rand::thread_rng().next_f64()
     }
-
+    /// Connection in ->
     pub fn in_neuron_id(&self) -> usize {
         self.in_neuron_id
     }
-
+    /// connection out <->
     pub fn out_neuron_id(&self) -> usize {
         self.out_neuron_id
     }
+    /// getter for the wight of the gene
     pub fn weight(&self) -> f64 {
         self.weight
     }
+    /// Setter
     pub fn set_weight(&mut self, weight: f64) {
         self.weight = weight;
     }
+    /// Is gene enabled
     pub fn enabled(&self) -> bool {
         self.enabled
     }
+    /// Set gene enabled
     pub fn set_enabled(&mut self) {
         self.enabled = true;
     }
+    /// Set gene disabled
     pub fn set_disabled(&mut self) {
         self.enabled = false;
     }
