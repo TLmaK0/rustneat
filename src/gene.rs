@@ -54,7 +54,7 @@ impl Gene {
             enabled: enabled,
         }
     }
-    /// Generate a weight between 0 & 1
+    /// Generate a weight
     pub fn generate_weight() -> f64 {
         // TODO Weight of nodes perhaps should be between 0 & 1 (closed)
         // rand::random::<f64>() * 2f64 - 1f64
