@@ -1,8 +1,4 @@
-extern crate rulinalg;
-
-use self::rulinalg::matrix::BaseMatrix;
-use self::rulinalg::matrix::BaseMatrixMut;
-use self::rulinalg::matrix::Matrix;
+use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
 
 pub struct CtrnnNeuralNetwork<'a> {
     pub gamma: &'a [f64],
@@ -14,14 +10,11 @@ pub struct CtrnnNeuralNetwork<'a> {
     pub i: &'a [f64],
 }
 
+#[derive(Default)]
 pub struct Ctrnn {
 }
 
 impl Ctrnn {
-    pub fn new() -> Ctrnn {
-        Ctrnn {}
-    }
-
     pub fn activate_nn(&self, steps: usize, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
         let mut state = Ctrnn::matrix_from_vector(nn.gamma);
         let theta = Ctrnn::matrix_from_vector(nn.theta);
@@ -36,29 +29,29 @@ impl Ctrnn {
                 delta_t_tau.elemul(&((&wij * (&state - &theta).apply(&Ctrnn::sigmoid)) - &state +
                                      (&wik * &i)));
         }
-        return state.apply(&(|x| (x - 3.0) * 2.0)).apply(&Ctrnn::sigmoid).into_vec();
+        state.apply(&(|x| (x - 3.0) * 2.0)).apply(&Ctrnn::sigmoid).into_vec()
     }
 
     #[deprecated(since="0.1.7", note="please use `activate_nn` instead")]
     pub fn activate(&self,
                     steps: usize,
-                    gamma: &Vec<f64>,
+                    gamma: &[f64],
                     delta_t: f64,
-                    tau: &Vec<f64>,
+                    tau: &[f64],
                     wij: &(usize, usize, Vec<f64>),
-                    theta: &Vec<f64>,
+                    theta: &[f64],
                     wik: &(usize, usize, Vec<f64>),
-                    i: &Vec<f64>)
+                    i: &[f64])
                     -> Vec<f64> {
         self.activate_nn(steps,
                          &CtrnnNeuralNetwork {
-                             gamma: gamma.as_slice(),
+                             gamma: gamma,
                              delta_t: delta_t,
-                             tau: tau.as_slice(),
+                             tau: tau,
                              wij: &(wij.0, wij.1, wij.2.as_slice()),
-                             theta: theta.as_slice(),
+                             theta: theta,
                              wik: &(wik.0, wik.1, wik.2.as_slice()),
-                             i: i.as_slice(),
+                             i: i,
                          })
     }
 
@@ -77,7 +70,7 @@ impl Ctrnn {
 
 #[cfg(test)]
 mod tests {
-    use neat::*;
+    use super::*;
     macro_rules! assert_delta_vector {
         ($x:expr, $y:expr, $d:expr) => {
             for pos in 0..$x.len(){
@@ -111,7 +104,7 @@ mod tests {
             i: i.as_slice(),
         };
 
-        let ctrnn = Ctrnn::new();
+        let ctrnn = Ctrnn::default();
 
         assert_delta_vector!(ctrnn.activate_nn(1, &nn),
                              vec![0.0012732326259646935,

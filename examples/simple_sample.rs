@@ -1,7 +1,7 @@
 extern crate rustneat;
-use rustneat::neat::Environment;
-use rustneat::neat::Organism;
-use rustneat::neat::Population;
+use rustneat::Environment;
+use rustneat::Organism;
+use rustneat::Population;
 
 struct XORClassification;
 

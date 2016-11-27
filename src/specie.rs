@@ -1,10 +1,8 @@
-extern crate conv;
-extern crate rand;
-
-use neat::genome::Genome;
-use neat::organism::Organism;
-use self::conv::prelude::*;
-use self::rand::distributions::{IndependentSample, Range};
+use conv::prelude::*;
+use genome::Genome;
+use organism::Organism;
+use rand;
+use rand::distributions::{IndependentSample, Range};
 
 #[derive(Debug, Clone)]
 pub struct Specie {
@@ -70,7 +68,7 @@ impl Specie {
 
     pub fn generate_offspring(&mut self,
                               num_of_organisms: usize,
-                              population_organisms: &Vec<Organism>) {
+                              population_organisms: &[Organism]) {
         self.age += 1;
 
         let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
@@ -117,7 +115,7 @@ impl Specie {
         // TODO: adjust fitness
     }
 
-    fn create_child(&self, organism: &Organism, population_organisms: &Vec<Organism>) -> Organism {
+    fn create_child(&self, organism: &Organism, population_organisms: &[Organism]) -> Organism {
         if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() < 2 {
             self.create_child_by_mutation(organism)
         } else {
@@ -131,7 +129,7 @@ impl Specie {
 
     fn create_child_by_mate(&self,
                             organism: &Organism,
-                            population_organisms: &Vec<Organism>)
+                            population_organisms: &[Organism])
                             -> Organism {
         let mut rng = rand::thread_rng();
         if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
@@ -146,24 +144,28 @@ impl Specie {
 
 #[cfg(test)]
 mod tests {
-    use neat::*;
+    use genome::Genome;
+    use organism::Organism;
+    use std::f64::EPSILON;
+    use super::*;
+
 
     #[test]
     fn specie_should_return_correct_average_fitness() {
-        let mut specie = Specie::new(Genome::new());
-        let mut organism1 = Organism::new(Genome::new());
+        let mut specie = Specie::new(Genome::default());
+        let mut organism1 = Organism::new(Genome::default());
         organism1.fitness = 10f64;
 
-        let mut organism2 = Organism::new(Genome::new());
+        let mut organism2 = Organism::new(Genome::default());
         organism2.fitness = 15f64;
 
-        let mut organism3 = Organism::new(Genome::new());
+        let mut organism3 = Organism::new(Genome::default());
         organism3.fitness = 20f64;
 
         specie.add(organism1);
         specie.add(organism2);
         specie.add(organism3);
 
-        assert!(specie.calculate_average_fitness() == 15f64);
+        assert!((specie.calculate_average_fitness() - 15f64).abs() < EPSILON);
     }
 }
