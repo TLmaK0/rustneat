@@ -1,7 +1,7 @@
-use conv::prelude::*;
 use gene::Gene;
 use mutation::Mutation;
-use rand;
+use rand::{self, Closed01};
+use std::cmp;
 
 /// Vector of Genes
 /// Holds a count of last neuron added, similar to Innovation number
@@ -12,31 +12,29 @@ pub struct Genome {
 }
 
 const COMPATIBILITY_THRESHOLD: f64 = 3f64;
-
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
 const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
 const MUTATE_ADD_NEURON: f64 = 0.004f64;
 const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
-
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 
 impl Genome {
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
     pub fn mutate(&mut self) {
-        if rand::random::<f64>() < MUTATE_ADD_CONNECTION || self.genes.is_empty() {
+        if rand::random::<Closed01<f64>>().0 < MUTATE_ADD_CONNECTION || self.genes.is_empty() {
             self.mutate_add_connection();
         };
 
-        if rand::random::<f64>() < MUTATE_ADD_NEURON {
+        if rand::random::<Closed01<f64>>().0 < MUTATE_ADD_NEURON {
             self.mutate_add_neuron();
         };
 
-        if rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT {
+        if rand::random::<Closed01<f64>>().0 < MUTATE_CONNECTION_WEIGHT {
             self.mutate_connection_weight();
         };
 
-        if rand::random::<f64>() < MUTATE_TOGGLE_EXPRESSION {
+        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_EXPRESSION {
             self.mutate_toggle_expression();
         };
     }
@@ -186,33 +184,31 @@ impl Genome {
     }
 
     // http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
-    // I have consider disjoint and excess genes as the same
+    // I have considered disjoint and excess genes as the same
     fn compatibility_distance(&self, other: &Genome) -> f64 {
         // TODO: optimize this method
         let c2 = 1f64;
         let c3 = 0.4f64;
 
         // Number of excess
-        let n1 = self.genes.len().value_as::<f64>().unwrap();
-        let n2 = other.genes.len().value_as::<f64>().unwrap();
-        let mut n = n1.max(n2);
+        let n1 = self.genes.len();
+        let n2 = other.genes.len();
+        let n = cmp::max(n1, n2);
 
-        if n == 0f64 {
+        if n == 0 {
             return 0f64; //no genes in any genome, the genomes are equal
         }
 
-        if n < 20f64 {
-            n = 1f64;
-        }
+        let z = if n < 20 { 1f64 } else { n as f64 };
 
         let matching_genes = self.genes
             .iter()
             .filter(|i1_gene| other.genes.contains(i1_gene))
             .collect::<Vec<&Gene>>();
-        let n3 = matching_genes.len().value_as::<f64>().unwrap();
+        let n3 = matching_genes.len();
 
-        // Disjoint genes
-        let d = n1 + n2 - (2f64 * n3);
+        // Disjoint / excess genes
+        let d = n1 + n2 - (2 * n3);
 
         // average weight differences of matching genes
         let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| {
@@ -221,10 +217,10 @@ impl Genome {
                 .abs()
         });
 
-        let w = if n3 == 0f64 { 0f64 } else { w1 / n3 };
+        let w = if n3 == 0 { 0f64 } else { w1 / n3 as f64 };
 
         // compatibility distance
-        (c2 * d / n) + c3 * w
+        (c2 * d as f64 / z) + c3 * w
     }
 }
 
