@@ -1,5 +1,6 @@
 ### Rust NEAT
 [![travis-ci](https://img.shields.io/travis/TLmaK0/rustneat/master.svg)](https://travis-ci.org/TLmaK0/rustneat)
+[![Gitter](https://img.shields.io/gitter/room/nwjs/nw.js.svg)](https://gitter.im/rustneat/rustneat)
 
 Implementation of NeuroEvolution of Augmenting Topologies NEAT http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf
 
@@ -30,9 +31,9 @@ Then use the library i.e. to implement the above example, use the library as fol
 
 ```rust
 extern crate rustneat;
-use rustneat::neat::Environment;
-use rustneat::neat::Organism;
-use rustneat::neat::Population;
+use rustneat::Environment;
+use rustneat::Organism;
+use rustneat::Population;
 
 struct XORClassification;
 
