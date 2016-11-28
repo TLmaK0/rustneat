@@ -1,11 +1,14 @@
-extern crate conv;
+use conv::prelude::*;
+use environment::Environment;
+use genome::Genome;
+use organism::Organism;
+use specie::Specie;
+use species_evaluator::SpeciesEvaluator;
 
-use neat::*;
-use self::conv::prelude::*;
-
-
+/// All species in the network
 #[derive(Debug)]
 pub struct Population {
+    /// container of species
     pub species: Vec<Specie>,
     champion_fitness: f64,
     epochs_without_improvements: usize,
@@ -14,6 +17,7 @@ pub struct Population {
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
 
 impl Population {
+    /// Create a new population of size X.
     pub fn create_population(population_size: usize) -> Population {
         let mut population = Population {
             species: vec![],
@@ -24,15 +28,15 @@ impl Population {
         population.create_organisms(population_size);
         population
     }
-
+    /// Find total of all orgnaisms in the population
     pub fn size(&self) -> usize {
         self.species.iter().fold(0usize, |total, specie| total + specie.organisms.len())
     }
-
+    /// Create offspring by mutation and mating. May create new species.
     pub fn evolve(&mut self) {
         self.generate_offspring();
     }
-
+    /// TODO
     pub fn evaluate_in(&mut self, environment: &mut Environment) {
         let champion_fitness = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
@@ -43,14 +47,14 @@ impl Population {
             self.epochs_without_improvements = 0usize;
         }
     }
-
+    /// Return all organisms of the population
     pub fn get_organisms(&self) -> Vec<Organism> {
         self.species
             .iter()
             .flat_map(|specie| specie.organisms.clone())
             .collect::<Vec<Organism>>()
     }
-
+    /// How many iterations without improvement
     pub fn epochs_without_improvements(&self) -> usize {
         self.epochs_without_improvements
     }
@@ -80,12 +84,12 @@ impl Population {
 
             for specie in &mut self.species {
                 let specie_fitness = specie.calculate_average_fitness();
-                let mut offspring_size = (specie_fitness * organisms_by_average_fitness)
-                    .round() as usize;
+                let offspring_size = if total_average_fitness == 0f64 {
+                    specie.organisms.len()
+                } else {
+                    (specie_fitness * organisms_by_average_fitness).round() as usize
+                };
 
-                if total_average_fitness == 0f64 {
-                    offspring_size = specie.organisms.len();
-                }
 
                 if offspring_size > 0 {
                     // TODO: check if offspring is for organisms fitness also, not only by specie
@@ -116,14 +120,11 @@ impl Population {
                 } else {
                     result.push(specie.clone());
                 }
-            } else {
-                if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
-                    result[1] = result[0].clone();
-                    result[0] = specie.clone();
-                } else if result[1].calculate_champion_fitness() <
-                          specie.calculate_champion_fitness() {
-                    result[1] = specie.clone();
-                }
+            } else if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
+                result[1] = result[0].clone();
+                result[0] = specie.clone();
+            } else if result[1].calculate_champion_fitness() < specie.calculate_champion_fitness() {
+                result[1] = specie.clone();
             }
         }
 
@@ -138,7 +139,7 @@ impl Population {
 
         for organism in organisms {
             let mut new_specie: Option<Specie> = None;
-            match self.species.iter_mut().find(|specie| specie.match_genome(&organism)) {
+            match self.species.iter_mut().find(|specie| specie.match_genome(organism)) {
                 Some(specie) => {
                     specie.add(organism.clone());
                 }
@@ -159,7 +160,7 @@ impl Population {
         let mut organisms = vec![];
 
         while organisms.len() < population_size {
-            organisms.push(Organism::new(Genome::new()));
+            organisms.push(Organism::new(Genome::default()));
         }
 
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
@@ -170,14 +171,17 @@ impl Population {
 
 #[cfg(test)]
 mod tests {
-    use neat::*;
+    use genome::Genome;
+    use organism::Organism;
+    use specie::Specie;
+    use super::*;
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
-        let mut genome1 = Genome::new();
+        let mut genome1 = Genome::default();
         genome1.inject_gene(0, 0, 1f64);
         genome1.inject_gene(0, 1, 1f64);
-        let mut genome2 = Genome::new();
+        let mut genome2 = Genome::default();
         genome1.inject_gene(0, 0, 1f64);
         genome1.inject_gene(0, 1, 1f64);
         genome2.inject_gene(1, 1, 1f64);

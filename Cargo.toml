@@ -1,22 +1,22 @@
 [package]
-name = "rustneat"
-version = "0.1.8"
 authors = ["Hugo Freire <hfreire@abajar.com>"]
 description = "Implementation of NeuroEvolution of Augmenting Topologies NEAT http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf with a Continuous-Time Recurrent Neural Networks"
-
-license = "MIT"
-
 documentation = "https://github.com/TLmaK0/rustneat"
 homepage = "https://github.com/TLmaK0/rustneat"
-repository = "https://github.com/TLmaK0/rustneat"
-
 keywords = ["neuro", "evolution", "neat", "genetic", "algorithm"]
+license = "MIT"
+name = "rustneat"
+repository = "https://github.com/TLmaK0/rustneat"
+version = "0.1.8"
 
 [dependencies]
-rand = "0.3"
 conv = "0.3.2"
-uuid = "0.1"
-lazy_static = "0.1.*"
-rulinalg = "0.3.4"
-num_cpus = "1.0"
 crossbeam = "0.2"
+lazy_static = "0.2.2"
+num_cpus = "1.0"
+rand = "0.3"
+rulinalg = "0.3.4"
+
+[dependencies.clippy]
+optional = true
+version = "0.0.103"

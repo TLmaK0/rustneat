@@ -1,17 +1,19 @@
-extern crate num_cpus;
-extern crate crossbeam;
-
-use neat::*;
-use self::crossbeam::Scope;
+use crossbeam::{self, Scope};
+use environment::Environment;
+use num_cpus;
+use organism::Organism;
+use specie::Specie;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
+/// Calculate fitness and champions for a species
 pub struct SpeciesEvaluator<'a> {
     threads: usize,
     environment: &'a mut Environment,
 }
 
 impl<'a> SpeciesEvaluator<'a> {
+    /// Take an environment that will test organisms.
     pub fn new(environment: &mut Environment) -> SpeciesEvaluator {
         SpeciesEvaluator {
             threads: num_cpus::get(),
@@ -19,11 +21,11 @@ impl<'a> SpeciesEvaluator<'a> {
         }
     }
 
-    // return champion fitness
+    /// return champion fitness
     pub fn evaluate(&self, species: &mut Vec<Specie>) -> f64 {
         let mut champion_fitness = 0f64;
         for specie in species {
-            if specie.organisms.len() > 0 {
+            if !specie.organisms.is_empty() {
                 let organisms_by_thread = (specie.organisms.len() + self.threads - 1) /
                                           self.threads; //round up
                 let (tx, rx): (Sender<f64>, Receiver<f64>) = mpsc::channel();
@@ -68,7 +70,7 @@ impl<'a> SpeciesEvaluator<'a> {
                 }
             }
         }
-        return threads_used + 1;
+        threads_used + 1
     }
 
     fn evaluate_organisms<'b>(&'b self,

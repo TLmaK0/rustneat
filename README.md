@@ -7,7 +7,7 @@ This implementations uses a Continuous-Time Recurrent Neural Network (CTRNN) (Ya
 
 ## Run test
 
-To speed up tests, run they with `--release` (XOR classification/simple_sample should take less than a minute)
+To speed up tests, run them with `--release` (XOR classification/simple_sample should take less than a minute)
 
 ```
 `cargo test --release`

@@ -2,7 +2,7 @@ extern crate rustneat;
 
 #[cfg(test)]
 mod test {
-    use rustneat::neat::*;
+    use rustneat::{Environment, Organism, Population};
 
     struct MyEnvironment;
 
@@ -42,7 +42,7 @@ mod test {
         population.evolve();
         let genome = &population.get_organisms()[0].genome;
         assert_eq!(genome.total_genes(), 1);
-        assert!(genome.total_weights() != 0f64);
+        assert_ne!(genome.total_weights(), 0f64);
     }
 
     #[test]
