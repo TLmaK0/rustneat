@@ -31,14 +31,21 @@ impl Environment for XORClassification {
 
         let fitness = (4f64 - distance).powi(2);
 
-        telemetry!("distance1", 0.01, format!(r#"[
-                                       {{id:1,v:{}}},
-                                       {{id:2,v:{}}},
-                                       {{id:3,v:{}}},
-                                       {{id:4,v:{}}},
-                                       {{id:'space',v:0}},
-                                       {{id:'fitness',v:{}}}
-                                       ]"#, _tel1, _tel2, _tel3, _tel4, fitness / 16.0));
+        telemetry!("distance1",
+                   0.01,
+                   format!(r#"[
+                               {{id:1,v:{}}},
+                               {{id:2,v:{}}},
+                               {{id:3,v:{}}},
+                               {{id:4,v:{}}},
+                               {{id:'space',v:0}},
+                               {{id:'fitness',v:{}}}
+                              ]"#,
+                           _tel1,
+                           _tel2,
+                           _tel3,
+                           _tel4,
+                           fitness / 16.0));
         fitness
     }
 }
@@ -49,7 +56,7 @@ fn main() {
 
     rusty_dashed::Server::serve_dashboard(dashboard);
 
-    
+
     #[cfg(feature = "telemetry")]
     println!("\nGo to http://localhost:3000 to see how neural network evolves\n");
 

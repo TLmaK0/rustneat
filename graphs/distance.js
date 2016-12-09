@@ -4,7 +4,7 @@ function distance(id, data){
       height = $(id).height();
 
   var x = d3.scaleLinear()
-    .range([0, 300])
+    .range([0, width])
     .domain([0, 1]);
   var y = d3.scaleBand().domain(data.map(function(d){return d.id;})).range([0,height]);
 
