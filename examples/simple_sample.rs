@@ -17,16 +17,16 @@ impl Environment for XORClassification {
         let mut output = vec![0f64];
         let mut distance: f64;
         organism.activate(&vec![0f64, 0f64], &mut output);
-        let tel1 = output[0];
+        let _tel1 = output[0];
         distance = (0f64 - output[0]).abs();
         organism.activate(&vec![0f64, 1f64], &mut output);
-        let tel2 = output[0];
+        let _tel2 = output[0];
         distance += (1f64 - output[0]).abs();
         organism.activate(&vec![1f64, 0f64], &mut output);
-        let tel3 = output[0];
+        let _tel3 = output[0];
         distance += (1f64 - output[0]).abs();
         organism.activate(&vec![1f64, 1f64], &mut output);
-        let tel4 = output[0];
+        let _tel4 = output[0];
         distance += (0f64 - output[0]).abs();
 
         let fitness = (4f64 - distance).powi(2);
@@ -38,7 +38,7 @@ impl Environment for XORClassification {
                                        {{id:4,v:{}}},
                                        {{id:'space',v:0}},
                                        {{id:'fitness',v:{}}}
-                                       ]"#, tel1, tel2, tel3, tel4, fitness / 16.0));
+                                       ]"#, _tel1, _tel2, _tel3, _tel4, fitness / 16.0));
         fitness
     }
 }
@@ -48,6 +48,9 @@ fn main() {
     dashboard.add_graph("distance1", "distance", 0, 0, 4, 4);
 
     rusty_dashed::Server::serve_dashboard(dashboard);
+
+    
+    #[cfg(feature = "telemetry")]
     println!("\nGo to http://localhost:3000 to see how neural network evolves\n");
 
     let mut population = Population::create_population(150);
