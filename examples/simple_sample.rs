@@ -34,6 +34,7 @@ impl Environment for XORClassification {
 fn main() {
     let mut dashboard = Dashboard::new();
     dashboard.add_graph("fitness1", "fitness", 0, 0, 4, 4);
+    dashboard.add_graph("network1", "network", 4, 0, 4, 4);
 
     rusty_dashed::Server::serve_dashboard(dashboard);
 
