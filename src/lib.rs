@@ -15,6 +15,9 @@
 
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate rusty_dashed;
+
 extern crate conv;
 extern crate rand;
 extern crate rulinalg;

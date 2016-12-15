@@ -16,7 +16,7 @@ lazy_static = "0.2.2"
 num_cpus = "1.0"
 rand = "0.3"
 rulinalg = "0.3.4"
-rusty_dashed = "*" 
+rusty_dashed = "0.1.2" 
 
 [dependencies.clippy]
 optional = true
