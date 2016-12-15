@@ -2,9 +2,9 @@ use conv::prelude::*;
 use environment::Environment;
 use genome::Genome;
 use organism::Organism;
+use rusty_dashed;
 use specie::Specie;
 use species_evaluator::SpeciesEvaluator;
-use rusty_dashed;
 
 /// All species in the network
 #[derive(Debug)]
@@ -45,7 +45,7 @@ impl Population {
             self.epochs_without_improvements += 1;
         } else {
             self.champion_fitness = champion_fitness;
-            telemetry!("fitness1", 1.0, format!("{}", champion_fitness)); 
+            telemetry!("fitness1", 1.0, format!("{}", champion_fitness));
             self.epochs_without_improvements = 0usize;
         }
     }

@@ -72,3 +72,9 @@ fn main() {
 }
 
 ```
+
+# Develop
+Check style guidelines with:
+
+`cargo install rustfmt`
+`cargo fmt -- --write-mode=diff`
