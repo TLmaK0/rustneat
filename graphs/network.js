@@ -47,34 +47,38 @@ var allNodes = {};
 var allLinks = {};
 
 function addIfNewNode(nodes, newNodes, node_id){
-  if (!nodes[node_id]) {
+  if (nodes.indexOf(node_id) < 0) {
     newNodes.push({id: "node" + node_id, group: 0});
-    nodes[node_id] = true;
+    nodes.push(node_id);
   }
+}
+
+function createLink(node_in, node_out, weight){
+    return {source: "node" + node_in, target: "node" + node_out, value: weight };
 }
 
 function addIfNewLink(links, newLinks, updateLinks, node_in, node_out, weight){
   var link_id = node_in + "_" + node_out;
-  if (!links[link_id]) {
-    newLinks.push({source: "node" + node_in, target: "node" + node_out, value: weight });
-    links[link_id] = true;
+  if (links.indexOf(link_id) < 0) {
+    newLinks.push(createLink(node_in, node_out, weight));
+    links.push(link_id);
   } else {
-    updateLinks.push({source: "node" + node_in, target: "node" + node_out, value: weight });
+    updateLinks.push(createLink(node_in, node_out, weight));
   }
 }
 
 function getNodesLinks(id, genes){
-  //TODO: remove old nodes and links
-
   var newNodes = [];
   var newLinks = [];
   var updateLinks = [];
+  var removeLinks = [];
+  var removeNodes = [];
 
   var nodes = allNodes[id];
   var links = allLinks[id];
 
-  if (!nodes) { allNodes[id] = {}; nodes = allNodes[id]; };
-  if (!links) { allLinks[id] = {}; links = allLinks[id]; };
+  if (!nodes) { allNodes[id] = []; nodes = allNodes[id]; };
+  if (!links) { allLinks[id] = []; links = allLinks[id]; };
  
   genes.forEach(function(gene){
     if (gene.enabled) {
@@ -83,15 +87,74 @@ function getNodesLinks(id, genes){
       addIfNewLink(links, newLinks, updateLinks, gene.in_neuron_id, gene.out_neuron_id, gene.weight);
     }
   });
-  return {delete:{} , update:{links: updateLinks}, add:{nodes: newNodes, links: newLinks}};
+
+  links.forEach(function(link){
+    var found = false;
+    genes.forEach(function(gene){
+      if (gene.in_neuron_id + "_" + gene.out_neuron_id == link) found = true;
+    });
+    var link_ids = link.split("_");
+    var linkObj = createLink(link_ids[0], link_ids[1], 0);
+    if (!found) removeLinks.push(linkObj);
+  });
+
+  nodes.forEach(function(node_id){
+    var found = false;
+    genes.forEach(function(gene){
+      if (gene.in_neuron_id == node_id || gene.out_neuron_id == node_id) found = true;
+    });
+    if (!found) removeNodes.push("node" + node_id);
+  });
+
+  removeLinks.forEach(function(link){
+    var linkId = link.source.split("node")[1] + "_" + link.target.split("node")[1];
+    var linkPos = links.indexOf(linkId);
+    links.splice(linkPos, 1);
+  });
+
+  removeNodes.forEach(function(node_id){
+    nodes.splice(nodes.indexOf(node_id), 1);
+  });
+
+  return {delete:{links: removeLinks, nodes: removeNodes} , update:{links: updateLinks}, add:{nodes: newNodes, links: newLinks}};
 }
 
 function network(id, genes){
   var nodesLinksUpdate = getNodesLinks(id, genes); 
   var newNodesLinks = nodesLinksUpdate.add;
   var updateLinks = nodesLinksUpdate.update.links;
+  var deleteLinks = nodesLinksUpdate.delete.links;
+  var deleteNodes = nodesLinksUpdate.delete.nodes;
 
   var svg = d3.select('#' + id).select('svg');
+
+  deleteLinks.forEach(function(linkDelete){
+    var index = 0;
+    var deleteIndex = -1;
+    graph.links.forEach(function(link){
+      if (linkDelete.source == link.source.id && linkDelete.target == link.target.id) {
+        deleteIndex = index;
+      }
+      index++;
+    });
+    if (deleteIndex >= 0) {
+      graph.links.splice(deleteIndex, 1);
+    }
+  });
+
+  deleteNodes.forEach(function(nodeDelete){
+    var index = 0;
+    var deleteIndex = -1;
+    graph.nodes.forEach(function(node){
+      if (nodeDelete == node.id) {
+        deleteIndex = index;
+      }
+      index++;
+    });
+    if (deleteIndex >= 0) {
+      graph.nodes.splice(deleteIndex, 1);
+    }
+  });
 
   updateLinks.forEach(function(linkUpdate){
     graph.links.forEach(function(link){
@@ -109,8 +172,10 @@ function network(id, genes){
     graph.links.push(link);
   });
 
-  node = node.data(graph.nodes)
-    .enter().append("circle")
+
+  node = node.data(graph.nodes);
+  node.exit().remove();
+  node = node.enter().append("circle")
       .attr("r", 5)
       .attr("fill", function(d) { return color(d.group); })
       .merge(node)
@@ -120,7 +185,8 @@ function network(id, genes){
           .on("end", dragended));
 
   link = link.data(graph.links)
-    .enter().append("line")
+  link.exit().remove();
+  link = link.enter().append("line")
       .attr("stroke-width", function(d) { return Math.sqrt(d.value * 10); })
       .merge(link);
 
