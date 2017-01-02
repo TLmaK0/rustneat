@@ -38,9 +38,6 @@ function network_init(id){
   node = svg.select(".nodes")
     .selectAll("circle");
 
-  node.append("title")
-      .text(function(d) { return d.id; });
-
 }
 
 var allNodes = {};
@@ -175,6 +172,7 @@ function network(id, genes){
 
   node = node.data(graph.nodes);
   node.exit().remove();
+
   node = node.enter().append("circle")
       .attr("r", 5)
       .attr("fill", function(d) { return color(d.group); })

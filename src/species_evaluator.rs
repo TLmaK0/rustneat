@@ -1,11 +1,11 @@
 use crossbeam::{self, Scope};
 use environment::Environment;
+use genome::Genome;
 use num_cpus;
 use organism::Organism;
 use specie::Specie;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-use genome::Genome;
 
 /// Calculate fitness and champions for a species
 pub struct SpeciesEvaluator<'a> {
@@ -24,7 +24,7 @@ impl<'a> SpeciesEvaluator<'a> {
 
     /// return champion fitness
     pub fn evaluate(&self, species: &mut Vec<Specie>) -> Organism {
-        let mut champion: Organism = Organism::new(Genome::default());;
+        let mut champion: Organism = Organism::new(Genome::default());
 
         for specie in species {
             if !specie.organisms.is_empty() {
