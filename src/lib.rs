@@ -23,8 +23,6 @@ extern crate rand;
 extern crate rulinalg;
 extern crate num_cpus;
 extern crate crossbeam;
-
-#[cfg(feature = "telemetry")]
 extern crate rustc_serialize;
 
 pub use ctrnn::CtrnnNeuralNetwork;

@@ -4,9 +4,7 @@ use rand::Closed01;
 use std::cmp::Ordering;
 
 /// A connection Gene
-#[cfg(feature = "telemetry")]
-#[derive(RustcEncodable)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, RustcEncodable)]
 pub struct Gene {
     in_neuron_id: usize,
     out_neuron_id: usize,
