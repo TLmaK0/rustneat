@@ -16,7 +16,13 @@ lazy_static = "0.2.2"
 num_cpus = "1.0"
 rand = "0.3"
 rulinalg = "0.3.4"
+rusty_dashed = "0.1.2" 
+rustc-serialize = "0.3.21"
 
 [dependencies.clippy]
 optional = true
 version = "0.0.103"
+
+[features]
+default = []
+telemetry = []

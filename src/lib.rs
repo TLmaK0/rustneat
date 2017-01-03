@@ -15,11 +15,15 @@
 
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate rusty_dashed;
+
 extern crate conv;
 extern crate rand;
 extern crate rulinalg;
 extern crate num_cpus;
 extern crate crossbeam;
+extern crate rustc_serialize;
 
 pub use ctrnn::CtrnnNeuralNetwork;
 pub use self::ctrnn::Ctrnn;

@@ -15,7 +15,9 @@ To speed up tests, run them with `--release` (XOR classification/simple_sample s
 ```
 ## Run example
 
-`cargo run --release --example simple_sample`
+`cargo run --release --example simple_sample --features=telemetry`
+
+then go to `http://localhost:3000` to see how neural network evolves
 
 ## Sample usage
 
@@ -70,3 +72,9 @@ fn main() {
 }
 
 ```
+
+# Develop
+Check style guidelines with:
+
+`cargo install rustfmt`
+`cargo fmt -- --write-mode=diff`

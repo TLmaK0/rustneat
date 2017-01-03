@@ -1,7 +1,14 @@
 extern crate rustneat;
+#[macro_use]
+extern crate rusty_dashed;
+
+extern crate rand;
+
 use rustneat::Environment;
 use rustneat::Organism;
 use rustneat::Population;
+use rusty_dashed::Dashboard;
+
 
 struct XORClassification;
 
@@ -17,11 +24,24 @@ impl Environment for XORClassification {
         distance += (1f64 - output[0]).abs();
         organism.activate(&vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).abs();
-        (4f64 - distance).powi(2)
+
+        let fitness = (4f64 - distance).powi(2);
+
+        fitness
     }
 }
 
 fn main() {
+    let mut dashboard = Dashboard::new();
+    dashboard.add_graph("fitness1", "fitness", 0, 0, 4, 4);
+    dashboard.add_graph("network1", "network", 4, 0, 4, 4);
+
+    rusty_dashed::Server::serve_dashboard(dashboard);
+
+
+    #[cfg(feature = "telemetry")]
+    println!("\nGo to http://localhost:3000 to see how neural network evolves\n");
+
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;
     let mut champion: Option<Organism> = None;

@@ -2,6 +2,12 @@ use conv::prelude::*;
 use environment::Environment;
 use genome::Genome;
 use organism::Organism;
+#[cfg(feature = "telemetry")]
+use rustc_serialize::json;
+
+#[cfg(feature = "telemetry")]
+use rusty_dashed;
+
 use specie::Specie;
 use species_evaluator::SpeciesEvaluator;
 
@@ -38,12 +44,16 @@ impl Population {
     }
     /// TODO
     pub fn evaluate_in(&mut self, environment: &mut Environment) {
-        let champion_fitness = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
+        let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
-        if self.champion_fitness > champion_fitness {
+        if self.champion_fitness >= champion.fitness {
             self.epochs_without_improvements += 1;
         } else {
-            self.champion_fitness = champion_fitness;
+            self.champion_fitness = champion.fitness;
+            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
+            telemetry!("network1",
+                       1.0,
+                       json::encode(&champion.genome.get_genes()).unwrap());
             self.epochs_without_improvements = 0usize;
         }
     }
