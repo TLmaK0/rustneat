@@ -26,16 +26,16 @@ Create a new cargo project:
 Add rustneat to Cargo.toml
 ```
 [dependencies]
-rustneat = "0.1.5"
+rustneat = "0.1.8"
 ```
 
 Then use the library i.e. to implement the above example, use the library as follows:
 
 ```rust
 extern crate rustneat;
-use rustneat::Environment;
-use rustneat::Organism;
-use rustneat::Population;
+use rustneat::neat::Environment;
+use rustneat::neat::Organism;
+use rustneat::neat::Population;
 
 struct XORClassification;
 
