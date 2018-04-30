@@ -52,8 +52,8 @@ impl Organism {
                                          });
 
         if sensors.len() < neurons_len {
-            let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
-            for n in 0..outputs.len() {
+            let outputs_activations = activations.split_at(sensors.len()-1).1.to_vec();
+            for n in 0..outputs.len()-1 {
                 outputs[n] = outputs_activations[n];
             }
         }
