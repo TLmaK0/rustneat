@@ -55,7 +55,7 @@ impl Organism {
             let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
 
             for n in 0..outputs.len() {
-                if n == outputs_activations.len() {
+                if n == outputs_activations.len() && outputs.len() != 1 {
                     break;
                 }
                 outputs[n] = outputs_activations[n];
