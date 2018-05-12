@@ -141,10 +141,10 @@ impl Specie {
                             -> Organism {
         let mut rng = rand::thread_rng();
         if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
-            let selected_mate = rand::sample(&mut rng, 0..self.organisms.len(), 1)[0];
+            let selected_mate = rand::seq::sample_iter(&mut rng, 0..self.organisms.len(), 1).unwrap()[0];
             organism.mate(&self.organisms[selected_mate])
         } else {
-            let selected_mate = rand::sample(&mut rng, 0..population_organisms.len(), 1)[0];
+            let selected_mate = rand::seq::sample_iter(&mut rng, 0..population_organisms.len(), 1).unwrap()[0];
             organism.mate(&population_organisms[selected_mate])
         }
     }

@@ -111,7 +111,7 @@ impl Genome {
             if self.last_neuron_id == 0 {
                 vec![0, 0]
             } else {
-                rand::sample(&mut rng, 0..self.last_neuron_id + 1, 2)
+                rand::seq::sample_iter(&mut rng, 0..self.last_neuron_id + 1, 2).unwrap()
             }
         };
         self.add_connection(neuron_ids_to_connect[0], neuron_ids_to_connect[1]);
@@ -127,14 +127,14 @@ impl Genome {
 
     fn mutate_toggle_expression(&mut self) {
         let mut rng = rand::thread_rng();
-        let selected_gene = rand::sample(&mut rng, 0..self.genes.len(), 1)[0];
+        let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
         Mutation::toggle_expression(&mut self.genes[selected_gene]);
     }
 
     fn mutate_add_neuron(&mut self) {
         let (gene1, gene2) = {
             let mut rng = rand::thread_rng();
-            let selected_gene = rand::sample(&mut rng, 0..self.genes.len(), 1)[0];
+            let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
             let gene = &mut self.genes[selected_gene];
             self.last_neuron_id += 1;
             Mutation::add_neuron(gene, self.last_neuron_id)

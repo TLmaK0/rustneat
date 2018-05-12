@@ -149,4 +149,13 @@ mod tests {
         assert_eq!(organism.get_weights_matrix(),
                    (3, 3, vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]));
     }
+
+    #[test]
+    fn should_not_raise_exception_if_less_neurons_than_required(){
+        let mut organism = Organism::new(Genome::default());
+        organism.genome.inject_gene(0, 1, 1f64);
+        let sensors = vec![0f64, 0f64, 0f64];
+        let mut output = vec![0f64, 0f64, 0f64];
+        organism.activate(&sensors, &mut output);
+    }
 }
