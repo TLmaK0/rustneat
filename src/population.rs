@@ -36,7 +36,9 @@ impl Population {
     }
     /// Find total of all orgnaisms in the population
     pub fn size(&self) -> usize {
-        self.species.iter().fold(0usize, |total, specie| total + specie.organisms.len())
+        self.species
+            .iter()
+            .fold(0usize, |total, specie| total + specie.organisms.len())
     }
     /// Create offspring by mutation and mating. May create new species.
     pub fn evolve(&mut self) {
@@ -51,9 +53,11 @@ impl Population {
         } else {
             self.champion_fitness = champion.fitness;
             telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
-            telemetry!("network1",
-                       1.0,
-                       json::encode(&champion.genome.get_genes()).unwrap());
+            telemetry!(
+                "network1",
+                1.0,
+                json::encode(&champion.genome.get_genes()).unwrap()
+            );
             self.epochs_without_improvements = 0usize;
         }
     }
@@ -72,10 +76,9 @@ impl Population {
     fn generate_offspring(&mut self) {
         self.speciate();
 
-        let total_average_fitness = self.species
-            .iter_mut()
-            .fold(0f64,
-                  |total, specie| total + specie.calculate_average_fitness());
+        let total_average_fitness = self.species.iter_mut().fold(0f64, |total, specie| {
+            total + specie.calculate_average_fitness()
+        });
 
         let num_of_organisms = self.size();
         let organisms = self.get_organisms();
@@ -84,13 +87,14 @@ impl Population {
             let mut best_species = self.get_best_species();
             let num_of_selected = best_species.len();
             for specie in &mut best_species {
-                specie.generate_offspring(num_of_organisms.checked_div(num_of_selected).unwrap(),
-                                          &organisms);
+                specie.generate_offspring(
+                    num_of_organisms.checked_div(num_of_selected).unwrap(),
+                    &organisms,
+                );
             }
         } else {
-            let organisms_by_average_fitness = num_of_organisms.value_as::<f64>().unwrap() /
-                                               total_average_fitness;
-
+            let organisms_by_average_fitness =
+                num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
 
             for specie in &mut self.species {
                 let specie_fitness = specie.calculate_average_fitness();
@@ -99,7 +103,6 @@ impl Population {
                 } else {
                     (specie_fitness * organisms_by_average_fitness).round() as usize
                 };
-
 
                 if offspring_size > 0 {
                     // TODO: check if offspring is for organisms fitness also, not only by specie
@@ -149,7 +152,10 @@ impl Population {
 
         for organism in organisms {
             let mut new_specie: Option<Specie> = None;
-            match self.species.iter_mut().find(|specie| specie.match_genome(organism)) {
+            match self.species
+                .iter_mut()
+                .find(|specie| specie.match_genome(organism))
+            {
                 Some(specie) => {
                     specie.add(organism.clone());
                 }
@@ -181,10 +187,10 @@ impl Population {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use genome::Genome;
     use organism::Organism;
     use specie::Specie;
-    use super::*;
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {

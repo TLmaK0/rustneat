@@ -56,8 +56,9 @@ impl Specie {
             return 0f64;
         }
 
-        let total_fitness =
-            self.organisms.iter().fold(0f64, |total, organism| total + organism.fitness);
+        let total_fitness = self.organisms
+            .iter()
+            .fold(0f64, |total, organism| total + organism.fitness);
 
         let new_fitness = total_fitness / organisms_count;
 
@@ -71,9 +72,11 @@ impl Specie {
 
     /// Mate and generate offspring, delete old organisms and use the children
     /// as "new" species.
-    pub fn generate_offspring(&mut self,
-                              num_of_organisms: usize,
-                              population_organisms: &[Organism]) {
+    pub fn generate_offspring(
+        &mut self,
+        num_of_organisms: usize,
+        population_organisms: &[Organism],
+    ) {
         self.age += 1;
 
         let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
@@ -85,7 +88,8 @@ impl Specie {
             for _ in 0..num_of_organisms - copy_champion {
                 selected_organisms.push(range.ind_sample(&mut rng));
             }
-            selected_organisms.iter()
+            selected_organisms
+                .iter()
                 .map(|organism_pos| {
                     self.create_child(&self.organisms[*organism_pos], population_organisms)
                 })
@@ -135,16 +139,19 @@ impl Specie {
         organism.mutate()
     }
 
-    fn create_child_by_mate(&self,
-                            organism: &Organism,
-                            population_organisms: &[Organism])
-                            -> Organism {
+    fn create_child_by_mate(
+        &self,
+        organism: &Organism,
+        population_organisms: &[Organism],
+    ) -> Organism {
         let mut rng = rand::thread_rng();
         if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
-            let selected_mate = rand::sample(&mut rng, 0..self.organisms.len(), 1)[0];
+            let selected_mate =
+                rand::seq::sample_iter(&mut rng, 0..self.organisms.len(), 1).unwrap()[0];
             organism.mate(&self.organisms[selected_mate])
         } else {
-            let selected_mate = rand::sample(&mut rng, 0..population_organisms.len(), 1)[0];
+            let selected_mate =
+                rand::seq::sample_iter(&mut rng, 0..population_organisms.len(), 1).unwrap()[0];
             organism.mate(&population_organisms[selected_mate])
         }
     }
@@ -152,11 +159,10 @@ impl Specie {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use genome::Genome;
     use organism::Organism;
     use std::f64::EPSILON;
-    use super::*;
-
 
     #[test]
     fn specie_should_return_correct_average_fitness() {

@@ -16,8 +16,8 @@ env:
 before_script:
   - |
     (which cargo-install-update   && cargo install-update cargo-update) || cargo install cargo-update &&
-    (which rustfmt && cargo install-update rustfmt) || cargo install rustfmt &&
     (which cargo-prune && cargo install-update cargo-prune) || cargo install cargo-prune
+  - rustup component add rustfmt-preview
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];   then export OPENSSL_INCLUDE_DIR=`brew --prefix openssl`/include; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];   then export OPENSSL_LIB_DIR=`brew --prefix openssl`/lib; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];   then export DEP_OPENSSL_INCLUDE=`brew --prefix openssl`/include; fi
