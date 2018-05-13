@@ -1,5 +1,6 @@
 use ctrnn::{Ctrnn, CtrnnNeuralNetwork};
 use genome::Genome;
+use std::cmp;
 
 /// An organism is a Genome with fitness.
 /// Also maitain a fitenss measure of the organism
@@ -56,7 +57,8 @@ impl Organism {
 
         if sensors.len() < neurons_len {
             let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
-            for n in 0..outputs.len() {
+
+            for n in 0..cmp::min(outputs_activations.len(), outputs.len()) {
                 outputs[n] = outputs_activations[n];
             }
         }
@@ -148,6 +150,15 @@ mod tests {
         organism.genome.inject_gene(0, 1, 1f64);
         let sensors = vec![0f64, 0f64, 0f64];
         let mut output = vec![0f64];
+        organism.activate(&sensors, &mut output);
+    }
+
+    #[test]
+    fn should_allow_multiple_output() {
+        let mut organism = Organism::new(Genome::default());
+        organism.genome.inject_gene(0, 1, 1f64);
+        let sensors = vec![0f64];
+        let mut output = vec![0f64, 0f64];
         organism.activate(&sensors, &mut output);
     }
 
