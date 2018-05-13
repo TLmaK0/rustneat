@@ -1,5 +1,4 @@
 extern crate rustneat;
-#[macro_use]
 extern crate rusty_dashed;
 
 extern crate rand;

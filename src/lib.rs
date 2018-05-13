@@ -14,8 +14,6 @@
 //! (Yamauchi and Beer, 1994).
 
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate rusty_dashed;
 
 extern crate conv;
