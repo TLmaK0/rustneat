@@ -74,26 +74,32 @@ impl Genome {
         let max_neuron_id = self.last_neuron_id + 1;
 
         if in_neuron_id == out_neuron_id && in_neuron_id > max_neuron_id {
-            panic!("Try to create a gene neuron unconnected, max neuron id {}, {} -> {}",
-                   max_neuron_id,
-                   in_neuron_id,
-                   out_neuron_id);
+            panic!(
+                "Try to create a gene neuron unconnected, max neuron id {}, {} -> {}",
+                max_neuron_id, in_neuron_id, out_neuron_id
+            );
         }
 
-        assert!(in_neuron_id <= max_neuron_id,
-                format!("in_neuron_id {} is greater than max allowed id {}",
-                        in_neuron_id,
-                        max_neuron_id));
-        assert!(out_neuron_id <= max_neuron_id,
-                format!("out_neuron_id {} is greater than max allowed id {}",
-                        out_neuron_id,
-                        max_neuron_id));
+        assert!(
+            in_neuron_id <= max_neuron_id,
+            format!(
+                "in_neuron_id {} is greater than max allowed id {}",
+                in_neuron_id, max_neuron_id
+            )
+        );
+        assert!(
+            out_neuron_id <= max_neuron_id,
+            format!(
+                "out_neuron_id {} is greater than max allowed id {}",
+                out_neuron_id, max_neuron_id
+            )
+        );
 
         self.create_gene(in_neuron_id, out_neuron_id, weight)
     }
     /// Number of genes
     pub fn len(&self) -> usize {
-        self.last_neuron_id + 1 //first neuron id is 0
+        self.last_neuron_id + 1 // first neuron id is 0
     }
     /// is genome empty
     pub fn is_empty(&self) -> bool {
@@ -119,9 +125,10 @@ impl Genome {
 
     fn mutate_connection_weight(&mut self) {
         for gene in &mut self.genes {
-            Mutation::connection_weight(gene,
-                                        rand::random::<f64>() <
-                                        MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY);
+            Mutation::connection_weight(
+                gene,
+                rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY,
+            );
         }
     }
 
@@ -134,7 +141,8 @@ impl Genome {
     fn mutate_add_neuron(&mut self) {
         let (gene1, gene2) = {
             let mut rng = rand::thread_rng();
-            let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+            let selected_gene =
+                rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
             let gene = &mut self.genes[selected_gene];
             self.last_neuron_id += 1;
             Mutation::add_neuron(gene, self.last_neuron_id)
@@ -196,7 +204,7 @@ impl Genome {
         let n = cmp::max(n1, n2);
 
         if n == 0 {
-            return 0f64; //no genes in any genome, the genomes are equal
+            return 0f64; // no genes in any genome, the genomes are equal
         }
 
         let z = if n < 20 { 1f64 } else { n as f64 };
@@ -212,8 +220,8 @@ impl Genome {
 
         // average weight differences of matching genes
         let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| {
-            acc +
-            (m_gene.weight() - &other.genes[other.genes.binary_search(m_gene).unwrap()].weight())
+            acc + (m_gene.weight()
+                - &other.genes[other.genes.binary_search(m_gene).unwrap()].weight())
                 .abs()
         });
 
@@ -226,8 +234,8 @@ impl Genome {
 
 #[cfg(test)]
 mod tests {
-    use std::f64::EPSILON;
     use super::*;
+    use std::f64::EPSILON;
 
     #[test]
     fn mutation_connection_weight() {
@@ -237,7 +245,6 @@ mod tests {
         genome.mutate_connection_weight();
         // These should not be same size
         assert!((genome.genes[0].weight() - orig_gene.weight()).abs() > EPSILON);
-
     }
 
     #[test]

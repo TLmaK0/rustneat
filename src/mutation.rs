@@ -35,8 +35,8 @@ impl Mutation {
 
 #[cfg(test)]
 mod tests {
-    use gene::Gene;
     use super::*;
+    use gene::Gene;
 
     #[test]
     fn mutate_toggle_gene_should_toggle() {

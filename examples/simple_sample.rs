@@ -8,7 +8,6 @@ use rustneat::Organism;
 use rustneat::Population;
 use rusty_dashed::Dashboard;
 
-
 struct XORClassification;
 
 impl Environment for XORClassification {
@@ -36,7 +35,6 @@ fn main() {
     dashboard.add_graph("network1", "network", 4, 0, 4, 4);
 
     rusty_dashed::Server::serve_dashboard(dashboard);
-
 
     #[cfg(feature = "telemetry")]
     println!("\nGo to http://localhost:3000 to see how neural network evolves\n");

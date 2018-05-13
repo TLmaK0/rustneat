@@ -26,11 +26,13 @@ impl Organism {
     }
     /// Mate this organism with another
     pub fn mate(&self, other: &Organism) -> Organism {
-        Organism::new(self.genome.mate(&other.genome, self.fitness < other.fitness))
+        Organism::new(
+            self.genome
+                .mate(&other.genome, self.fitness < other.fitness),
+        )
     }
     /// Activate this organism in the NN
     pub fn activate(&mut self, sensors: &[f64], outputs: &mut Vec<f64>) {
-
         let neurons_len = self.genome.len();
         let gamma = vec![0.0; neurons_len];
         let tau = vec![10.0; neurons_len];
@@ -39,17 +41,18 @@ impl Organism {
         let i = sensors;
         let wij = self.get_weights_matrix();
 
-        let activations =
-            Ctrnn::default().activate_nn(30,
-                                         &CtrnnNeuralNetwork {
-                                             gamma: gamma.as_slice(),
-                                             delta_t: 10.0,
-                                             tau: tau.as_slice(),
-                                             wij: &(wij.0, wij.1, wij.2.as_slice()),
-                                             theta: theta.as_slice(),
-                                             wik: &(neurons_len, sensors.len(), wik.as_slice()),
-                                             i: i,
-                                         });
+        let activations = Ctrnn::default().activate_nn(
+            30,
+            &CtrnnNeuralNetwork {
+                gamma: gamma.as_slice(),
+                delta_t: 10.0,
+                tau: tau.as_slice(),
+                wij: &(wij.0, wij.1, wij.2.as_slice()),
+                theta: theta.as_slice(),
+                wik: &(neurons_len, sensors.len(), wik.as_slice()),
+                i: i,
+            },
+        );
 
         if sensors.len() < neurons_len {
             let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
@@ -73,8 +76,8 @@ impl Organism {
 
 #[cfg(test)]
 mod tests {
-    use genome::Genome;
     use super::*;
+    use genome::Genome;
 
     #[test]
     fn should_propagate_signal_without_hidden_layers() {
@@ -83,16 +86,20 @@ mod tests {
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);
-        assert!(output[0] > 0.9f64,
-                format!("{:?} is not bigger than 0.9", output[0]));
+        assert!(
+            output[0] > 0.9f64,
+            format!("{:?} is not bigger than 0.9", output[0])
+        );
 
         let mut organism = Organism::new(Genome::default());
         organism.genome.inject_gene(0, 1, -2f64);
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);
-        assert!(output[0] < 0.1f64,
-                format!("{:?} is not smaller than 0.1", output[0]));
+        assert!(
+            output[0] < 0.1f64,
+            format!("{:?} is not smaller than 0.1", output[0])
+        );
     }
 
     #[test]
@@ -104,8 +111,10 @@ mod tests {
         let sensors = vec![0f64];
         let mut output = vec![0f64];
         organism.activate(&sensors, &mut output);
-        assert!(output[0] > 0.9f64,
-                format!("{:?} is not bigger than 0.9", output[0]));
+        assert!(
+            output[0] > 0.9f64,
+            format!("{:?} is not bigger than 0.9", output[0])
+        );
     }
 
     #[test]
@@ -116,8 +125,10 @@ mod tests {
         organism.genome.inject_gene(2, 1, 2f64);
         let mut output = vec![0f64];
         organism.activate(&[1f64], &mut output);
-        assert!(output[0] > 0.9,
-                format!("{:?} is not bigger than 0.9", output[0]));
+        assert!(
+            output[0] > 0.9,
+            format!("{:?} is not bigger than 0.9", output[0])
+        );
 
         let mut organism = Organism::new(Genome::default());
         organism.genome.inject_gene(0, 1, -2f64);
@@ -125,8 +136,10 @@ mod tests {
         organism.genome.inject_gene(2, 1, -2f64);
         let mut output = vec![0f64];
         organism.activate(&[1f64], &mut output);
-        assert!(output[0] < 0.1,
-                format!("{:?} is not smaller than 0.1", output[0]));
+        assert!(
+            output[0] < 0.1,
+            format!("{:?} is not smaller than 0.1", output[0])
+        );
     }
 
     #[test]
@@ -146,12 +159,14 @@ mod tests {
         organism.genome.inject_gene(2, 1, 0.5f64);
         organism.genome.inject_gene(2, 2, 0.75f64);
         organism.genome.inject_gene(1, 0, 1f64);
-        assert_eq!(organism.get_weights_matrix(),
-                   (3, 3, vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]));
+        assert_eq!(
+            organism.get_weights_matrix(),
+            (3, 3, vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75])
+        );
     }
 
     #[test]
-    fn should_not_raise_exception_if_less_neurons_than_required(){
+    fn should_not_raise_exception_if_less_neurons_than_required() {
         let mut organism = Organism::new(Genome::default());
         organism.genome.inject_gene(0, 1, 1f64);
         let sensors = vec![0f64, 0f64, 0f64];
