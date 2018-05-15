@@ -6,6 +6,8 @@ Implementation of **NeuroEvolution of Augmenting Topologies NEAT** http://nn.cs.
 
 This implementations uses a **Continuous-Time Recurrent Neural Network** (**CTRNN**) (Yamauchi and Beer, 1994).
 
+![telemetry](docs/img/rustneat.png)
+
 ## Run test
 
 To speed up tests, run them with `--release` (XOR classification/simple_sample should take less than a minute)
@@ -17,7 +19,7 @@ To speed up tests, run them with `--release` (XOR classification/simple_sample s
 
 then go to `http://localhost:3000` to see how neural network evolves
 
-![Kiku](docs/img/xor_result.png)
+![telemetry](docs/img/xor_result.png)
 
 ## Sample usage
 
@@ -78,3 +80,6 @@ Check style guidelines with:
 
 `cargo install rustfmt`
 `cargo fmt -- --write-mode=diff`
+
+# Thanks
+Thanks for the icon nerves by Delwar Hossain from the Noun Project

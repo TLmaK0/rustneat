@@ -7,7 +7,7 @@ keywords = ["neuro", "evolution", "neat", "genetic", "algorithm"]
 license = "MIT"
 name = "rustneat"
 repository = "https://github.com/TLmaK0/rustneat"
-version = "0.1.8"
+version = "0.2.0"
 
 [dependencies]
 conv = "0.3.2"
@@ -16,8 +16,9 @@ lazy_static = "0.2.2"
 num_cpus = "1.0"
 rand = "0.4"
 rulinalg = "0.3.4"
-rusty_dashed = "0.1.2" 
+rusty_dashed = "0.2.1"
 rustc-serialize = "0.3.21"
+open = "*"
 
 [dependencies.clippy]
 optional = true

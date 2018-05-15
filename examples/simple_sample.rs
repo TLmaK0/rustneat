@@ -1,3 +1,6 @@
+#[cfg(feature = "telemetry")]
+extern crate open;
+
 extern crate rustneat;
 extern crate rusty_dashed;
 
@@ -38,6 +41,9 @@ fn main() {
 
     #[cfg(feature = "telemetry")]
     println!("\nGo to http://localhost:3000 to see how neural network evolves\n");
+
+    #[cfg(feature = "telemetry")]
+    open::that("http://localhost:3000").unwrap();
 
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;
