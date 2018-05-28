@@ -41,8 +41,12 @@ fn main() {
 
     #[cfg(feature = "telemetry")]
     match open::that("http://localhost:3000") {
-        Err(_) => println!("\nOpen browser and go to http://localhost:3000 to see how neural network evolves\n"),
-        _ => println!("Openning browser...")
+        Err(_) => {
+            println!(
+                "\nOpen browser and go to http://localhost:3000 to see how neural network evolves\n"
+            )
+        }
+        _ => println!("Openning browser..."),
     }
 
     let mut population = Population::create_population(150);
