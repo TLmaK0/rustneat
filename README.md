@@ -28,7 +28,7 @@ Create a new cargo project:
 Add rustneat to Cargo.toml
 ```
 [dependencies]
-rustneat = "0.1.5"
+rustneat = "0.2.1"
 ```
 
 Then use the library i.e. to implement the above example, use the library as follows:
