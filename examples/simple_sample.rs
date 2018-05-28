@@ -40,10 +40,10 @@ fn main() {
     rusty_dashed::Server::serve_dashboard(dashboard);
 
     #[cfg(feature = "telemetry")]
-    println!("\nGo to http://localhost:3000 to see how neural network evolves\n");
-
-    #[cfg(feature = "telemetry")]
-    open::that("http://localhost:3000").unwrap();
+    match open::that("http://localhost:3000") {
+        Err(_) => println!("\nOpen browser and go to http://localhost:3000 to see how neural network evolves\n"),
+        _ => println!("Openning browser...")
+    }
 
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;
