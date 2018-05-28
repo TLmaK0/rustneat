@@ -3,11 +3,11 @@ authors = ["Hugo Freire <hfreire@abajar.com>"]
 description = "Implementation of NeuroEvolution of Augmenting Topologies NEAT http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf with a Continuous-Time Recurrent Neural Networks"
 documentation = "https://github.com/TLmaK0/rustneat"
 homepage = "https://github.com/TLmaK0/rustneat"
-keywords = ["neuro", "evolution", "neat", "genetic", "algorithm"]
+keywords = ["neuroevolution", "neat", "aumenting-topologies", "genetic", "algorithm"]
 license = "MIT"
 name = "rustneat"
 repository = "https://github.com/TLmaK0/rustneat"
-version = "0.2.0"
+version = "0.2.1"
 
 [dependencies]
 conv = "0.3.2"
@@ -18,10 +18,12 @@ rand = "0.4"
 rulinalg = "0.3.4"
 
 rusty_dashed = { version = "0.2.1", optional = true }
-rustc-serialize = { version = "0.3.21", optional = true }
 open = { version = "1.2.1", optional = true }
 clippy = { version = "0.0.103", optional = true }
+serde = { version = "1.0", optional = true }
+serde_derive = { version = "1.0", optional = true }
+serde_json = { version = "1.0", optional = true }
 
 [features]
 default = []
-telemetry = ["rusty_dashed", "rustc-serialize", "open"]
+telemetry = ["rusty_dashed", "open", "serde", "serde_derive", "serde_json"]

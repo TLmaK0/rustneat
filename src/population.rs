@@ -2,11 +2,12 @@ use conv::prelude::*;
 use environment::Environment;
 use genome::Genome;
 use organism::Organism;
-#[cfg(feature = "telemetry")]
-use rustc_serialize::json;
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
+
+#[cfg(feature = "telemetry")]
+use serde_json;
 
 use specie::Specie;
 use species_evaluator::SpeciesEvaluator;
@@ -52,13 +53,13 @@ impl Population {
             self.epochs_without_improvements += 1;
         } else {
             self.champion_fitness = champion.fitness;
-#[cfg(feature = "telemetry")]
+            #[cfg(feature = "telemetry")]
             telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
-#[cfg(feature = "telemetry")]
+            #[cfg(feature = "telemetry")]
             telemetry!(
                 "network1",
                 1.0,
-                json::encode(&champion.genome.get_genes()).unwrap()
+                serde_json::to_string(&champion.genome.get_genes()).unwrap()
             );
             self.epochs_without_improvements = 0usize;
         }

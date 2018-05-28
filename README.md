@@ -78,7 +78,7 @@ fn main() {
 # Develop
 Check style guidelines with:
 
-`cargo install rustfmt`
+`rustup component add rustfmt-preview`
 `cargo fmt -- --write-mode=diff`
 
 # Thanks
