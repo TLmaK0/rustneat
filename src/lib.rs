@@ -10,6 +10,7 @@
 //! This implementation uses a Continuous-Time Recurrent Neural Network (CTRNN)
 //! (Yamauchi and Beer, 1994).
 
+#[cfg(feature = "telemetry")]
 #[macro_use]
 extern crate rusty_dashed;
 
@@ -18,7 +19,13 @@ extern crate crossbeam;
 extern crate num_cpus;
 extern crate rand;
 extern crate rulinalg;
-extern crate rustc_serialize;
+
+#[cfg(feature = "telemetry")]
+#[macro_use]
+extern crate serde_derive;
+
+#[cfg(feature = "telemetry")]
+extern crate serde_json;
 
 pub use self::ctrnn::Ctrnn;
 pub use self::environment::Environment;
