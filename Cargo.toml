@@ -24,6 +24,10 @@ serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }
 serde_json = { version = "1.0", optional = true }
 
+cpython = { version = "0.1", optional = true }
+python3-sys = { version = "0.1", optional = true }
+
 [features]
 default = []
 telemetry = ["rusty_dashed", "open", "serde", "serde_derive", "serde_json"]
+openai = ["cpython", "python3-sys"]
