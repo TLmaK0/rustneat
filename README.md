@@ -21,6 +21,30 @@ then go to `http://localhost:3000` to see how neural network evolves
 
 ![telemetry](docs/img/xor_result.png)
 
+## Run openai tests
+
+Install python dependencies
+```sudo apt install python3```
+```sudo apt install python3-pip```
+```sudo apt install libpython3.5-dev```
+```sudo pip3 install gym```
+```sudo apt install nvidia-384```
+```sudo apt install python3-opengl```
+
+### Windows Openai
+
+https://github.com/openai/gym/issues/11#issuecomment-242950165
+```
+Update to the latest version of Windows (>version 1607, "Anniversary Update")
+Enable Windows Subsystem for Linux (WSL)
+Open cmd, run bash
+Install python & gym (using sudo, and NOT PIP to install gym). So by now you should probably be able to run things and get really nasty graphics related errors. This is because WSL doesn't support any displays, so we need to fake it.
+Install vcXsrv, and run it (you should just have a little tray icon)
+In bash run "export DISPLAY=:0" Now when you run it you should get a display to pop-up, there may be issues related to graphics drivers. Sadly, this is where the instructions diverge if you don't have an NVIDIA graphics card.
+Get the drivers: "sudo apt-get install nvidia-319 nvidia-settings-319 nvidia-prime"
+Run!
+```
+
 ## Sample usage
 
 Create a new cargo project:
