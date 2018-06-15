@@ -4,7 +4,7 @@ extern crate cpython;
 
 extern crate python3_sys as ffi;
 
-use cpython::{Python, PyDict, PyResult, ObjectProtocol, NoArgs};
+use cpython::{Python, PyResult, ObjectProtocol, NoArgs, PyObject};
 use ffi::PySys_SetArgv;
 use std::ffi::CString;
 
@@ -20,29 +20,33 @@ fn hello(py: Python) -> PyResult<()> {
     }
     let gym = py.import("gym")?;
     let env = gym.call(py, "make", ("CartPole-v0",), None).unwrap();
-    let reward = 0;
-    let done = false;
-    let ob = env.call_method(py, "reset", NoArgs, None).unwrap();
-    let mut t = 0;
+    env.call_method(py, "reset", NoArgs, None).unwrap();
     while {
-        t += 1;
         env.call_method(py, "render", NoArgs, None).unwrap();
         let action_space = env.getattr(py, "action_space").unwrap();
         let sample = action_space.call_method(py, "sample", NoArgs, None).unwrap();
-        let observation = env.call_method(py, "step", (sample,), None).unwrap();
-println!("{:?}", observation);
-        t < 10
+        let (_observation, reward, done) =  extract_step_result(py, 
+                                                             env.call_method(py, "step", (sample,), None).unwrap());
+        println!("{:?}", reward);
+        !done
     }{}
 
-    //let sys = py.import("sys")?;
-
-    //let version: String = sys.get(py, "version")?.extract(py)?;
-
-    //let locals = PyDict::new(py);
-    //locals.set_item(py, "os", py.import("os")?)?;
-    //let user: String = py.eval("os.getenv('USER') or os.getenv('USERNAME')", None, Some(&locals))?.extract(py)?;
-
-    //println!("Hello {}, I'm Python {}", user, version);
     Ok(())
 }
 
+fn extract_step_result(py: Python, object: PyObject) -> (Vec<f64>, f64, bool) {
+    (
+        extract_observation(py, object.get_item(py, 0).unwrap()),
+        object.get_item(py, 1).unwrap().extract::<f64>(py).unwrap(),
+        object.get_item(py, 2).unwrap().extract::<bool>(py).unwrap()
+    )
+}
+
+fn extract_observation(py: Python, object: PyObject) -> Vec<f64> {
+    let mut vec: Vec<f64> = Vec::new();
+    //TODO: should be a better way to do this
+    for n in 0..4 {
+        vec.push(object.get_item(py, n).unwrap().extract::<f64>(py).unwrap());
+    }
+    vec
+}
