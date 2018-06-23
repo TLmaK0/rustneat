@@ -78,4 +78,14 @@ mod test {
         champion.activate(&vec![1f64, 1f64], &mut output);
         assert!(output[0] < 0.1f64);
     }
+
+    #[test]
+    fn read_write_population() {
+        let population = Population::create_population(150);
+        let mut data = vec![];
+        data.resize(10000, 0u8);
+        let mut cursor = ::std::io::Cursor::new(data);
+        population.store(&mut cursor).unwrap();
+        Population::load(cursor).unwrap();
+    }
 }

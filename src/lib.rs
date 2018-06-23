@@ -19,8 +19,8 @@ extern crate crossbeam;
 extern crate num_cpus;
 extern crate rand;
 extern crate rulinalg;
+extern crate bincode;
 
-#[cfg(feature = "telemetry")]
 #[macro_use]
 extern crate serde_derive;
 

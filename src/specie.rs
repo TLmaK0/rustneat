@@ -5,7 +5,7 @@ use rand;
 use rand::distributions::{IndependentSample, Range};
 
 /// A species (several organisms) and associated fitnesses
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Specie {
     representative: Genome,
     average_fitness: f64,

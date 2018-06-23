@@ -2,6 +2,9 @@ use conv::prelude::*;
 use environment::Environment;
 use genome::Genome;
 use organism::Organism;
+use std::io::{Read, Write};
+use bincode;
+
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -13,7 +16,7 @@ use specie::Specie;
 use species_evaluator::SpeciesEvaluator;
 
 /// All species in the network
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Population {
     /// container of species
     pub species: Vec<Specie>,
@@ -24,6 +27,16 @@ pub struct Population {
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
 
 impl Population {
+    /// Store a population in bincode format
+    pub fn store<W: Write>(&self, writer: W) -> bincode::Result<()> {
+        bincode::serialize_into(writer, self)
+    }
+
+    /// Load a population from bincode format
+    pub fn load<R: Read>(reader: R) -> bincode::Result<Self> {
+        bincode::deserialize_from(reader)
+    }
+
     /// Create a new population of size X.
     pub fn create_population(population_size: usize) -> Population {
         let mut population = Population {
