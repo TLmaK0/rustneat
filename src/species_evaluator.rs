@@ -27,26 +27,26 @@ impl<'a> SpeciesEvaluator<'a> {
         let mut champion: Organism = Organism::new(Genome::default());
 
         for specie in species {
-            if !specie.organisms.is_empty() {
-                let organisms_by_thread =
-                    (specie.organisms.len() + self.threads - 1) / self.threads; // round up
-                let (tx, rx): (Sender<Organism>, Receiver<Organism>) = mpsc::channel();
-                crossbeam::scope(|scope| {
-                    let threads_used = self.dispatch_organisms(
-                        specie.organisms.as_mut_slice(),
-                        organisms_by_thread,
-                        0,
-                        &tx,
-                        scope,
-                    );
-                    for _ in 0..threads_used {
-                        let champion_candidate = rx.recv().unwrap();
-                        if champion_candidate.fitness > champion.fitness {
-                            champion = champion_candidate;
-                        }
+            if specie.organisms.is_empty() { continue; }
+
+            let organisms_by_thread =
+                (specie.organisms.len() + self.threads - 1) / self.threads; // round up
+            let (tx, rx): (Sender<Organism>, Receiver<Organism>) = mpsc::channel();
+            crossbeam::scope(|scope| {
+                let threads_used = self.dispatch_organisms(
+                    specie.organisms.as_mut_slice(),
+                    organisms_by_thread,
+                    0,
+                    &tx,
+                    scope,
+                );
+                for _ in 0..threads_used {
+                    let champion_candidate = rx.recv().unwrap();
+                    if champion_candidate.fitness > champion.fitness {
+                        champion = champion_candidate;
                     }
-                });
-            }
+                }
+            });
         }
         champion
     }
