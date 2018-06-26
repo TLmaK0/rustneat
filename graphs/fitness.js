@@ -1,3 +1,4 @@
+var maxFitness = getParameterByName('max_fitness');
 var fitnessAxis = {};
 function fitness_init(id){
   var svg = d3.select('#' + id).append('svg');
@@ -30,7 +31,7 @@ function fitness(id, value){
   
   var y = d3.scaleLinear()
     .range([height, 0])
-    .domain([-1, 17]);
+    .domain([-1, maxFitness]);
 
   var x = d3.scaleLinear()
     .range([0, width])
@@ -48,4 +49,14 @@ function fitness(id, value){
   fitnessAxis[id+'x'].attr("transform", "translate(30,"+ (height - 19) + ")").call(xAxis);
 
   path.attr("transform", "translate(30,0)").attr("d", lineChart(data));
+}
+
+function getParameterByName(name) {
+    var url = window.location.href;
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
 }
