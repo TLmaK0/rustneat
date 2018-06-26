@@ -1,19 +1,12 @@
-#[cfg(feature = "telemetry")]
-extern crate open;
-
-extern crate rustneat;
-
-#[cfg(feature = "telemetry")]
-extern crate rusty_dashed;
-
 extern crate rand;
+extern crate rustneat;
 
 use rustneat::Environment;
 use rustneat::Organism;
 use rustneat::Population;
 
 #[cfg(feature = "telemetry")]
-use rusty_dashed::Dashboard;
+mod telemetry_helper;
 
 struct XORClassification;
 
@@ -36,25 +29,9 @@ impl Environment for XORClassification {
     }
 }
 
-#[cfg(feature = "telemetry")]
-fn enable_telemetry() {
-    let mut dashboard = Dashboard::new();
-    dashboard.add_graph("fitness1", "fitness", 0, 0, 4, 4);
-    dashboard.add_graph("network1", "network", 4, 0, 4, 4);
-
-    rusty_dashed::Server::serve_dashboard(dashboard);
-
-    match open::that("http://localhost:3000") {
-        Err(_) => println!(
-            "\nOpen browser and go to http://localhost:3000 to see how neural network evolves\n"
-        ),
-        _ => println!("Openning browser..."),
-    }
-}
-
 fn main() {
     #[cfg(feature = "telemetry")]
-    enable_telemetry();
+    telemetry_helper::enable_telemetry("?max_fitness=17");
 
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;

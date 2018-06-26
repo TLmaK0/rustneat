@@ -4,28 +4,23 @@ extern crate cpython;
 
 extern crate python3_sys as ffi;
 
-use cpython::{Python, ObjectProtocol, NoArgs, PyObject, PyModule};
+use cpython::{NoArgs, ObjectProtocol, PyModule, PyObject, Python};
 use ffi::PySys_SetArgv;
-use std::ffi::CString;
 use rustneat::{Environment, Organism, Population};
+use std::ffi::CString;
+
+#[cfg(feature = "telemetry")]
+mod telemetry_helper;
 
 struct CartPole {
-    gym: PyModule
+    gym: PyModule,
 }
 
 impl Environment for CartPole {
     fn test(&self, organism: &mut Organism) -> f64 {
-        let mut total = 0f64;
-        for n in 1..100 {
-            total += self.cart_pole_test(organism);
-        }
-
-println!("{:?}", total / 100f64);
-        total / 100f64
+        self.cart_pole_test(organism, false)
     }
-
 }
-
 
 impl CartPole {
     fn new() -> CartPole {
@@ -33,14 +28,20 @@ impl CartPole {
         let argv = CString::new("").unwrap().as_ptr();
 
         unsafe {
-          PySys_SetArgv(0, argv as *mut *mut i32);
+            PySys_SetArgv(0, argv as *mut *mut i32);
         }
         let py = gil.python();
+        let gym = py.import("gym").unwrap();
 
-        CartPole{ gym: py.import("gym").unwrap()}
+        gym.get(py, "logger")
+            .unwrap()
+            .call_method(py, "set_level", (40,), None)
+            .unwrap();
+
+        CartPole { gym: gym }
     }
 
-    fn cart_pole_test(&self, organism: &mut Organism) -> f64 {
+    pub fn cart_pole_test(&self, organism: &mut Organism, render: bool) -> f64 {
         let gil = Python::acquire_gil();
         let py = gil.python();
 
@@ -50,25 +51,30 @@ impl CartPole {
         let mut total_reward = 0f64;
         let mut next_movement = 0;
 
-        let mut output = vec![0f64, 0f64];
+        let mut output = vec![0f64];
         while {
-            //env.call_method(py, "render", NoArgs, None).unwrap();
-            let action_space = env.getattr(py, "action_space").unwrap();
-            let sample = action_space.call_method(py, "sample", NoArgs, None).unwrap();
+            if (render) {
+                env.call_method(py, "render", NoArgs, None).unwrap();
+            }
 
-            let (observation, reward, done) =  extract_step_result(py, 
-                                                                 env.call_method(py, "step", (sample,), None).unwrap());
+            let (observation, reward, done) = extract_step_result(
+                py,
+                env.call_method(py, "step", (output[0].round() as i64,), None)
+                    .unwrap(),
+            );
             total_reward += reward;
 
             organism.activate(&observation, &mut output);
             !done
-        }{}
+        } {}
         env.call_method(py, "close", NoArgs, None).unwrap();
         total_reward
     }
 }
 
 fn main() {
+    #[cfg(feature = "telemetry")]
+    telemetry_helper::enable_telemetry("?max_fitness=200");
 
     let mut population = Population::create_population(150);
     let mut environment = CartPole::new();
@@ -82,20 +88,20 @@ fn main() {
             }
         }
     }
-    println!("{:?}", champion.unwrap().genome);
+    environment.cart_pole_test(&mut champion.unwrap(), true);
 }
 
 fn extract_step_result(py: Python, object: PyObject) -> (Vec<f64>, f64, bool) {
     (
         extract_observation(py, object.get_item(py, 0).unwrap()),
         object.get_item(py, 1).unwrap().extract::<f64>(py).unwrap(),
-        object.get_item(py, 2).unwrap().extract::<bool>(py).unwrap()
+        object.get_item(py, 2).unwrap().extract::<bool>(py).unwrap(),
     )
 }
 
 fn extract_observation(py: Python, object: PyObject) -> Vec<f64> {
     let mut vec: Vec<f64> = Vec::new();
-    //TODO: should be a better way to do this
+    // TODO: should be a better way to do this
     for n in 0..4 {
         vec.push(object.get_item(py, n).unwrap().extract::<f64>(py).unwrap());
     }

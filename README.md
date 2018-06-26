@@ -19,18 +19,29 @@ To speed up tests, run them with `--release` (XOR classification/simple_sample s
 
 then go to `http://localhost:3000` to see how neural network evolves
 
-![telemetry](docs/img/xor_result.png)
+![telemetry](docs/results/cart_pole_dashboard.gif)
 
 ## Run openai tests
 
-Install python dependencies
-```sudo apt install python3```
-```sudo apt install python3-pip```
-```sudo apt install libpython3.5-dev```
-```sudo pip3 install gym```
-```sudo apt install nvidia-384```
-```sudo apt install python3-opengl```
+![telemetry](docs/results/cart_pole.gif)
 
+Install python dependencies
+
+```bash
+sudo apt install python3
+sudo apt install python3-pip
+sudo apt install libpython3.5-dev
+sudo pip3 install gym
+sudo apt install nvidia-384
+sudo apt install python3-opengl
+```
+
+Run test
+
+```
+cargo run --release --example openai --features=openai,telemetry
+```
+    
 ### Windows Openai
 
 https://github.com/openai/gym/issues/11#issuecomment-242950165
