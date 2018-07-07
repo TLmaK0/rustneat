@@ -7,6 +7,9 @@ extern crate rusty_dashed;
 #[cfg(feature = "telemetry")]
 use self::rusty_dashed::Dashboard;
 
+#[allow(dead_code)]
+pub fn main(){}
+
 #[cfg(feature = "telemetry")]
 pub fn enable_telemetry(query_string: &str) {
     let mut dashboard = Dashboard::new();
