@@ -35,3 +35,6 @@ openai = ["cpython", "python3-sys"]
 [[example]]
 name = "openai"
 required-features = ["cpython"]
+
+[[example]]
+name = "simple_sample"
