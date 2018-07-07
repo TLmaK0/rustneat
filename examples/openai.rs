@@ -49,11 +49,10 @@ impl CartPole {
 
         env.call_method(py, "reset", NoArgs, None).unwrap();
         let mut total_reward = 0f64;
-        let mut next_movement = 0;
 
         let mut output = vec![0f64];
         while {
-            if (render) {
+            if render {
                 env.call_method(py, "render", NoArgs, None).unwrap();
             }
 

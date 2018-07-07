@@ -31,3 +31,7 @@ python3-sys = { version = "0.1", optional = true }
 default = []
 telemetry = ["rusty_dashed", "open", "serde", "serde_derive", "serde_json"]
 openai = ["cpython", "python3-sys"]
+
+[[example]]
+name = "openai"
+required-features = ["cpython"]
