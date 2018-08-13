@@ -38,3 +38,7 @@ required-features = ["cpython"]
 
 [[example]]
 name = "simple_sample"
+
+[[example]]
+name = "openai-lunar"
+required-features = ["cpython"]
