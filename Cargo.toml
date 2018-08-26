@@ -38,3 +38,6 @@ required-features = ["cpython"]
 
 [[example]]
 name = "simple_sample"
+
+[[example]]
+name = "function_approximation"

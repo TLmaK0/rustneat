@@ -43,7 +43,7 @@ impl Organism {
         let wij = self.get_weights_matrix();
 
         let activations = Ctrnn::default().activate_nn(
-            30,
+            2,
             &CtrnnNeuralNetwork {
                 gamma: gamma.as_slice(),
                 delta_t: 10.0,
