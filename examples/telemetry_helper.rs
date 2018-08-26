@@ -15,6 +15,7 @@ pub fn enable_telemetry(query_string: &str) {
     let mut dashboard = Dashboard::new();
     dashboard.add_graph("fitness1", "fitness", 0, 0, 4, 4);
     dashboard.add_graph("network1", "network", 4, 0, 4, 4);
+    dashboard.add_graph("approximation1", "approximation", 0, 4, 2, 2);
 
     rusty_dashed::Server::serve_dashboard(dashboard);
 
