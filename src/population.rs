@@ -95,28 +95,27 @@ impl Population {
                     &organisms,
                 );
             }
-        } else {
-            let organisms_by_average_fitness =
-                num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
-
-            for specie in &mut self.species {
-                let specie_fitness = specie.calculate_average_fitness();
-                let offspring_size = if total_average_fitness == 0f64 {
-                    specie.organisms.len()
-                } else {
-                    (specie_fitness * organisms_by_average_fitness).round() as usize
-                };
-
-                if offspring_size > 0 {
-                    // TODO: check if offspring is for organisms fitness also, not only by specie
-                    specie.generate_offspring(offspring_size, &organisms);
-                } else {
-                    specie.remove_organisms();
-                }
-            }
-        }
-        if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
             self.epochs_without_improvements = 0;
+            return;
+        }
+
+        let organisms_by_average_fitness =
+            num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
+
+        for specie in &mut self.species {
+            let specie_fitness = specie.calculate_average_fitness();
+            let offspring_size = if total_average_fitness == 0f64 {
+                specie.organisms.len()
+            } else {
+                (specie_fitness * organisms_by_average_fitness).round() as usize
+            };
+
+            if offspring_size > 0 {
+                // TODO: check if offspring is for organisms fitness also, not only by specie
+                specie.generate_offspring(offspring_size, &organisms);
+            } else {
+                specie.remove_organisms();
+            }
         }
     }
 
