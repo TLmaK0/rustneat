@@ -37,13 +37,13 @@ impl Organism {
         let neurons_len = self.genome.len();
         let gamma = vec![0.0; neurons_len];
         let tau = vec![10.0; neurons_len];
-        let theta = vec![0.0; neurons_len];
+        let theta = self.get_bias_matrix(); 
         let wik = vec![1.0; sensors.len() * neurons_len];
         let i = sensors;
         let wij = self.get_weights_matrix();
 
         let activations = Ctrnn::default().activate_nn(
-            2,
+            5,
             &CtrnnNeuralNetwork {
                 gamma: gamma.as_slice(),
                 delta_t: 10.0,
@@ -73,6 +73,17 @@ impl Organism {
             }
         }
         (neurons_len, neurons_len, matrix)
+    }
+
+    fn get_bias_matrix(&self) -> Vec<f64> {
+        let neurons_len = self.genome.len();
+        let mut matrix = vec![0.0; neurons_len];
+        for gene in self.genome.get_genes() {
+            if gene.is_bias() {
+                matrix[gene.in_neuron_id()] += 1f64; 
+            }
+        }
+        matrix
     }
 }
 
