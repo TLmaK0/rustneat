@@ -17,6 +17,7 @@ const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
 const MUTATE_ADD_NEURON: f64 = 0.004f64;
 const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
+const MUTATE_TOGGLE_BIAS: f64 = 0.01;
 
 impl Genome {
     /// May add a connection &| neuron &| mutat connection weight &|
@@ -36,6 +37,10 @@ impl Genome {
 
         if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_EXPRESSION {
             self.mutate_toggle_expression();
+        };
+
+        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_BIAS {
+            self.mutate_toggle_bias();
         };
     }
 
@@ -107,7 +112,7 @@ impl Genome {
     }
 
     fn create_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
-        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true);
+        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true, false);
         self.add_gene(gene);
     }
 
@@ -136,6 +141,12 @@ impl Genome {
         let mut rng = rand::thread_rng();
         let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
         Mutation::toggle_expression(&mut self.genes[selected_gene]);
+    }
+
+    fn mutate_toggle_bias(&mut self) {
+        let mut rng = rand::thread_rng();
+        let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+        Mutation::toggle_bias(&mut self.genes[selected_gene]);
     }
 
     fn mutate_add_neuron(&mut self) {

@@ -40,7 +40,7 @@ fn main() {
     let mut champion: Option<Organism> = None;
 
     #[cfg(feature = "telemetry")]
-    telemetry_helper::enable_telemetry("?max_fitness=20");
+    telemetry_helper::enable_telemetry("?max_fitness=20&ioNeurons=1,2");
 
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
@@ -51,16 +51,10 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let mut value = 0f64;
     while champion.is_none() {
         population.evolve();
         population.evaluate_in(&mut environment);
         for organism in &population.get_organisms() {
-            if value < organism.fitness {
-                value = organism.fitness;
-                println!("{:?}", value);
-            }
-
             if organism.fitness >= 99f64 {
                 champion = Some(organism.clone());
             }
