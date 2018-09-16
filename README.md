@@ -4,7 +4,7 @@
 
 Implementation of **NeuroEvolution of Augmenting Topologies NEAT** http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf
 
-This implementations uses a **Continuous-Time Recurrent Neural Network** (**CTRNN**) (Yamauchi and Beer, 1994).
+This implementations uses a **CTRNN** based on**On the Dynamics of Small Continuous-Time Recurrent Neural Network** (Beer, 1995) http://www.cs.uvm.edu/~jbongard/2014_CS206/Beer_CTRNNs.pdf
 
 ![telemetry](docs/img/rustneat.png)
 
