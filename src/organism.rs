@@ -35,26 +35,23 @@ impl Organism {
     /// Activate this organism in the NN
     pub fn activate(&mut self, sensors: &[f64], outputs: &mut Vec<f64>) {
         let neurons_len = self.genome.len();
-        let gamma = vec![0.0; neurons_len];
-        let tau = vec![10.0; neurons_len];
+        let sensors_len = sensors.len();
+        let tau = vec![1.0; neurons_len];
         let theta = self.get_bias_matrix(); 
-        let wik = vec![1.0; sensors.len() * neurons_len];
-        let i = sensors;
+        let i = [sensors, &vec![0.0; sensors_len * neurons_len - sensors_len]].concat();
         let wij = self.get_weights_matrix();
 
         let activations = Ctrnn::default().activate_nn(
-            5,
+            10,
             &CtrnnNeuralNetwork {
-                gamma: gamma.as_slice(),
-                delta_t: 10.0,
-                tau: tau.as_slice(),
-                wij: &(wij.0, wij.1, wij.2.as_slice()),
-                theta: theta.as_slice(),
-                wik: &(neurons_len, sensors.len(), wik.as_slice()),
-                i: i,
+                y: &i,  //initial state is the sensors
+                delta_t: 1.0,
+                tau: &tau,
+                wij: &(wij.0, wij.1, &wij.2),
+                theta: &theta,
+                i: &i
             },
         );
-
         if sensors.len() < neurons_len {
             let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
 

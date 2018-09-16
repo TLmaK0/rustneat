@@ -31,7 +31,7 @@ impl Environment for XORClassification {
 
 fn main() {
     #[cfg(feature = "telemetry")]
-    telemetry_helper::enable_telemetry("?max_fitness=17");
+    telemetry_helper::enable_telemetry("?max_fitness=17", true);
 
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;
