@@ -11,7 +11,7 @@ pub struct Genome {
     last_neuron_id: usize,
 }
 
-const COMPATIBILITY_THRESHOLD: f64 = 3f64;
+const COMPATIBILITY_THRESHOLD: f64 = 5f64; //used to speciate organisms
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
 const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
 const MUTATE_ADD_NEURON: f64 = 0.004f64;
@@ -57,6 +57,7 @@ impl Genome {
         let mut genome = Genome::default();
         for gene in &self.genes {
             genome.add_gene({
+                //Only mate half of the genes randomly
                 if !fittest || rand::random::<f64>() > 0.5f64 {
                     *gene
                 } else {
@@ -75,32 +76,10 @@ impl Genome {
     }
 
     /// only allow connected nodes
+    #[deprecated(since = "0.3.0", note = "please use `add_gene` instead")]
     pub fn inject_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
-        let max_neuron_id = self.last_neuron_id + 1;
-
-        if in_neuron_id == out_neuron_id && in_neuron_id > max_neuron_id {
-            panic!(
-                "Try to create a gene neuron unconnected, max neuron id {}, {} -> {}",
-                max_neuron_id, in_neuron_id, out_neuron_id
-            );
-        }
-
-        assert!(
-            in_neuron_id <= max_neuron_id,
-            format!(
-                "in_neuron_id {} is greater than max allowed id {}",
-                in_neuron_id, max_neuron_id
-            )
-        );
-        assert!(
-            out_neuron_id <= max_neuron_id,
-            format!(
-                "out_neuron_id {} is greater than max allowed id {}",
-                out_neuron_id, max_neuron_id
-            )
-        );
-
-        self.create_gene(in_neuron_id, out_neuron_id, weight)
+        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true, false);
+        self.add_gene(gene);
     }
     /// Number of genes
     pub fn len(&self) -> usize {
@@ -109,11 +88,6 @@ impl Genome {
     /// is genome empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-
-    fn create_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
-        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true, false);
-        self.add_gene(gene);
     }
 
     fn mutate_add_connection(&mut self) {
@@ -167,7 +141,33 @@ impl Genome {
         self.add_gene(gene);
     }
 
-    fn add_gene(&mut self, gene: Gene) {
+    /// Add a new gene and checks if is allowd. Only can connect next neuron or already connected
+    /// neurons.
+    pub fn add_gene(&mut self, gene: Gene) {
+        let max_neuron_id = self.last_neuron_id + 1;
+
+        if gene.in_neuron_id() == gene.out_neuron_id() && gene.in_neuron_id() > max_neuron_id {
+            panic!(
+                "Try to create a gene neuron unconnected, max neuron id {}, {} -> {}",
+                max_neuron_id, gene.in_neuron_id(), gene.out_neuron_id()
+            );
+        }
+
+        //assert!(
+        //    gene.in_neuron_id() <= max_neuron_id,
+        //    format!(
+        //        "in_neuron_id {} is greater than max allowed id {}",
+        //        gene.in_neuron_id(), max_neuron_id
+        //    )
+        //);
+        //assert!(
+        //    gene.out_neuron_id() <= max_neuron_id,
+        //    format!(
+        //        "out_neuron_id {} is greater than max allowed id {}",
+        //        gene.out_neuron_id(), max_neuron_id
+        //    )
+        //);
+
         if gene.in_neuron_id() > self.last_neuron_id {
             self.last_neuron_id = gene.in_neuron_id();
         }
