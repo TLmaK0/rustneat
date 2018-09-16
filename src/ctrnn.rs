@@ -2,13 +2,12 @@ use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub struct CtrnnNeuralNetwork<'a> {
-    pub gamma: &'a [f64],
+    pub y: &'a [f64],
     pub delta_t: f64,
-    pub tau: &'a [f64],
-    pub wij: &'a (usize, usize, &'a [f64]),
-    pub theta: &'a [f64],
-    pub wik: &'a (usize, usize, &'a [f64]),
-    pub i: &'a [f64],
+    pub tau: &'a [f64], //time constant
+    pub wij: &'a (usize, usize, &'a [f64]), //weights
+    pub theta: &'a [f64], //bias
+    pub i: &'a [f64], //sensors
 }
 
 #[allow(missing_docs)]
@@ -17,52 +16,19 @@ pub struct Ctrnn {}
 
 impl Ctrnn {
     /// Activate the NN
-    // TODO Not sure steps are required here?
     pub fn activate_nn(&self, steps: usize, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
-        let mut state = Ctrnn::matrix_from_vector(nn.gamma);
+        let mut y = Ctrnn::matrix_from_vector(nn.y);
         let theta = Ctrnn::matrix_from_vector(nn.theta);
         let wij = Ctrnn::matrix_from_matrix(nn.wij);
-        let wik = Ctrnn::matrix_from_matrix(nn.wik);
         let i = Ctrnn::matrix_from_vector(nn.i);
         let tau = Ctrnn::matrix_from_vector(nn.tau);
         let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * nn.delta_t;
         for _ in 0..steps {
-            state = &state
-                + delta_t_tau.elemul(
-                    &((&wij * (&state - &theta).apply(&Ctrnn::sigmoid)) - &state + (&wik * &i)),
-                );
-        }
-        state
-            .apply(&(|x| (x - 3.0) * 2.0))
-            .apply(&Ctrnn::sigmoid)
-            .into_vec()
-    }
-
-    #[allow(missing_docs)]
-    #[deprecated(since = "0.1.7", note = "please use `activate_nn` instead")]
-    pub fn activate(
-        &self,
-        steps: usize,
-        gamma: &[f64],
-        delta_t: f64,
-        tau: &[f64],
-        wij: &(usize, usize, Vec<f64>),
-        theta: &[f64],
-        wik: &(usize, usize, Vec<f64>),
-        i: &[f64],
-    ) -> Vec<f64> {
-        self.activate_nn(
-            steps,
-            &CtrnnNeuralNetwork {
-                gamma: gamma,
-                delta_t: delta_t,
-                tau: tau,
-                wij: &(wij.0, wij.1, wij.2.as_slice()),
-                theta: theta,
-                wik: &(wik.0, wik.1, wik.2.as_slice()),
-                i: i,
-            },
-        )
+            y = delta_t_tau.elemul(
+                &((&wij * (&y - &theta).apply(&Ctrnn::sigmoid)) - &y + &i)
+            );
+        };
+        y.into_vec()
     }
 
     fn sigmoid(y: f64) -> f64 {
