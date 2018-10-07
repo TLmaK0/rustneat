@@ -11,10 +11,8 @@ mod telemetry_helper;
 use rustneat::Environment;
 use rustneat::Organism;
 use rustneat::Population;
-use rustneat::Gene;
-use rustneat::genome::Genome;
 
-static mut best_fitness: f64 = 0.0;
+static mut BEST_FITNESS: f64 = 0.0;
 struct FunctionApproximation;
 
 impl Environment for FunctionApproximation {
@@ -31,8 +29,8 @@ impl Environment for FunctionApproximation {
       }
 
       unsafe {
-            if organism.fitness > best_fitness {
-                best_fitness = organism.fitness;
+            if organism.fitness > BEST_FITNESS {
+                BEST_FITNESS = organism.fitness;
       #[cfg(feature = "telemetry")]
       telemetry!("approximation1", 1.0, format!("{:?}", outputs));
             }
@@ -59,8 +57,6 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    
-    let mut organism = Organism::new(Genome::default());
     while champion.is_none() {
         population.evolve();
         population.evaluate_in(&mut environment);

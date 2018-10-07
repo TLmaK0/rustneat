@@ -1,11 +1,12 @@
 use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
+
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub struct CtrnnNeuralNetwork<'a> {
     pub y: &'a [f64],
     pub delta_t: f64,
     pub tau: &'a [f64], //time constant
-    pub wij: &'a (usize, usize, &'a [f64]), //weights
+    pub wij: &'a [f64], //weights
     pub theta: &'a [f64], //bias
     pub i: &'a [f64], //sensors
 }
@@ -17,15 +18,16 @@ pub struct Ctrnn {}
 impl Ctrnn {
     /// Activate the NN
     pub fn activate_nn(&self, steps: usize, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
-        let mut y = Ctrnn::matrix_from_vector(nn.y);
-        let theta = Ctrnn::matrix_from_vector(nn.theta);
-        let wij = Ctrnn::matrix_from_matrix(nn.wij);
-        let i = Ctrnn::matrix_from_vector(nn.i);
-        let tau = Ctrnn::matrix_from_vector(nn.tau);
+        let mut y = Ctrnn::vector_to_column_matrix(nn.y);
+        let theta = Ctrnn::vector_to_column_matrix(nn.theta);
+        let wij = Ctrnn::vector_to_matrix(nn.wij);
+        let i = Ctrnn::vector_to_column_matrix(nn.i);
+        let tau = Ctrnn::vector_to_column_matrix(nn.tau);
         let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * nn.delta_t;
         for _ in 0..steps {
+            let current_weights = (&y - &theta).apply(&Ctrnn::sigmoid);
             y = delta_t_tau.elemul(
-                &((&wij * (&y - &theta).apply(&Ctrnn::sigmoid)) - &y + &i)
+                &((&wij * current_weights) - &y + &i)
             );
         };
         y.into_vec()
@@ -35,12 +37,13 @@ impl Ctrnn {
         1f64 / (1f64 + (-y).exp())
     }
 
-    fn matrix_from_vector(vector: &[f64]) -> Matrix<f64> {
+    fn vector_to_column_matrix(vector: &[f64]) -> Matrix<f64> {
         Matrix::new(vector.len(), 1, vector)
     }
 
-    fn matrix_from_matrix(matrix: &(usize, usize, &[f64])) -> Matrix<f64> {
-        Matrix::new(matrix.0, matrix.1, matrix.2)
+    fn vector_to_matrix(vector: &[f64]) -> Matrix<f64> {
+        let width = (vector.len() as f64).sqrt() as usize;
+        Matrix::new(width, width, vector)
     }
 }
 
