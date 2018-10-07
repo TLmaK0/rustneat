@@ -33,13 +33,22 @@ impl Organism {
         )
     }
     /// Activate this organism in the NN
-    pub fn activate(&mut self, sensors: &[f64], outputs: &mut Vec<f64>) {
+    pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
         let neurons_len = self.genome.len();
         let sensors_len = sensors.len();
+
         let tau = vec![1.0; neurons_len];
-        let theta = self.get_bias_matrix(); 
-        let i = [sensors, &vec![0.0; sensors_len * neurons_len - sensors_len]].concat();
-        let wij = self.get_weights_matrix();
+        let theta = self.get_bias(); 
+
+        let mut i = sensors.clone();
+
+        if neurons_len < sensors_len {
+            i.truncate(neurons_len);
+        } else {
+            i = [i, vec![0.0; neurons_len - sensors_len]].concat();
+        }
+
+        let wij = self.get_weights();
 
         let activations = Ctrnn::default().activate_nn(
             10,
@@ -47,13 +56,14 @@ impl Organism {
                 y: &i,  //initial state is the sensors
                 delta_t: 1.0,
                 tau: &tau,
-                wij: &(wij.0, wij.1, &wij.2),
+                wij: &wij,
                 theta: &theta,
                 i: &i
             },
         );
-        if sensors.len() < neurons_len {
-            let outputs_activations = activations.split_at(sensors.len()).1.to_vec();
+
+        if sensors_len < neurons_len {
+            let outputs_activations = activations.split_at(sensors_len).1.to_vec();
 
             for n in 0..cmp::min(outputs_activations.len(), outputs.len()) {
                 outputs[n] = outputs_activations[n];
@@ -61,7 +71,7 @@ impl Organism {
         }
     }
 
-    fn get_weights_matrix(&self) -> (usize, usize, Vec<f64>) {
+    fn get_weights(&self) -> Vec<f64> {
         let neurons_len = self.genome.len();
         let mut matrix = vec![0.0; neurons_len * neurons_len];
         for gene in self.genome.get_genes() {
@@ -69,10 +79,10 @@ impl Organism {
                 matrix[(gene.out_neuron_id() * neurons_len) + gene.in_neuron_id()] = gene.weight()
             }
         }
-        (neurons_len, neurons_len, matrix)
+        matrix
     }
 
-    fn get_bias_matrix(&self) -> Vec<f64> {
+    fn get_bias(&self) -> Vec<f64> {
         let neurons_len = self.genome.len();
         let mut matrix = vec![0.0; neurons_len];
         for gene in self.genome.get_genes() {
