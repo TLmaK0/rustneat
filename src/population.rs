@@ -51,6 +51,8 @@ impl Population {
 
         if self.champion_fitness >= champion.fitness {
             self.epochs_without_improvements += 1;
+            #[cfg(feature = "telemetry")]
+            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
         } else {
             self.champion_fitness = champion.fitness;
             #[cfg(feature = "telemetry")]
@@ -104,12 +106,11 @@ impl Population {
 
         for specie in &mut self.species {
             let specie_fitness = specie.calculate_average_fitness();
-            let offspring_size = if total_average_fitness == 0f64 {
+            let offspring_size = if total_average_fitness <= 0f64 {
                 specie.organisms.len()
             } else {
                 (specie_fitness * organisms_by_average_fitness).round() as usize
             };
-
             if offspring_size > 0 {
                 // TODO: check if offspring is for organisms fitness also, not only by specie
                 specie.generate_offspring(offspring_size, &organisms);
