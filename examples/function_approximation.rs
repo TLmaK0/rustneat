@@ -23,7 +23,7 @@ impl Environment for FunctionApproximation {
       let mut outputs = Vec::new();
 
       for x in -10..11 {
-          organism.activate(&vec![x as f64 / 10f64], &mut output);
+          organism.activate(vec![x as f64 / 10f64], &mut output);
           distance += ((x as f64).powf(2f64) - (output[0] * 100f64)).abs();
           outputs.push([x, (output[0] * 100f64) as i64]);
       }

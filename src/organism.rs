@@ -105,7 +105,7 @@ mod tests {
         organism.genome.inject_gene(0, 1, 5f64);
         let sensors = vec![1f64];
         let mut output = vec![0f64];
-        organism.activate(&sensors, &mut output);
+        organism.activate(sensors, &mut output);
         assert!(
             output[0] > 0.9f64,
             format!("{:?} is not bigger than 0.9", output[0])
@@ -115,7 +115,7 @@ mod tests {
         organism.genome.inject_gene(0, 1, -2f64);
         let sensors = vec![1f64];
         let mut output = vec![0f64];
-        organism.activate(&sensors, &mut output);
+        organism.activate(sensors, &mut output);
         assert!(
             output[0] < 0.1f64,
             format!("{:?} is not smaller than 0.1", output[0])
@@ -130,7 +130,7 @@ mod tests {
         organism.genome.inject_gene(2, 1, 5f64);
         let sensors = vec![0f64];
         let mut output = vec![0f64];
-        organism.activate(&sensors, &mut output);
+        organism.activate(sensors, &mut output);
         assert!(
             output[0] > 0.9f64,
             format!("{:?} is not bigger than 0.9", output[0])
@@ -144,7 +144,7 @@ mod tests {
         organism.genome.inject_gene(1, 2, 2f64);
         organism.genome.inject_gene(2, 1, 2f64);
         let mut output = vec![0f64];
-        organism.activate(&[1f64], &mut output);
+        organism.activate(vec![1f64], &mut output);
         assert!(
             output[0] > 0.9,
             format!("{:?} is not bigger than 0.9", output[0])
@@ -155,7 +155,7 @@ mod tests {
         organism.genome.inject_gene(1, 2, -2f64);
         organism.genome.inject_gene(2, 1, -2f64);
         let mut output = vec![0f64];
-        organism.activate(&[1f64], &mut output);
+        organism.activate(vec![1f64], &mut output);
         assert!(
             output[0] < 0.1,
             format!("{:?} is not smaller than 0.1", output[0])
@@ -168,7 +168,7 @@ mod tests {
         organism.genome.inject_gene(0, 1, 1f64);
         let sensors = vec![0f64, 0f64, 0f64];
         let mut output = vec![0f64];
-        organism.activate(&sensors, &mut output);
+        organism.activate(sensors, &mut output);
     }
 
     #[test]
@@ -177,7 +177,7 @@ mod tests {
         organism.genome.inject_gene(0, 1, 1f64);
         let sensors = vec![0f64];
         let mut output = vec![0f64, 0f64];
-        organism.activate(&sensors, &mut output);
+        organism.activate(sensors, &mut output);
     }
 
     #[test]
@@ -189,8 +189,8 @@ mod tests {
         organism.genome.inject_gene(2, 2, 0.75f64);
         organism.genome.inject_gene(1, 0, 1f64);
         assert_eq!(
-            organism.get_weights_matrix(),
-            (3, 3, vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75])
+            organism.get_weights(),
+            vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]
         );
     }
 
@@ -200,6 +200,6 @@ mod tests {
         organism.genome.inject_gene(0, 1, 1f64);
         let sensors = vec![0f64, 0f64, 0f64];
         let mut output = vec![0f64, 0f64, 0f64];
-        organism.activate(&sensors, &mut output);
+        organism.activate(sensors, &mut output);
     }
 }
