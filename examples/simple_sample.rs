@@ -15,15 +15,15 @@ impl Environment for XORClassification {
         let mut output = vec![0f64];
         let mut distance: f64;
         organism.activate(vec![0f64, 0f64], &mut output);
-        distance = (0f64 - output[0]).abs();
+        distance = (0f64 - output[0]).powi(2);
         organism.activate(vec![0f64, 1f64], &mut output);
-        distance += (1f64 - output[0]).abs();
+        distance += (1f64 - output[0]).powi(2);
         organism.activate(vec![1f64, 0f64], &mut output);
-        distance += (1f64 - output[0]).abs();
+        distance += (1f64 - output[0]).powi(2);
         organism.activate(vec![1f64, 1f64], &mut output);
-        distance += (0f64 - output[0]).abs();
+        distance += (0f64 - output[0]).powi(2);
 
-        let fitness = (4f64 - distance).powi(2);
+        let fitness = 16f64 / (1f64 + distance);
 
         fitness
     }
@@ -31,7 +31,10 @@ impl Environment for XORClassification {
 
 fn main() {
     #[cfg(feature = "telemetry")]
-    telemetry_helper::enable_telemetry("?max_fitness=17", true);
+    telemetry_helper::enable_telemetry("?max_fitness=16", true);
+
+    #[cfg(feature = "telemetry")]
+    std::thread::sleep(std::time::Duration::from_millis(2000));
 
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;
@@ -40,7 +43,7 @@ fn main() {
         population.evolve();
         population.evaluate_in(&mut environment);
         for organism in &population.get_organisms() {
-            if organism.fitness > 15.9f64 {
+            if organism.fitness > 15.5f64 {
                 champion = Some(organism.clone());
             }
         }
