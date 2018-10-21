@@ -189,6 +189,9 @@ impl Population {
 }
 
 #[cfg(test)]
+use gene::Gene;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use genome::Genome;
@@ -198,13 +201,13 @@ mod tests {
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
-        genome1.inject_gene(0, 1, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         let mut genome2 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
-        genome1.inject_gene(0, 1, 1f64);
-        genome2.inject_gene(1, 1, 1f64);
-        genome2.inject_gene(1, 0, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
+        genome2.add_gene(Gene::new(1, 1, 1f64, true, false));
+        genome2.add_gene(Gene::new(1, 0, 1f64, true, false));
 
         let mut population = Population::create_population(2);
         let organisms = vec![Organism::new(genome1), Organism::new(genome2)];

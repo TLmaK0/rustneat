@@ -95,6 +95,9 @@ impl Organism {
 }
 
 #[cfg(test)]
+use gene::Gene;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use genome::Genome;
@@ -102,8 +105,8 @@ mod tests {
     #[test]
     fn should_propagate_signal_without_hidden_layers() {
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, 5f64);
-        let sensors = vec![1f64];
+        organism.genome.add_gene(Gene::new(0, 1, 5f64, true, false));
+        let sensors = vec![7.5];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
         assert!(
@@ -112,7 +115,7 @@ mod tests {
         );
 
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, -2f64);
+        organism.genome.add_gene(Gene::new(0, 1, -2f64, true, false));
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
@@ -125,9 +128,9 @@ mod tests {
     #[test]
     fn should_propagate_signal_over_hidden_layers() {
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, 0f64);
-        organism.genome.inject_gene(0, 2, 5f64);
-        organism.genome.inject_gene(2, 1, 5f64);
+        organism.genome.add_gene(Gene::new(0, 1, 0f64, true, false));
+        organism.genome.add_gene(Gene::new(0, 2, 5f64, true, false));
+        organism.genome.add_gene(Gene::new(2, 1, 5f64, true, false));
         let sensors = vec![0f64];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
@@ -140,9 +143,9 @@ mod tests {
     #[test]
     fn should_work_with_cyclic_networks() {
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, 2f64);
-        organism.genome.inject_gene(1, 2, 2f64);
-        organism.genome.inject_gene(2, 1, 2f64);
+        organism.genome.add_gene(Gene::new(0, 1, 2f64, true, false));
+        organism.genome.add_gene(Gene::new(1, 2, 2f64, true, false));
+        organism.genome.add_gene(Gene::new(2, 1, 2f64, true, false));
         let mut output = vec![0f64];
         organism.activate(vec![1f64], &mut output);
         assert!(
@@ -151,9 +154,9 @@ mod tests {
         );
 
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, -2f64);
-        organism.genome.inject_gene(1, 2, -2f64);
-        organism.genome.inject_gene(2, 1, -2f64);
+        organism.genome.add_gene(Gene::new(0, 1, -2f64, true, false));
+        organism.genome.add_gene(Gene::new(1, 2, -2f64, true, false));
+        organism.genome.add_gene(Gene::new(2, 1, -2f64, true, false));
         let mut output = vec![0f64];
         organism.activate(vec![1f64], &mut output);
         assert!(
@@ -165,7 +168,7 @@ mod tests {
     #[test]
     fn activate_organims_sensor_without_enough_neurons_should_ignore_it() {
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, 1f64);
+        organism.genome.add_gene(Gene::new(0, 1, 1f64, true, false));
         let sensors = vec![0f64, 0f64, 0f64];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
@@ -174,7 +177,7 @@ mod tests {
     #[test]
     fn should_allow_multiple_output() {
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, 1f64);
+        organism.genome.add_gene(Gene::new(0, 1, 1f64, true, false));
         let sensors = vec![0f64];
         let mut output = vec![0f64, 0f64];
         organism.activate(sensors, &mut output);
@@ -183,11 +186,11 @@ mod tests {
     #[test]
     fn should_be_able_to_get_matrix_representation_of_the_neuron_connections() {
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, 1f64);
-        organism.genome.inject_gene(1, 2, 0.5f64);
-        organism.genome.inject_gene(2, 1, 0.5f64);
-        organism.genome.inject_gene(2, 2, 0.75f64);
-        organism.genome.inject_gene(1, 0, 1f64);
+        organism.genome.add_gene(Gene::new(0, 1, 1f64, true, false));
+        organism.genome.add_gene(Gene::new(1, 2, 0.5f64, true, false));
+        organism.genome.add_gene(Gene::new(2, 1, 0.5f64, true, false));
+        organism.genome.add_gene(Gene::new(2, 2, 0.75f64, true, false));
+        organism.genome.add_gene(Gene::new(1, 0, 1f64, true, false));
         assert_eq!(
             organism.get_weights(),
             vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]
@@ -197,7 +200,7 @@ mod tests {
     #[test]
     fn should_not_raise_exception_if_less_neurons_than_required() {
         let mut organism = Organism::new(Genome::default());
-        organism.genome.inject_gene(0, 1, 1f64);
+        organism.genome.add_gene(Gene::new(0, 1, 1f64, true, false));
         let sensors = vec![0f64, 0f64, 0f64];
         let mut output = vec![0f64, 0f64, 0f64];
         organism.activate(sensors, &mut output);
