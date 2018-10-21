@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn mutation_connection_weight() {
         let mut genome = Genome::default();
-        genome.inject_gene(0, 0, 1f64);
+        genome.add_gene(Gene::new(0, 0, 1f64, true, false));
         let orig_gene = genome.genes[0];
         genome.mutate_connection_weight();
         // These should not be same size
@@ -283,38 +283,38 @@ mod tests {
     #[should_panic(expected = "Try to create a gene neuron unconnected, max neuron id 1, 2 -> 2")]
     fn try_to_inject_a_unconnected_neuron_gene_should_panic() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(2, 2, 0.5f64);
+        genome1.add_gene(Gene::new(2, 2, 0.5f64, true, false));
     }
 
     #[test]
     fn two_genomes_without_differences_should_be_in_same_specie() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
-        genome1.inject_gene(0, 1, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.inject_gene(0, 0, 0f64);
-        genome2.inject_gene(0, 1, 0f64);
-        genome2.inject_gene(0, 2, 0f64);
+        genome2.add_gene(Gene::new(0, 0, 0f64, true, false));
+        genome2.add_gene(Gene::new(0, 1, 0f64, true, false));
+        genome2.add_gene(Gene::new(0, 2, 0f64, true, false));
         assert!(genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn two_genomes_with_enought_difference_should_be_in_different_species() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
-        genome1.inject_gene(0, 1, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.inject_gene(0, 0, 5f64);
-        genome2.inject_gene(0, 1, 5f64);
-        genome2.inject_gene(0, 2, 1f64);
-        genome2.inject_gene(0, 3, 1f64);
+        genome2.add_gene(Gene::new(0, 0, 5f64, true, false));
+        genome2.add_gene(Gene::new(0, 1, 5f64, true, false));
+        genome2.add_gene(Gene::new(0, 2, 1f64, true, false));
+        genome2.add_gene(Gene::new(0, 3, 1f64, true, false));
         assert!(!genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn already_existing_gene_should_be_not_duplicated() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
         genome1.add_connection(0, 0);
         assert_eq!(genome1.genes.len(), 1);
         assert!((genome1.get_genes()[0].weight() - 1f64).abs() < EPSILON);
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn adding_an_existing_gene_disabled_should_enable_original() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 1, 0f64);
+        genome1.add_gene(Gene::new(0, 1, 0f64, true, false));
         genome1.mutate_add_neuron();
         assert!(!genome1.genes[0].enabled());
         assert!(genome1.genes.len() == 3);
@@ -336,18 +336,18 @@ mod tests {
     #[test]
     fn genomes_with_same_genes_with_little_differences_on_weight_should_be_in_same_specie() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 16f64);
+        genome1.add_gene(Gene::new(0, 0, 16f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.inject_gene(0, 0, 16.1f64);
+        genome2.add_gene(Gene::new(0, 0, 16.1f64, true, false));
         assert!(genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn genomes_with_same_genes_with_big_differences_on_weight_should_be_in_other_specie() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 5f64);
+        genome1.add_gene(Gene::new(0, 0, 5f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.inject_gene(0, 0, 15f64);
+        genome2.add_gene(Gene::new(0, 0, 15f64, true, false));
         assert!(!genome1.is_same_specie(&genome2));
     }
 }
