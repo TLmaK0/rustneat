@@ -63,6 +63,8 @@ impl Population {
 
         if self.champion_fitness >= champion.fitness {
             self.epochs_without_improvements += 1;
+            #[cfg(feature = "telemetry")]
+            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
         } else {
             self.champion_fitness = champion.fitness;
             #[cfg(feature = "telemetry")]
@@ -107,28 +109,26 @@ impl Population {
                     &organisms,
                 );
             }
-        } else {
-            let organisms_by_average_fitness =
-                num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
-
-            for specie in &mut self.species {
-                let specie_fitness = specie.calculate_average_fitness();
-                let offspring_size = if total_average_fitness == 0f64 {
-                    specie.organisms.len()
-                } else {
-                    (specie_fitness * organisms_by_average_fitness).round() as usize
-                };
-
-                if offspring_size > 0 {
-                    // TODO: check if offspring is for organisms fitness also, not only by specie
-                    specie.generate_offspring(offspring_size, &organisms);
-                } else {
-                    specie.remove_organisms();
-                }
-            }
-        }
-        if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
             self.epochs_without_improvements = 0;
+            return;
+        }
+
+        let organisms_by_average_fitness =
+            num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
+
+        for specie in &mut self.species {
+            let specie_fitness = specie.calculate_average_fitness();
+            let offspring_size = if total_average_fitness <= 0f64 {
+                specie.organisms.len()
+            } else {
+                (specie_fitness * organisms_by_average_fitness).round() as usize
+            };
+            if offspring_size > 0 {
+                // TODO: check if offspring is for organisms fitness also, not only by specie
+                specie.generate_offspring(offspring_size, &organisms);
+            } else {
+                specie.remove_organisms();
+            }
         }
     }
 
@@ -189,6 +189,9 @@ impl Population {
 }
 
 #[cfg(test)]
+use gene::Gene;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use genome::Genome;
@@ -198,13 +201,13 @@ mod tests {
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
-        genome1.inject_gene(0, 1, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         let mut genome2 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
-        genome1.inject_gene(0, 1, 1f64);
-        genome2.inject_gene(1, 1, 1f64);
-        genome2.inject_gene(1, 0, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
+        genome2.add_gene(Gene::new(1, 1, 1f64, true, false));
+        genome2.add_gene(Gene::new(1, 0, 1f64, true, false));
 
         let mut population = Population::create_population(2);
         let organisms = vec![Organism::new(genome1), Organism::new(genome2)];

@@ -7,7 +7,7 @@ keywords = ["neuroevolution", "neat", "aumenting-topologies", "genetic", "algori
 license = "MIT"
 name = "rustneat"
 repository = "https://github.com/TLmaK0/rustneat"
-version = "0.2.1"
+version = "0.3.0"
 
 [dependencies]
 conv = "0.3.2"
@@ -38,3 +38,6 @@ required-features = ["cpython"]
 
 [[example]]
 name = "simple_sample"
+
+[[example]]
+name = "function_approximation"

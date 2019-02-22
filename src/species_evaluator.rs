@@ -91,6 +91,10 @@ impl<'a> SpeciesEvaluator<'a> {
             let mut champion = Organism::new(Genome::default());
             for organism in &mut organisms.iter_mut() {
                 organism.fitness = self.environment.test(organism);
+                if organism.fitness < 0f64 {
+                    eprintln!("Fitness can't be negative: {:?}", organism.fitness);
+                    ::std::process::exit(-1);
+                }
                 if organism.fitness > champion.fitness {
                     champion = organism.clone();
                 }

@@ -11,12 +11,13 @@ pub struct Genome {
     last_neuron_id: usize,
 }
 
-const COMPATIBILITY_THRESHOLD: f64 = 3.0;
+const COMPATIBILITY_THRESHOLD: f64 = 3.0; //used to speciate organisms
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90;
 const MUTATE_ADD_CONNECTION: f64 = 0.005;
 const MUTATE_ADD_NEURON: f64 = 0.004;
 const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001;
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90;
+const MUTATE_TOGGLE_BIAS: f64 = 0.01;
 
 impl Genome {
     /// Creates a network that with no connections, but enough neurons to cover all inputs and
@@ -47,6 +48,10 @@ impl Genome {
         if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_EXPRESSION {
             self.mutate_toggle_expression();
         };
+
+        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_BIAS {
+            self.mutate_toggle_bias();
+        };
     }
 
     /// Mate two genes
@@ -63,6 +68,7 @@ impl Genome {
         genome.last_neuron_id = std::cmp::max(self.last_neuron_id, other.last_neuron_id);
         for gene in &self.genes {
             genome.add_gene({
+                //Only mate half of the genes randomly
                 if !fittest || rand::random::<f64>() > 0.5 {
                     *gene
                 } else {
@@ -81,32 +87,10 @@ impl Genome {
     }
 
     /// only allow connected nodes
+    #[deprecated(since = "0.3.0", note = "please use `add_gene` instead")]
     pub fn inject_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
-        let max_neuron_id = self.last_neuron_id + 1;
-
-        if in_neuron_id == out_neuron_id && in_neuron_id > max_neuron_id {
-            panic!(
-                "Try to create a gene neuron unconnected, max neuron id {}, {} -> {}",
-                max_neuron_id, in_neuron_id, out_neuron_id
-            );
-        }
-
-        assert!(
-            in_neuron_id <= max_neuron_id,
-            format!(
-                "in_neuron_id {} is greater than max allowed id {}",
-                in_neuron_id, max_neuron_id
-            )
-        );
-        assert!(
-            out_neuron_id <= max_neuron_id,
-            format!(
-                "out_neuron_id {} is greater than max allowed id {}",
-                out_neuron_id, max_neuron_id
-            )
-        );
-
-        self.create_gene(in_neuron_id, out_neuron_id, weight)
+        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true, false);
+        self.add_gene(gene);
     }
     /// Get number of neurons
     pub fn n_neurons(&self) -> usize {
@@ -119,11 +103,6 @@ impl Genome {
     /// is genome empty
     pub fn is_empty(&self) -> bool {
         self.n_neurons() == 0
-    }
-
-    fn create_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
-        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true);
-        self.add_gene(gene);
     }
 
     fn mutate_add_connection(&mut self) {
@@ -153,6 +132,12 @@ impl Genome {
         Mutation::toggle_expression(&mut self.genes[selected_gene]);
     }
 
+    fn mutate_toggle_bias(&mut self) {
+        let mut rng = rand::thread_rng();
+        let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+        Mutation::toggle_bias(&mut self.genes[selected_gene]);
+    }
+
     fn mutate_add_neuron(&mut self) {
         let (gene1, gene2) = {
             let mut rng = rand::thread_rng();
@@ -171,7 +156,33 @@ impl Genome {
         self.add_gene(gene);
     }
 
-    fn add_gene(&mut self, gene: Gene) {
+    /// Add a new gene and checks if is allowd. Only can connect next neuron or already connected
+    /// neurons.
+    pub fn add_gene(&mut self, gene: Gene) {
+        let max_neuron_id = self.last_neuron_id + 1;
+
+        if gene.in_neuron_id() == gene.out_neuron_id() && gene.in_neuron_id() > max_neuron_id {
+            panic!(
+                "Try to create a gene neuron unconnected, max neuron id {}, {} -> {}",
+                max_neuron_id, gene.in_neuron_id(), gene.out_neuron_id()
+            );
+        }
+
+        //assert!(
+        //    gene.in_neuron_id() <= max_neuron_id,
+        //    format!(
+        //        "in_neuron_id {} is greater than max allowed id {}",
+        //        gene.in_neuron_id(), max_neuron_id
+        //    )
+        //);
+        //assert!(
+        //    gene.out_neuron_id() <= max_neuron_id,
+        //    format!(
+        //        "out_neuron_id {} is greater than max allowed id {}",
+        //        gene.out_neuron_id(), max_neuron_id
+        //    )
+        //);
+
         if gene.in_neuron_id() > self.last_neuron_id {
             self.last_neuron_id = gene.in_neuron_id();
         }
@@ -255,7 +266,7 @@ mod tests {
     #[test]
     fn mutation_connection_weight() {
         let mut genome = Genome::default();
-        genome.inject_gene(0, 0, 1f64);
+        genome.add_gene(Gene::new(0, 0, 1f64, true, false));
         let orig_gene = genome.genes[0];
         genome.mutate_connection_weight();
         // These should not be same size
@@ -287,38 +298,38 @@ mod tests {
     #[should_panic(expected = "Try to create a gene neuron unconnected, max neuron id 1, 2 -> 2")]
     fn try_to_inject_a_unconnected_neuron_gene_should_panic() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(2, 2, 0.5f64);
+        genome1.add_gene(Gene::new(2, 2, 0.5f64, true, false));
     }
 
     #[test]
     fn two_genomes_without_differences_should_be_in_same_specie() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
-        genome1.inject_gene(0, 1, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.inject_gene(0, 0, 0f64);
-        genome2.inject_gene(0, 1, 0f64);
-        genome2.inject_gene(0, 2, 0f64);
+        genome2.add_gene(Gene::new(0, 0, 0f64, true, false));
+        genome2.add_gene(Gene::new(0, 1, 0f64, true, false));
+        genome2.add_gene(Gene::new(0, 2, 0f64, true, false));
         assert!(genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn two_genomes_with_enought_difference_should_be_in_different_species() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
-        genome1.inject_gene(0, 1, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.inject_gene(0, 0, 5f64);
-        genome2.inject_gene(0, 1, 5f64);
-        genome2.inject_gene(0, 2, 1f64);
-        genome2.inject_gene(0, 3, 1f64);
+        genome2.add_gene(Gene::new(0, 0, 5f64, true, false));
+        genome2.add_gene(Gene::new(0, 1, 5f64, true, false));
+        genome2.add_gene(Gene::new(0, 2, 1f64, true, false));
+        genome2.add_gene(Gene::new(0, 3, 1f64, true, false));
         assert!(!genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn already_existing_gene_should_be_not_duplicated() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 1f64);
+        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
         genome1.add_connection(0, 0);
         assert_eq!(genome1.genes.len(), 1);
         assert!((genome1.get_genes()[0].weight() - 1f64).abs() < EPSILON);
@@ -327,7 +338,7 @@ mod tests {
     #[test]
     fn adding_an_existing_gene_disabled_should_enable_original() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 1, 0f64);
+        genome1.add_gene(Gene::new(0, 1, 0f64, true, false));
         genome1.mutate_add_neuron();
         assert!(!genome1.genes[0].enabled());
         assert!(genome1.genes.len() == 3);
@@ -340,18 +351,18 @@ mod tests {
     #[test]
     fn genomes_with_same_genes_with_little_differences_on_weight_should_be_in_same_specie() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 16f64);
+        genome1.add_gene(Gene::new(0, 0, 16f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.inject_gene(0, 0, 16.1f64);
+        genome2.add_gene(Gene::new(0, 0, 16.1f64, true, false));
         assert!(genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn genomes_with_same_genes_with_big_differences_on_weight_should_be_in_other_specie() {
         let mut genome1 = Genome::default();
-        genome1.inject_gene(0, 0, 5f64);
+        genome1.add_gene(Gene::new(0, 0, 5f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.inject_gene(0, 0, 15f64);
+        genome2.add_gene(Gene::new(0, 0, 15f64, true, false));
         assert!(!genome1.is_same_specie(&genome2));
     }
 }
