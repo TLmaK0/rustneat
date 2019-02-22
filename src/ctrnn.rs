@@ -66,7 +66,7 @@ impl Ctrnn {
     }
 
     fn sigmoid(y: f64) -> f64 {
-        1f64 / (1f64 + (-y).exp())
+        1.0 / (1.0 + (-y).exp())
     }
 
     fn matrix_from_vector(vector: &[f64]) -> Matrix<f64> {

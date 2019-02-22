@@ -59,7 +59,7 @@ impl Gene {
     pub fn generate_weight() -> f64 {
         // TODO Weight of nodes perhaps should be between 0 & 1 (closed)
         // rand::random::<f64>() * 2f64 - 1f64
-        rand::random::<Closed01<f64>>().0 * 2f64 - 1f64
+        rand::random::<Closed01<f64>>().0 * 2.0 - 1.0
 
         // rand::thread_rng().next_f64()
     }

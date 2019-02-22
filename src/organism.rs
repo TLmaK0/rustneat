@@ -34,7 +34,7 @@ impl Organism {
     }
     /// Activate this organism in the NN
     pub fn activate(&mut self, sensors: &[f64], outputs: &mut Vec<f64>) {
-        let neurons_len = self.genome.len();
+        let neurons_len = self.genome.n_neurons();
         let gamma = vec![0.0; neurons_len];
         let tau = vec![10.0; neurons_len];
         let theta = vec![0.0; neurons_len];
@@ -65,7 +65,7 @@ impl Organism {
     }
 
     fn get_weights_matrix(&self) -> (usize, usize, Vec<f64>) {
-        let neurons_len = self.genome.len();
+        let neurons_len = self.genome.n_neurons();
         let mut matrix = vec![0.0; neurons_len * neurons_len];
         for gene in self.genome.get_genes() {
             if gene.enabled() {

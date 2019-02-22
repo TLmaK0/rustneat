@@ -11,14 +11,24 @@ pub struct Genome {
     last_neuron_id: usize,
 }
 
-const COMPATIBILITY_THRESHOLD: f64 = 3f64;
-const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
-const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
-const MUTATE_ADD_NEURON: f64 = 0.004f64;
-const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
-const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
+const COMPATIBILITY_THRESHOLD: f64 = 3.0;
+const MUTATE_CONNECTION_WEIGHT: f64 = 0.90;
+const MUTATE_ADD_CONNECTION: f64 = 0.005;
+const MUTATE_ADD_NEURON: f64 = 0.004;
+const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001;
+const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90;
 
 impl Genome {
+    /// Creates a network that with no connections, but enough neurons to cover all inputs and
+    /// outputs.
+    pub fn with_input_and_output(inputs: usize, outputs: usize) -> Genome {
+        Genome {
+            genes: Vec::new(),
+            last_neuron_id: inputs + outputs - 1,
+        }
+    }
+
+
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
     pub fn mutate(&mut self) {
@@ -50,9 +60,10 @@ impl Genome {
 
     fn mate_genes(&self, other: &Genome, fittest: bool) -> Genome {
         let mut genome = Genome::default();
+        genome.last_neuron_id = std::cmp::max(self.last_neuron_id, other.last_neuron_id);
         for gene in &self.genes {
             genome.add_gene({
-                if !fittest || rand::random::<f64>() > 0.5f64 {
+                if !fittest || rand::random::<f64>() > 0.5 {
                     *gene
                 } else {
                     match other.genes.binary_search(gene) {
@@ -97,13 +108,17 @@ impl Genome {
 
         self.create_gene(in_neuron_id, out_neuron_id, weight)
     }
-    /// Number of genes
-    pub fn len(&self) -> usize {
+    /// Get number of neurons
+    pub fn n_neurons(&self) -> usize {
         self.last_neuron_id + 1 // first neuron id is 0
+    }
+    /// Get number of connections (this equals the number of genes)
+    pub fn n_connections(&self) -> usize {
+        self.genes.len()
     }
     /// is genome empty
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.n_neurons() == 0
     }
 
     fn create_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {

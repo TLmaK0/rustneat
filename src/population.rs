@@ -24,22 +24,34 @@ pub struct Population {
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
 
 impl Population {
-    /// Create a new population of size X.
+    /// Create a new population with `population_size` organisms. Each organism will have only a single unconnected
+    /// neuron.
     pub fn create_population(population_size: usize) -> Population {
-        let mut population = Population {
-            species: vec![],
+        Self::create_population_from(Genome::default(), population_size)
+    }
+    /// Create a new population with `population_size` organisms,
+    /// where each organism has the same genome given in `genome`.
+    pub fn create_population_from(genome: Genome, population_size: usize) -> Population {
+        let mut organisms = Vec::new();
+        while organisms.len() < population_size {
+            organisms.push(Organism::new(genome.clone()));
+        }
+
+        let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
+        specie.organisms = organisms;
+
+        Population {
+            species: vec![specie],
             champion_fitness: 0f64,
             epochs_without_improvements: 0usize,
-        };
-
-        population.create_organisms(population_size);
-        population
+        }
     }
-    /// Find total of all orgnaisms in the population
+
+    /// Counts the number of organisms in the population
     pub fn size(&self) -> usize {
         self.species
             .iter()
-            .fold(0usize, |total, specie| total + specie.organisms.len())
+            .fold(0, |total, specie| total + specie.organisms.len())
     }
     /// Create offspring by mutation and mating. May create new species.
     pub fn evolve(&mut self) {
@@ -174,18 +186,6 @@ impl Population {
         }
     }
 
-    fn create_organisms(&mut self, population_size: usize) {
-        self.species = vec![];
-        let mut organisms = vec![];
-
-        while organisms.len() < population_size {
-            organisms.push(Organism::new(Genome::default()));
-        }
-
-        let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
-        specie.organisms = organisms;
-        self.species.push(specie);
-    }
 }
 
 #[cfg(test)]

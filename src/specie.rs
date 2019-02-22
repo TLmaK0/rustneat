@@ -16,8 +16,8 @@ pub struct Specie {
     pub organisms: Vec<Organism>,
 }
 
-const MUTATION_PROBABILITY: f64 = 0.25f64;
-const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001f64;
+const MUTATION_PROBABILITY: f64 = 0.25;
+const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001;
 
 impl Specie {
     /// Create a new species from a Genome
