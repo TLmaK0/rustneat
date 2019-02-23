@@ -1,7 +1,6 @@
 use conv::prelude::*;
-use rand;
+use rand::{self, distributions::{Distribution, Uniform}};
 use crate::{Genome, Organism};
-use rand::distributions::{IndependentSample, Range};
 
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
@@ -83,9 +82,9 @@ impl<G: Genome> Specie<G> {
         let mut rng = rand::thread_rng();
         let mut offspring: Vec<Organism<G>> = {
             let mut selected_organisms = vec![];
-            let range = Range::new(0, self.organisms.len());
+            let range = Uniform::from(0..self.organisms.len());
             for _ in 0..num_of_organisms - copy_champion {
-                selected_organisms.push(range.ind_sample(&mut rng));
+                selected_organisms.push(range.sample(&mut rng));
             }
             selected_organisms.iter()
                 .map(|organism_pos| {
@@ -144,12 +143,11 @@ impl<G: Genome> Specie<G> {
     ) -> Organism<G> {
         let mut rng = rand::thread_rng();
         if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
-            let selected_mate =
-                rand::seq::sample_iter(&mut rng, 0..self.organisms.len(), 1).unwrap()[0];
+            let selected_mate = Uniform::from(0..self.organisms.len()).sample(&mut rng);
             organism.mate(&self.organisms[selected_mate])
         } else {
-            let selected_mate =
-                rand::seq::sample_iter(&mut rng, 0..population_organisms.len(), 1).unwrap()[0];
+            let selected_mate = Uniform::from(0..population_organisms.len()).sample(&mut rng);
+
             organism.mate(&population_organisms[selected_mate])
         }
     }

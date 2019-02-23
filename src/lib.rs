@@ -16,12 +16,6 @@
 #[macro_use]
 extern crate rusty_dashed;
 
-extern crate conv;
-extern crate crossbeam;
-extern crate num_cpus;
-extern crate rand;
-extern crate rulinalg;
-
 #[cfg(feature = "telemetry")]
 #[macro_use]
 extern crate serde_derive;

@@ -1,6 +1,4 @@
-extern crate rand;
-
-use rand::Closed01;
+use rand;
 use std::cmp::Ordering;
 
 /// Gene for a connection in the `NeuralNetwork`
@@ -62,7 +60,7 @@ impl Gene {
     }
     /// Generate a weight
     pub fn generate_weight() -> f64 {
-        rand::random::<Closed01<f64>>().0 * 2.0 - 1.0
+        rand::random::<f64>() * 2.0 - 1.0
     }
     /// Connection in ->
     pub fn in_neuron_id(&self) -> usize {

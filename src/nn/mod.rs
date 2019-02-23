@@ -1,4 +1,4 @@
-use rand::{self, Closed01};
+use rand::{self, seq::IteratorRandom, distributions::{Distribution, Uniform}};
 use std::cmp;
 use crate::Genome;
 
@@ -66,23 +66,23 @@ impl Genome for NeuralNetwork {
     /// enable/disable connection
     fn mutate(&self) -> Self {
         let mut new = self.clone();
-        if rand::random::<Closed01<f64>>().0 < MUTATE_ADD_CONNECTION || new.genes.is_empty() {
+        if rand::random::<f64>() < MUTATE_ADD_CONNECTION || new.genes.is_empty() {
             new.mutate_add_connection();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_ADD_NEURON {
+        if rand::random::<f64>() < MUTATE_ADD_NEURON {
             new.mutate_add_neuron();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_CONNECTION_WEIGHT {
+        if rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT {
             new.mutate_connection_weight();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_EXPRESSION {
+        if rand::random::<f64>() < MUTATE_TOGGLE_EXPRESSION {
             new.mutate_toggle_expression();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_BIAS {
+        if rand::random::<f64>() < MUTATE_TOGGLE_BIAS {
             new.mutate_toggle_bias();
         };
         new
@@ -202,7 +202,7 @@ impl NeuralNetwork {
             if self.last_neuron_id == 0 {
                 vec![0, 0]
             } else {
-                rand::seq::sample_iter(&mut rng, 0..self.last_neuron_id + 1, 2).unwrap()
+                (0..self.last_neuron_id + 1).choose_multiple(&mut rng, 2)
             }
         };
         self.add_connection(neuron_ids_to_connect[0], neuron_ids_to_connect[1]);
@@ -222,21 +222,20 @@ impl NeuralNetwork {
 
     fn mutate_toggle_expression(&mut self) {
         let mut rng = rand::thread_rng();
-        let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+        let selected_gene = Uniform::from(0..self.genes.len()).sample(&mut rng);
         self.genes[selected_gene].enabled = !self.genes[selected_gene].enabled;
     }
 
     fn mutate_toggle_bias(&mut self) {
         let mut rng = rand::thread_rng();
-        let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+        let selected_gene = Uniform::from(0..self.genes.len()).sample(&mut rng);
         self.genes[selected_gene].is_bias = !self.genes[selected_gene].is_bias;
     }
 
     fn mutate_add_neuron(&mut self) {
         // Select a random gene
         let mut rng = rand::thread_rng();
-        let gene =
-            rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+        let gene = Uniform::from(0..self.genes.len()).sample(&mut rng);
         // Create new neuron
         self.last_neuron_id += 1;
         // Disable the selected gene ...
