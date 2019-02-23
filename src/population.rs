@@ -184,21 +184,15 @@ impl<G: Genome> Population<G> {
 }
 
 #[cfg(test)]
-use gene::Gene;
-
-#[cfg(test)]
 mod tests {
-    use super::*;
-    use genome::Genome;
-    use organism::Organism;
-    use specie::Specie;
+    use crate::{Gene, Organism, Specie, NeuralNetwork, Population};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
-        let mut genome1 = Genome::default();
+        let mut genome1 = NeuralNetwork::default();
         genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
         genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
-        let mut genome2 = Genome::default();
+        let mut genome2 = NeuralNetwork::default();
         genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
         genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         genome2.add_gene(Gene::new(1, 1, 1f64, true, false));
@@ -215,7 +209,7 @@ mod tests {
 
     #[test]
     fn after_population_evolve_population_should_be_the_same() {
-        let mut population = Population::create_population(150);
+        let mut population = Population::<NeuralNetwork>::create_population(150);
         for _ in 0..150 {
             population.evolve();
         }

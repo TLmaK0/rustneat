@@ -331,8 +331,8 @@ impl NeuralNetwork {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::f64::EPSILON;
+    use crate::{NeuralNetwork, Gene, Genome, Organism};
 
     #[test]
     fn mutation_connection_weight() {
@@ -341,7 +341,7 @@ mod tests {
         let orig_gene = genome.genes[0];
         genome.mutate_connection_weight();
         // These should not be same size
-        assert!((genome.genes[0].weight() - orig_gene.weight()).abs() > EPSILON);
+        assert!((genome.genes[0].weight - orig_gene.weight).abs() > EPSILON);
     }
 
     #[test]
@@ -358,7 +358,7 @@ mod tests {
         let mut genome = NeuralNetwork::default();
         genome.mutate_add_connection();
         genome.mutate_add_neuron();
-        assert!(!genome.genes[0].enabled());
+        assert!(!genome.genes[0].enabled);
         assert!(genome.genes[1].in_neuron_id() == genome.genes[0].in_neuron_id());
         assert!(genome.genes[1].out_neuron_id() == 1);
         assert!(genome.genes[2].in_neuron_id() == 1);
@@ -403,7 +403,7 @@ mod tests {
         genome1.add_gene(Gene::new(0, 0, 1.0, true, false));
         genome1.add_connection(0, 0);
         assert_eq!(genome1.genes.len(), 1);
-        assert!((genome1.get_genes()[0].weight() - 1.0).abs() < EPSILON);
+        assert!((genome1.get_genes()[0].weight - 1.0).abs() < EPSILON);
     }
 
     #[test]
@@ -411,11 +411,11 @@ mod tests {
         let mut genome1 = NeuralNetwork::default();
         genome1.add_gene(Gene::new(0, 1, 0.0, true, false));
         genome1.mutate_add_neuron();
-        assert!(!genome1.genes[0].enabled());
+        assert!(!genome1.genes[0].enabled);
         assert!(genome1.genes.len() == 3);
         genome1.add_connection(0, 1);
-        assert!(genome1.genes[0].enabled());
-        assert!((genome1.genes[0].weight() - 0.0).abs() < EPSILON);
+        assert!(genome1.genes[0].enabled);
+        assert!((genome1.genes[0].weight - 0.0).abs() < EPSILON);
         assert_eq!(genome1.genes.len(), 3);
     }
 
@@ -436,4 +436,112 @@ mod tests {
         genome2.add_gene(Gene::new(0, 0, 15.0, true, false));
         assert!(!genome1.is_same_specie(&genome2));
     }
+
+
+    // From former genome.rs:
+
+    #[test]
+    fn should_propagate_signal_without_hidden_layers() {
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, 5f64, true, false));
+        let sensors = vec![7.5];
+        let mut output = vec![0f64];
+        organism.activate(sensors, &mut output);
+        assert!(
+            output[0] > 0.9f64,
+            format!("{:?} is not bigger than 0.9", output[0])
+        );
+
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, -2f64, true, false));
+        let sensors = vec![1f64];
+        let mut output = vec![0f64];
+        organism.activate(sensors, &mut output);
+        assert!(
+            output[0] < 0.1f64,
+            format!("{:?} is not smaller than 0.1", output[0])
+        );
+    }
+
+    #[test]
+    fn should_propagate_signal_over_hidden_layers() {
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, 0f64, true, false));
+        organism.add_gene(Gene::new(0, 2, 5f64, true, false));
+        organism.add_gene(Gene::new(2, 1, 5f64, true, false));
+        let sensors = vec![0f64];
+        let mut output = vec![0f64];
+        organism.activate(sensors, &mut output);
+        assert!(
+            output[0] > 0.9f64,
+            format!("{:?} is not bigger than 0.9", output[0])
+        );
+    }
+
+    #[test]
+    fn should_work_with_cyclic_networks() {
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, 2f64, true, false));
+        organism.add_gene(Gene::new(1, 2, 2f64, true, false));
+        organism.add_gene(Gene::new(2, 1, 2f64, true, false));
+        let mut output = vec![0f64];
+        organism.activate(vec![1f64], &mut output);
+        assert!(
+            output[0] > 0.9,
+            format!("{:?} is not bigger than 0.9", output[0])
+        );
+
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, -2f64, true, false));
+        organism.add_gene(Gene::new(1, 2, -2f64, true, false));
+        organism.add_gene(Gene::new(2, 1, -2f64, true, false));
+        let mut output = vec![0f64];
+        organism.activate(vec![1f64], &mut output);
+        assert!(
+            output[0] < 0.1,
+            format!("{:?} is not smaller than 0.1", output[0])
+        );
+    }
+
+    #[test]
+    fn activate_organims_sensor_without_enough_neurons_should_ignore_it() {
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, 1f64, true, false));
+        let sensors = vec![0f64, 0f64, 0f64];
+        let mut output = vec![0f64];
+        organism.activate(sensors, &mut output);
+    }
+
+    #[test]
+    fn should_allow_multiple_output() {
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, 1f64, true, false));
+        let sensors = vec![0f64];
+        let mut output = vec![0f64, 0f64];
+        organism.activate(sensors, &mut output);
+    }
+
+    #[test]
+    fn should_be_able_to_get_matrix_representation_of_the_neuron_connections() {
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, 1f64, true, false));
+        organism.add_gene(Gene::new(1, 2, 0.5f64, true, false));
+        organism.add_gene(Gene::new(2, 1, 0.5f64, true, false));
+        organism.add_gene(Gene::new(2, 2, 0.75f64, true, false));
+        organism.add_gene(Gene::new(1, 0, 1f64, true, false));
+        assert_eq!(
+            organism.get_weights(),
+            vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]
+        );
+    }
+
+    #[test]
+    fn should_not_raise_exception_if_less_neurons_than_required() {
+        let mut organism = NeuralNetwork::default();
+        organism.add_gene(Gene::new(0, 1, 1f64, true, false));
+        let sensors = vec![0f64, 0f64, 0f64];
+        let mut output = vec![0f64, 0f64, 0f64];
+        organism.activate(sensors, &mut output);
+    }
 }
+

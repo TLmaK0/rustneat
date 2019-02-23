@@ -37,9 +37,6 @@ pub mod nn;
 mod environment;
 /// A collection of genes
 mod genome;
-mod mutation;
-/// A genome plus fitness
-mod organism;
 /// A collection of species with champion
 pub mod population;
 mod specie;

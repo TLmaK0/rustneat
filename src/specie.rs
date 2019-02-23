@@ -29,7 +29,7 @@ impl<G: Genome> Specie<G> {
             age_last_improvement: 0,
         }
     }
-    /// Add a genome to the species
+    /// Add an organism to the species
     pub fn add(&mut self, organism: G) {
         self.organisms.push(Organism::new(organism));
     }
@@ -75,16 +75,17 @@ impl<G: Genome> Specie<G> {
         num_of_organisms: usize,
         population_organisms: &[Organism<G>],
     ) {
+        let mut rng = rand::thread_rng();
         self.age += 1;
 
         let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
 
-        let mut rng = rand::thread_rng();
+        // Select `num_of_organisms` organisms in this specie, and make offspring from them.
         let mut offspring: Vec<Organism<G>> = {
             let mut selected_organisms = vec![];
-            let range = Uniform::from(0..self.organisms.len());
+            let uniform = Uniform::from(0..self.organisms.len());
             for _ in 0..num_of_organisms - copy_champion {
-                selected_organisms.push(range.sample(&mut rng));
+                selected_organisms.push(uniform.sample(&mut rng));
             }
             selected_organisms.iter()
                 .map(|organism_pos| {
@@ -147,7 +148,6 @@ impl<G: Genome> Specie<G> {
             organism.mate(&self.organisms[selected_mate])
         } else {
             let selected_mate = Uniform::from(0..population_organisms.len()).sample(&mut rng);
-
             organism.mate(&population_organisms[selected_mate])
         }
     }
@@ -155,26 +155,24 @@ impl<G: Genome> Specie<G> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use genome::Genome;
-    use organism::Organism;
+    use crate::{NeuralNetwork, Organism, Specie};
     use std::f64::EPSILON;
 
     #[test]
     fn specie_should_return_correct_average_fitness() {
-        let mut specie = Specie::new(Genome::default());
-        let mut organism1 = Organism::new(Genome::default());
+        let mut specie = Specie::new(NeuralNetwork::default());
+        let mut organism1 = Organism::new(NeuralNetwork::default());
         organism1.fitness = 10f64;
 
-        let mut organism2 = Organism::new(Genome::default());
+        let mut organism2 = Organism::new(NeuralNetwork::default());
         organism2.fitness = 15f64;
 
-        let mut organism3 = Organism::new(Genome::default());
+        let mut organism3 = Organism::new(NeuralNetwork::default());
         organism3.fitness = 20f64;
 
-        specie.add(organism1);
-        specie.add(organism2);
-        specie.add(organism3);
+        specie.organisms.push(organism1);
+        specie.organisms.push(organism2);
+        specie.organisms.push(organism3);
 
         assert!((specie.calculate_average_fitness() - 15f64).abs() < EPSILON);
     }

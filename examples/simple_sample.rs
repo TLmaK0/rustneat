@@ -1,17 +1,15 @@
 extern crate rand;
 extern crate rustneat;
 
-use rustneat::Environment;
-use rustneat::Organism;
-use rustneat::Population;
+use rustneat::{Environment, Organism, Population, NeuralNetwork};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
 
 struct XORClassification;
 
-impl Environment for XORClassification {
-    fn test(&self, organism: &mut Organism) -> f64 {
+impl Environment<NeuralNetwork> for XORClassification {
+    fn test(&self, organism: &mut NeuralNetwork) -> f64 {
         let mut output = vec![0f64];
         let mut distance: f64;
         organism.activate(vec![0f64, 0f64], &mut output);
@@ -38,7 +36,7 @@ fn main() {
 
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;
-    let mut champion: Option<Organism> = None;
+    let mut champion: Option<Organism<NeuralNetwork>> = None;
     while champion.is_none() {
         population.evolve();
         population.evaluate_in(&mut environment);
