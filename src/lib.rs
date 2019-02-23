@@ -29,25 +29,23 @@ extern crate serde_derive;
 #[cfg(feature = "telemetry")]
 extern crate serde_json;
 
-pub use self::ctrnn::Ctrnn;
+pub use self::genome::*;
+pub use self::nn::{NeuralNetwork, Gene};
 pub use self::environment::Environment;
-pub use self::gene::Gene;
-pub use self::genome::Genome;
-pub use self::organism::Organism;
 pub use self::population::Population;
 pub use self::specie::Specie;
 pub use self::species_evaluator::SpeciesEvaluator;
-pub use ctrnn::CtrnnNeuralNetwork;
 
-mod ctrnn;
+/// Contains the definition of the genome of neural networks, which is the basic building block of
+/// an organism (and in many cases, the only building block).
+pub mod nn;
 /// Trait to define test parameter
-pub mod environment;
-mod gene;
+mod environment;
 /// A collection of genes
-pub mod genome;
+mod genome;
 mod mutation;
 /// A genome plus fitness
-pub mod organism;
+mod organism;
 /// A collection of species with champion
 pub mod population;
 mod specie;

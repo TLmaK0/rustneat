@@ -8,6 +8,7 @@ license = "MIT"
 name = "rustneat"
 repository = "https://github.com/TLmaK0/rustneat"
 version = "0.3.0"
+edition = "2018"
 
 [dependencies]
 conv = "0.3.2"

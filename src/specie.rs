@@ -1,27 +1,26 @@
 use conv::prelude::*;
-use genome::Genome;
-use organism::Organism;
 use rand;
+use crate::{Genome, Organism};
 use rand::distributions::{IndependentSample, Range};
 
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
-pub struct Specie {
-    representative: Genome,
+pub struct Specie<G> {
+    representative: G,
     average_fitness: f64,
     champion_fitness: f64,
     age: usize,
     age_last_improvement: usize,
     /// All orgnamisms in this species
-    pub organisms: Vec<Organism>,
+    pub organisms: Vec<Organism<G>>,
 }
 
 const MUTATION_PROBABILITY: f64 = 0.25;
 const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001;
 
-impl Specie {
-    /// Create a new species from a Genome
-    pub fn new(genome: Genome) -> Specie {
+impl<G: Genome> Specie<G> {
+    /// Create a new species from a representative Genome
+    pub fn new(genome: G) -> Specie<G> {
         Specie {
             organisms: vec![],
             representative: genome,
@@ -31,13 +30,13 @@ impl Specie {
             age_last_improvement: 0,
         }
     }
-    /// Add an Organism
-    pub fn add(&mut self, organism: Organism) {
-        self.organisms.push(organism);
+    /// Add a genome to the species
+    pub fn add(&mut self, organism: G) {
+        self.organisms.push(Organism::new(organism));
     }
     /// Check if another organism is of the same species as this one.
-    pub fn match_genome(&self, organism: &Organism) -> bool {
-        self.representative.is_same_specie(&organism.genome)
+    pub fn match_genome(&self, organism: &G) -> bool {
+        self.representative.is_same_specie(&organism)
     }
     /// Get the most performant organism
     pub fn calculate_champion_fitness(&self) -> f64 {
@@ -52,13 +51,13 @@ impl Specie {
     /// Work out average fitness of this species
     pub fn calculate_average_fitness(&mut self) -> f64 {
         let organisms_count = self.organisms.len().value_as::<f64>().unwrap();
-        if organisms_count == 0f64 {
-            return 0f64;
+        if organisms_count == 0.0 {
+            return 0.0;
         }
 
         let total_fitness = self.organisms
             .iter()
-            .fold(0f64, |total, organism| total + organism.fitness);
+            .fold(0.0, |total, organism| total + organism.fitness);
 
         let new_fitness = total_fitness / organisms_count;
 
@@ -75,29 +74,28 @@ impl Specie {
     pub fn generate_offspring(
         &mut self,
         num_of_organisms: usize,
-        population_organisms: &[Organism],
+        population_organisms: &[Organism<G>],
     ) {
         self.age += 1;
 
         let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
 
         let mut rng = rand::thread_rng();
-        let mut offspring: Vec<Organism> = {
+        let mut offspring: Vec<Organism<G>> = {
             let mut selected_organisms = vec![];
             let range = Range::new(0, self.organisms.len());
             for _ in 0..num_of_organisms - copy_champion {
                 selected_organisms.push(range.ind_sample(&mut rng));
             }
-            selected_organisms
-                .iter()
+            selected_organisms.iter()
                 .map(|organism_pos| {
                     self.create_child(&self.organisms[*organism_pos], population_organisms)
                 })
-                .collect::<Vec<Organism>>()
+                .collect::<Vec<_>>()
         };
 
         if copy_champion == 1 {
-            let champion: Option<Organism> =
+            let champion: Option<Organism<G>> =
                 self.organisms.iter().fold(None, |champion, organism| {
                     if champion.is_none() || champion.as_ref().unwrap().fitness < organism.fitness {
                         Some(organism.clone())
@@ -112,7 +110,7 @@ impl Specie {
     }
 
     /// Get a genome representitive of this species.
-    pub fn get_representative_genome(&self) -> Genome {
+    pub fn get_representative_genome(&self) -> G {
         self.representative.clone()
     }
     /// Clear existing organisms in this species.
@@ -127,7 +125,7 @@ impl Specie {
     }
 
     /// Create a new child by mutating and existing one or mating two genomes.
-    fn create_child(&self, organism: &Organism, population_organisms: &[Organism]) -> Organism {
+    fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>]) -> Organism<G> {
         if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() < 2 {
             self.create_child_by_mutation(organism)
         } else {
@@ -135,15 +133,15 @@ impl Specie {
         }
     }
 
-    fn create_child_by_mutation(&self, organism: &Organism) -> Organism {
+    fn create_child_by_mutation(&self, organism: &Organism<G>) -> Organism<G> {
         organism.mutate()
     }
 
     fn create_child_by_mate(
         &self,
-        organism: &Organism,
-        population_organisms: &[Organism],
-    ) -> Organism {
+        organism: &Organism<G>,
+        population_organisms: &[Organism<G>],
+    ) -> Organism<G> {
         let mut rng = rand::thread_rng();
         if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
             let selected_mate =

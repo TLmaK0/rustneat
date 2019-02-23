@@ -1,99 +1,5 @@
-use ctrnn::{Ctrnn, CtrnnNeuralNetwork};
-use genome::Genome;
-use std::cmp;
-
-/// An organism is a Genome with fitness.
-/// Also maitain a fitenss measure of the organism
-#[allow(missing_docs)]
-#[derive(Debug, Clone)]
-pub struct Organism {
-    pub genome: Genome,
-    pub fitness: f64,
-}
-
-impl Organism {
-    /// Create a new organmism form a single genome.
-    pub fn new(genome: Genome) -> Organism {
-        Organism {
-            genome: genome,
-            fitness: 0f64,
-        }
-    }
-    /// Return a new Orgnaism by mutating this Genome and fitness of zero
-    pub fn mutate(&self) -> Organism {
-        let mut new_genome = self.genome.clone();
-        new_genome.mutate();
-        Organism::new(new_genome)
-    }
-    /// Mate this organism with another
-    pub fn mate(&self, other: &Organism) -> Organism {
-        Organism::new(
-            self.genome
-                .mate(&other.genome, self.fitness < other.fitness),
-        )
-    }
-    /// Activate this organism in the NN
-    pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
-        let neurons_len = self.genome.n_neurons();
-        let sensors_len = sensors.len();
-
-        let tau = vec![1.0; neurons_len];
-        let theta = self.get_bias(); 
-
-        let mut i = sensors.clone();
-
-        if neurons_len < sensors_len {
-            i.truncate(neurons_len);
-        } else {
-            i = [i, vec![0.0; neurons_len - sensors_len]].concat();
-        }
-
-        let wij = self.get_weights();
-
-        let activations = Ctrnn::default().activate_nn(
-            10,
-            &CtrnnNeuralNetwork {
-                y: &i,  //initial state is the sensors
-                delta_t: 1.0,
-                tau: &tau,
-                wij: &wij,
-                theta: &theta,
-                i: &i
-            },
-        );
-
-        if sensors_len < neurons_len {
-            let outputs_activations = activations.split_at(sensors_len).1.to_vec();
-
-            for n in 0..cmp::min(outputs_activations.len(), outputs.len()) {
-                outputs[n] = outputs_activations[n];
-            }
-        }
-    }
-
-    fn get_weights(&self) -> Vec<f64> {
-        let neurons_len = self.genome.n_neurons();
-        let mut matrix = vec![0.0; neurons_len * neurons_len];
-        for gene in self.genome.get_genes() {
-            if gene.enabled() {
-                matrix[(gene.out_neuron_id() * neurons_len) + gene.in_neuron_id()] = gene.weight()
-            }
-        }
-        matrix
-    }
-
-    fn get_bias(&self) -> Vec<f64> {
-        let neurons_len = self.genome.n_neurons();
-        let mut matrix = vec![0.0; neurons_len];
-        for gene in self.genome.get_genes() {
-            if gene.is_bias() {
-                matrix[gene.in_neuron_id()] += 1f64; 
-            }
-        }
-        matrix
-    }
-}
-
+// TODO: tests ...
+/*
 #[cfg(test)]
 use gene::Gene;
 
@@ -206,3 +112,4 @@ mod tests {
         organism.activate(sensors, &mut output);
     }
 }
+*/

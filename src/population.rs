@@ -1,7 +1,5 @@
 use conv::prelude::*;
-use environment::Environment;
-use genome::Genome;
-use organism::Organism;
+use crate::{Genome, Organism, Environment, Specie, SpeciesEvaluator};
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -9,29 +7,27 @@ use rusty_dashed;
 #[cfg(feature = "telemetry")]
 use serde_json;
 
-use specie::Specie;
-use species_evaluator::SpeciesEvaluator;
 
 /// All species in the network
 #[derive(Debug)]
-pub struct Population {
+pub struct Population<G> {
     /// container of species
-    pub species: Vec<Specie>,
+    pub species: Vec<Specie<G>>,
     champion_fitness: f64,
     epochs_without_improvements: usize,
 }
 
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
 
-impl Population {
+impl<G: Genome> Population<G> {
     /// Create a new population with `population_size` organisms. Each organism will have only a single unconnected
     /// neuron.
-    pub fn create_population(population_size: usize) -> Population {
-        Self::create_population_from(Genome::default(), population_size)
+    pub fn create_population(population_size: usize) -> Population<G> {
+        Self::create_population_from(G::default(), population_size)
     }
     /// Create a new population with `population_size` organisms,
     /// where each organism has the same genome given in `genome`.
-    pub fn create_population_from(genome: Genome, population_size: usize) -> Population {
+    pub fn create_population_from(genome: G, population_size: usize) -> Population<G> {
         let mut organisms = Vec::new();
         while organisms.len() < population_size {
             organisms.push(Organism::new(genome.clone()));
@@ -58,7 +54,7 @@ impl Population {
         self.generate_offspring();
     }
     /// TODO
-    pub fn evaluate_in(&mut self, environment: &mut Environment) {
+    pub fn evaluate_in(&mut self, environment: &mut Environment<G>) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
         if self.champion_fitness >= champion.fitness {
@@ -78,12 +74,12 @@ impl Population {
             self.epochs_without_improvements = 0usize;
         }
     }
-    /// Return all organisms of the population
-    pub fn get_organisms(&self) -> Vec<Organism> {
+    /// Collect all organisms of the population
+    pub fn get_organisms(&self) -> Vec<Organism<G>> {
         self.species
             .iter()
             .flat_map(|specie| specie.organisms.clone())
-            .collect::<Vec<Organism>>()
+            .collect::<Vec<_>>()
     }
     /// How many iterations without improvement
     pub fn epochs_without_improvements(&self) -> usize {
@@ -132,7 +128,7 @@ impl Population {
         }
     }
 
-    fn get_best_species(&self) -> Vec<Specie> {
+    fn get_best_species(&self) -> Vec<Specie<G>> {
         let mut result = vec![];
 
         if self.species.len() < 2 {
@@ -166,17 +162,17 @@ impl Population {
         }
 
         for organism in organisms {
-            let mut new_specie: Option<Specie> = None;
+            let mut new_specie: Option<Specie<G>> = None;
             match self.species
                 .iter_mut()
-                .find(|specie| specie.match_genome(organism))
+                .find(|specie| specie.match_genome(&organism.genome))
             {
                 Some(specie) => {
-                    specie.add(organism.clone());
+                    specie.add(organism.genome.clone());
                 }
                 None => {
                     let mut specie = Specie::new(organism.genome.clone());
-                    specie.add(organism.clone());
+                    specie.add(organism.genome.clone());
                     new_specie = Some(specie);
                 }
             };
@@ -185,7 +181,6 @@ impl Population {
             }
         }
     }
-
 }
 
 #[cfg(test)]
