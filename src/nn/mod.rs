@@ -128,17 +128,15 @@ impl NeuralNetwork {
 
         let wij = self.get_weights();
 
-        let activations = Ctrnn::default().activate_nn(
-            10,
-            &CtrnnNeuralNetwork {
+        let activations =
+            Ctrnn {
                 y: &i,  //initial state is the sensors
                 delta_t: 1.0,
                 tau: &tau,
                 wij: &wij,
                 theta: &theta,
                 i: &i
-            },
-        );
+            }.activate_nn(10);
 
         if sensors_len < neurons_len {
             let outputs_activations = activations.split_at(sensors_len).1.to_vec();
