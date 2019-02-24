@@ -25,7 +25,7 @@ mod test {
             distance += (1f64 - output[0]).abs();
             organism.activate(vec![1f64, 1f64], &mut output);
             distance += (0f64 - output[0]).abs();
-            (4f64 - distance).powi(2)
+            16.0 / (1.0 + distance)
         }
     }
 
@@ -69,7 +69,7 @@ mod test {
         let Organism {genome: champion, fitness: _} = champion_option.as_mut().unwrap();
         let mut output = vec![0f64];
         champion.activate(vec![0f64, 0f64], &mut output);
-        println!("Output[0] = {}", output[0]);
+        // println!("Output[0] = {}", output[0]);
         assert!(output[0] < 0.1f64);
         champion.activate(vec![0f64, 1f64], &mut output);
         assert!(output[0] > 0.9f64);

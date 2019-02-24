@@ -8,7 +8,7 @@ use rusty_dashed;
 use serde_json;
 
 
-/// All species in the network
+/// Contains several species, and a way to evolve these to the next generation.
 #[derive(Debug)]
 pub struct Population<G> {
     /// container of species
@@ -33,7 +33,7 @@ impl<G: Genome> Population<G> {
             organisms.push(Organism::new(genome.clone()));
         }
 
-        let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
+        let mut specie = Specie::new(organisms.first().unwrap().clone());
         specie.organisms = organisms;
 
         Population {
@@ -168,11 +168,11 @@ impl<G: Genome> Population<G> {
                 .find(|specie| specie.match_genome(&organism.genome))
             {
                 Some(specie) => {
-                    specie.add(organism.genome.clone());
+                    specie.add(organism.clone());
                 }
                 None => {
-                    let mut specie = Specie::new(organism.genome.clone());
-                    specie.add(organism.genome.clone());
+                    let mut specie = Specie::new(organism.clone());
+                    specie.add(organism.clone());
                     new_specie = Some(specie);
                 }
             };
@@ -200,7 +200,7 @@ mod tests {
 
         let mut population = Population::create_population(2);
         let organisms = vec![Organism::new(genome1), Organism::new(genome2)];
-        let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
+        let mut specie = Specie::new(organisms.first().unwrap().clone());
         specie.organisms = organisms;
         population.species = vec![specie];
         population.speciate();

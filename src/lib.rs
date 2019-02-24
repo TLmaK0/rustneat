@@ -24,7 +24,6 @@ extern crate serde_derive;
 extern crate serde_json;
 
 pub use self::genome::*;
-pub use self::nn::{NeuralNetwork, Gene};
 pub use self::environment::Environment;
 pub use self::population::Population;
 pub use self::specie::Specie;
@@ -38,6 +37,6 @@ mod environment;
 /// A collection of genes
 mod genome;
 /// A collection of species with champion
-pub mod population;
+mod population;
 mod specie;
 mod species_evaluator;

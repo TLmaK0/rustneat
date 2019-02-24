@@ -5,7 +5,7 @@ use crate::{Genome, Organism};
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
 pub struct Specie<G> {
-    representative: G,
+    representative: Organism<G>,
     average_fitness: f64,
     champion_fitness: f64,
     age: usize,
@@ -19,7 +19,7 @@ const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001;
 
 impl<G: Genome> Specie<G> {
     /// Create a new species from a representative Genome
-    pub fn new(genome: G) -> Specie<G> {
+    pub fn new(genome: Organism<G>) -> Specie<G> {
         Specie {
             organisms: vec![],
             representative: genome,
@@ -30,12 +30,12 @@ impl<G: Genome> Specie<G> {
         }
     }
     /// Add an organism to the species
-    pub fn add(&mut self, organism: G) {
-        self.organisms.push(Organism::new(organism));
+    pub fn add(&mut self, organism: Organism<G>) {
+        self.organisms.push(organism);
     }
     /// Check if another organism is of the same species as this one.
     pub fn match_genome(&self, organism: &G) -> bool {
-        self.representative.is_same_specie(&organism)
+        self.representative.genome.is_same_specie(&organism)
     }
     /// Get the most performant organism
     pub fn calculate_champion_fitness(&self) -> f64 {
@@ -109,8 +109,8 @@ impl<G: Genome> Specie<G> {
         self.organisms = offspring;
     }
 
-    /// Get a genome representitive of this species.
-    pub fn get_representative_genome(&self) -> G {
+    /// Get the representative organism of this species.
+    pub fn get_representative(&self) -> Organism<G> {
         self.representative.clone()
     }
     /// Clear existing organisms in this species.
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn specie_should_return_correct_average_fitness() {
-        let mut specie = Specie::new(NeuralNetwork::default());
+        let mut specie = Specie::new(Organism::new(NeuralNetwork::default()));
         let mut organism1 = Organism::new(NeuralNetwork::default());
         organism1.fitness = 10f64;
 

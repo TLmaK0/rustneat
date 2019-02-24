@@ -115,7 +115,7 @@ impl NeuralNetwork {
         let neurons_len = self.n_neurons();
         let sensors_len = sensors.len();
 
-        let tau = vec![4.0; neurons_len];
+        let tau = vec![1.0; neurons_len];
         let theta = self.get_bias(); 
 
         let mut i = sensors.clone();

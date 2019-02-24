@@ -21,7 +21,7 @@ impl Environment<NeuralNetwork> for XORClassification {
         organism.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
-        let fitness = 16f64 / (1f64 + distance);
+        let fitness = 16.0 / (1.0 + distance);
 
         fitness
     }
@@ -37,13 +37,22 @@ fn main() {
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;
     let mut champion: Option<Organism<NeuralNetwork>> = None;
+    let mut i = 0;
     while champion.is_none() {
+        i += 1;
         population.evolve();
         population.evaluate_in(&mut environment);
+        let mut best_fitness = 0.0;
         for organism in &population.get_organisms() {
-            if organism.fitness > 15.5f64 {
+            if organism.fitness > best_fitness {
+                best_fitness = organism.fitness;
+            }
+            if organism.fitness > 15.5 {
                 champion = Some(organism.clone());
             }
+        }
+        if i % 10 == 0 {
+            println!("Gen {}: {}", i, best_fitness);
         }
     }
     println!("{:?}", champion.unwrap().genome);
