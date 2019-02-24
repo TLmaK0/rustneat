@@ -62,77 +62,8 @@ mod tests {
     }
 
     #[test]
-    fn neural_network_activation_should_return_correct_values() {
-        let gamma = vec![0.0, 0.0, 0.0];
-        let delta_t = 13.436;
-        let tau = vec![61.694, 10.149, 16.851];
-        let wij = vec![
-                -2.94737, 2.70665, -0.57046,
-                -3.27553, 3.67193, 1.83218,
-                2.32476, 0.24739, 0.58587,
-            ];
-        let theta = vec![-0.695126, -0.677891, -0.072129];
-        let i = vec![0.98856, 0.31540, 0.0];
-
-        let ctrnn = Ctrnn {
-            y: &gamma,
-            delta_t: delta_t,
-            tau: &tau,
-            wij: &wij,
-            theta: &theta,
-            i: &i
-        };
-
-
-        assert_delta_vector!(
-            ctrnn.activate_nn(1),
-            vec![
-                0.11369936163643651,
-                2.005484819913534,
-                1.6093879775504707
-            ],
-            0.00000000000000000001
-        );
-
-        assert_delta_vector!(
-            ctrnn.activate_nn(2),
-            vec![
-                0.1934507441070605,
-                1.3576310165979484,
-                0.5777018738984351
-            ],
-            0.00000000000000000001
-        );
-
-        assert_delta_vector!(
-            ctrnn.activate_nn(10),
-            vec![
-                0.1420953991261177,
-                1.7396545651402162,
-                1.003785142846598
-            ],
-            0.00000000000000000001
-        );
-
-        assert_delta_vector!(
-            ctrnn.activate_nn(30),
-            vec![
-                0.1663596276449866,
-                1.5334698009336039,
-                1.0185193568793127
-            ],
-            0.00000000000000000001
-        );
-
-        // converges
-        assert_delta_vector!(
-            ctrnn.activate_nn(100),
-            vec![
-                0.16622293036274471,
-                1.5347586991255193,
-                1.0184153349709313
-            ],
-            0.00000000000000000001
-        );
+    fn neural_network_activation_stability() {
+        // TODO
+        // This test should just ensure that a stable neural network implementation doesn't change
     }
 }

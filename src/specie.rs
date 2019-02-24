@@ -155,7 +155,7 @@ impl<G: Genome> Specie<G> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{NeuralNetwork, Organism, Specie};
+    use crate::{nn::NeuralNetwork, Organism, Specie};
     use std::f64::EPSILON;
 
     #[test]

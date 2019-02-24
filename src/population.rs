@@ -185,7 +185,7 @@ impl<G: Genome> Population<G> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Gene, Organism, Specie, NeuralNetwork, Population};
+    use crate::{nn::Gene, Organism, Specie, nn::NeuralNetwork, Population};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {

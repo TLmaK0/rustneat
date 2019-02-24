@@ -28,6 +28,7 @@ pub use self::environment::Environment;
 pub use self::population::Population;
 pub use self::specie::Specie;
 pub use self::species_evaluator::SpeciesEvaluator;
+pub use self::nn::{NeuralNetwork, Gene};
 
 /// Contains the definition of the genome of neural networks, which is the basic building block of
 /// an organism (and in many cases, the only building block).

@@ -331,7 +331,7 @@ impl NeuralNetwork {
 #[cfg(test)]
 mod tests {
     use std::f64::EPSILON;
-    use crate::{NeuralNetwork, Gene, Genome, Organism};
+    use crate::{nn::NeuralNetwork, nn::Gene, Genome, Organism};
 
     #[test]
     fn mutation_connection_weight() {
