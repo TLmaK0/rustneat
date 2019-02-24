@@ -8,13 +8,14 @@ license = "MIT"
 name = "rustneat"
 repository = "https://github.com/TLmaK0/rustneat"
 version = "0.3.0"
+edition = "2018"
 
 [dependencies]
 conv = "0.3.2"
 crossbeam = "0.2"
 lazy_static = "0.2.2"
 num_cpus = "1.0"
-rand = "0.4"
+rand = "0.6"
 rulinalg = "0.3.4"
 
 rusty_dashed = { version = "0.2.1", optional = true }
