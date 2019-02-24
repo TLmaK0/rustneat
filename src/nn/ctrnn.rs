@@ -2,7 +2,7 @@ use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
 
 #[allow(missing_docs)]
 #[derive(Debug)]
-pub struct CtrnnNeuralNetwork<'a> {
+pub struct Ctrnn<'a> {
     pub y: &'a [f64],
     pub delta_t: f64,
     pub tau: &'a [f64], //time constant
@@ -11,23 +11,20 @@ pub struct CtrnnNeuralNetwork<'a> {
     pub i: &'a [f64], //sensors
 }
 
-#[allow(missing_docs)]
-#[derive(Default, Clone, Copy, Debug)]
-pub struct Ctrnn {}
 
 #[allow(missing_docs)]
-impl Ctrnn {
-    pub fn activate_nn(&self, steps: usize, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
-        let mut y = Ctrnn::vector_to_column_matrix(nn.y);
-        let theta = Ctrnn::vector_to_column_matrix(nn.theta);
-        let wij = Ctrnn::vector_to_matrix(nn.wij);
-        let i = Ctrnn::vector_to_column_matrix(nn.i);
-        let tau = Ctrnn::vector_to_column_matrix(nn.tau);
-        let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * nn.delta_t;
+impl<'a> Ctrnn<'a> {
+    pub fn activate_nn(&self, steps: usize) -> Vec<f64> {
+        let mut y = Ctrnn::vector_to_column_matrix(self.y);
+        let theta = Ctrnn::vector_to_column_matrix(self.theta);
+        let wij = Ctrnn::vector_to_matrix(self.wij);
+        let i = Ctrnn::vector_to_column_matrix(self.i);
+        let tau = Ctrnn::vector_to_column_matrix(self.tau);
+        let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * self.delta_t;
         for _ in 0..steps {
             let activations = (&y - &theta).apply(&Ctrnn::sigmoid);
             y = &y + delta_t_tau.elemul(
-                &((&wij * activations.clone()) - &y + &i)
+                &((&wij * activations) - &y + &i)
             );
         };
         y.into_vec()
@@ -77,7 +74,7 @@ mod tests {
         let theta = vec![-0.695126, -0.677891, -0.072129];
         let i = vec![0.98856, 0.31540, 0.0];
 
-        let nn = CtrnnNeuralNetwork {
+        let ctrnn = Ctrnn {
             y: &gamma,
             delta_t: delta_t,
             tau: &tau,
@@ -86,10 +83,9 @@ mod tests {
             i: &i
         };
 
-        let ctrnn = Ctrnn::default();
 
         assert_delta_vector!(
-            ctrnn.activate_nn(1, &nn),
+            ctrnn.activate_nn(1),
             vec![
                 0.11369936163643651,
                 2.005484819913534,
@@ -99,7 +95,7 @@ mod tests {
         );
 
         assert_delta_vector!(
-            ctrnn.activate_nn(2, &nn),
+            ctrnn.activate_nn(2),
             vec![
                 0.1934507441070605,
                 1.3576310165979484,
@@ -109,7 +105,7 @@ mod tests {
         );
 
         assert_delta_vector!(
-            ctrnn.activate_nn(10, &nn),
+            ctrnn.activate_nn(10),
             vec![
                 0.1420953991261177,
                 1.7396545651402162,
@@ -119,7 +115,7 @@ mod tests {
         );
 
         assert_delta_vector!(
-            ctrnn.activate_nn(30, &nn),
+            ctrnn.activate_nn(30),
             vec![
                 0.1663596276449866,
                 1.5334698009336039,
@@ -130,7 +126,7 @@ mod tests {
 
         // converges
         assert_delta_vector!(
-            ctrnn.activate_nn(100, &nn),
+            ctrnn.activate_nn(100),
             vec![
                 0.16622293036274471,
                 1.5347586991255193,

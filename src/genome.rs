@@ -1,5 +1,3 @@
-//! The `core` module contains
-
 const COMPATIBILITY_THRESHOLD: f64 = 3.0; //used to speciate organisms
 
 /// Implementing `Genome` conceptually means that the implementor "has a genome", and the
