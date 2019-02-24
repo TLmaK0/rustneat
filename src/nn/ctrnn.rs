@@ -15,8 +15,8 @@ pub struct CtrnnNeuralNetwork<'a> {
 #[derive(Default, Clone, Copy, Debug)]
 pub struct Ctrnn {}
 
+#[allow(missing_docs)]
 impl Ctrnn {
-    /// Activate the NN
     pub fn activate_nn(&self, steps: usize, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
         let mut y = Ctrnn::vector_to_column_matrix(nn.y);
         let theta = Ctrnn::vector_to_column_matrix(nn.theta);
@@ -25,9 +25,9 @@ impl Ctrnn {
         let tau = Ctrnn::vector_to_column_matrix(nn.tau);
         let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * nn.delta_t;
         for _ in 0..steps {
-            let current_weights = (&y - &theta).apply(&Ctrnn::sigmoid);
-            y = delta_t_tau.elemul(
-                &((&wij * current_weights) - &y + &i)
+            let activations = (&y - &theta).apply(&Ctrnn::sigmoid);
+            y = &y + delta_t_tau.elemul(
+                &((&wij * activations.clone()) - &y + &i)
             );
         };
         y.into_vec()
