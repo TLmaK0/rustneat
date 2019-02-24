@@ -1,4 +1,4 @@
-use rand::{self, seq::IteratorRandom, distributions::{Distribution, Uniform}};
+use rand::{self, seq::IteratorRandom, distributions::{Distribution, Uniform, Normal}};
 use std::cmp;
 use crate::Genome;
 
@@ -9,30 +9,35 @@ pub use self::gene::*;
 
 /// Vector of Genes
 /// Holds a count of last neuron added, similar to Innovation number
+// NOTE: With regard to the "competing conventions" problem in the orginal paper:
+// Connections are identified by their (in_neuron_id, out_neuron_id) pair. Neurons are identified just
+// by their position in the Vec (implicit id).
 #[derive(Default, Debug, Clone)]
 pub struct NeuralNetwork {
-    genes: Vec<Gene>,
-    last_neuron_id: usize,
+    /// Sorted at all times
+    pub connections: Vec<ConnectionGene>,
+    pub neurons: Vec<NeuronGene>,
 }
 
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90;
 const MUTATE_ADD_CONNECTION: f64 = 0.005;
 const MUTATE_ADD_NEURON: f64 = 0.004;
 const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001;
-const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90;
-const MUTATE_TOGGLE_BIAS: f64 = 0.01;
+const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.9;
+const MUTATE_BIAS: f64 = 0.01;
 
 impl Genome for NeuralNetwork {
     // http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
-    // I have considered disjoint and excess genes as the same
+    // Doesn't distinguish between disjoint and excess genes.
+    // Only cares about connection genes (topology).
     fn distance(&self, other: &NeuralNetwork) -> f64 {
         // TODO: optimize this method
         let c2 = 1.0;
         let c3 = 0.4;
 
         // Number of excess
-        let n1 = self.genes.len();
-        let n2 = other.genes.len();
+        let n1 = self.connections.len();
+        let n2 = other.connections.len();
         let n = cmp::max(n1, n2);
 
         if n == 0 {
@@ -41,10 +46,10 @@ impl Genome for NeuralNetwork {
 
         let z = if n < 20 { 1.0 } else { n as f64 };
 
-        let matching_genes = self.genes
+        let matching_genes = self.connections
             .iter()
-            .filter(|i1_gene| other.genes.contains(i1_gene))
-            .collect::<Vec<&Gene>>();
+            .filter(|i1_gene| other.connections.contains(i1_gene))
+            .collect::<Vec<_>>();
         let n3 = matching_genes.len();
 
         // Disjoint / excess genes
@@ -53,7 +58,7 @@ impl Genome for NeuralNetwork {
         // average weight differences of matching genes
         let w1 = matching_genes.iter().fold(0.0, |acc, &m_gene| {
             acc + (m_gene.weight
-                - &other.genes[other.genes.binary_search(m_gene).unwrap()].weight)
+                - &other.connections[other.connections.binary_search(m_gene).unwrap()].weight)
                 .abs()
         });
 
@@ -66,7 +71,7 @@ impl Genome for NeuralNetwork {
     /// enable/disable connection
     fn mutate(&self) -> Self {
         let mut new = self.clone();
-        if rand::random::<f64>() < MUTATE_ADD_CONNECTION || new.genes.is_empty() {
+        if rand::random::<f64>() < MUTATE_ADD_CONNECTION || new.connections.is_empty() {
             new.mutate_add_connection();
         };
 
@@ -82,19 +87,28 @@ impl Genome for NeuralNetwork {
             new.mutate_toggle_expression();
         };
 
-        if rand::random::<f64>() < MUTATE_TOGGLE_BIAS {
-            new.mutate_toggle_bias();
+        if rand::random::<f64>() < MUTATE_BIAS {
+            new.mutate_bias();
         };
         new
     }
 
     /// Mate two genes
     fn mate(&self, other: &NeuralNetwork, fittest: bool) -> NeuralNetwork {
-        if self.genes.len() > other.genes.len() {
-            self.mate_genes(other, fittest)
-        } else {
-            other.mate_genes(self, !fittest)
-        }
+        let mut genome = NeuralNetwork::default();
+        genome.neurons = 
+            if self.neurons.len() > other.neurons.len() {
+                self.mate_neurons(other, fittest)
+            } else {
+                other.mate_neurons(self, !fittest)
+            };
+        genome.connections = 
+            if self.connections.len() > other.connections.len() {
+                self.mate_connections(other, fittest)
+            } else {
+                other.mate_connections(self, !fittest)
+            };
+        genome
     }
 
 }
@@ -103,10 +117,11 @@ impl NeuralNetwork {
     /// Creates a network that with no connections, but enough neurons to cover all inputs and
     /// outputs.
     pub fn with_input_and_output(inputs: usize, outputs: usize) -> NeuralNetwork {
-        NeuralNetwork {
-            genes: Vec::new(),
-            last_neuron_id: inputs + outputs - 1,
+        let mut nn = NeuralNetwork::default();
+        for _ in 0..(inputs+outputs) {
+            nn.neurons.push(NeuronGene::new(0.0))
         }
+        nn
     }
 
     /// Activate the neural network by sending input `sensors` into its first `sensors.len()`
@@ -147,48 +162,32 @@ impl NeuralNetwork {
         }
     }
 
-    // Helper function for `activate()`
+    /// Helper function for `activate()`. Get weights of connections (as a matrix represented
+    /// linearly)
     fn get_weights(&self) -> Vec<f64> {
-        let neurons_len = self.n_neurons();
-        let mut matrix = vec![0.0; neurons_len * neurons_len];
-        for gene in &self.genes {
+        let n_neurons = self.neurons.len();
+        let mut matrix = vec![0.0; n_neurons * n_neurons];
+        for gene in &self.connections {
             if gene.enabled {
-                matrix[(gene.out_neuron_id() * neurons_len) + gene.in_neuron_id()] = gene.weight
+                matrix[(gene.out_neuron_id() * n_neurons) + gene.in_neuron_id()] = gene.weight;
             }
         }
         matrix
     }
 
-    // Helper function for `activate()`
+    /// Helper function for `activate()`. Get bias of neurons.
     fn get_bias(&self) -> Vec<f64> {
-        let neurons_len = self.n_neurons();
-        let mut matrix = vec![0.0; neurons_len];
-        for gene in &self.genes {
-            if gene.is_bias {
-                matrix[gene.in_neuron_id()] += 1.0; 
-            }
-        }
-        matrix
+        self.neurons.iter().map(|x| x.bias).collect()
     }
 
-    /// Get vector of all genes in this genome
-    pub fn get_genes(&self) -> &Vec<Gene> {
-        &self.genes
-    }
 
-    /// only allow connected nodes
-    #[deprecated(since = "0.3.0", note = "please use `add_gene` instead")]
-    pub fn inject_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
-        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true, false);
-        self.add_gene(gene);
-    }
     /// Get number of neurons
     pub fn n_neurons(&self) -> usize {
-        self.last_neuron_id + 1 // first neuron id is 0
+        self.neurons.len()
     }
     /// Get number of connections (this equals the number of genes)
     pub fn n_connections(&self) -> usize {
-        self.genes.len()
+        self.connections.len()
     }
     /// is genome empty
     pub fn is_empty(&self) -> bool {
@@ -197,21 +196,23 @@ impl NeuralNetwork {
 
     fn mutate_add_connection(&mut self) {
         let mut rng = rand::thread_rng();
+        assert!(self.neurons.len() != 0);
         let neuron_ids_to_connect = {
-            if self.last_neuron_id == 0 {
-                vec![0, 0]
-            } else {
-                (0..self.last_neuron_id + 1).choose_multiple(&mut rng, 2)
+            match self.neurons.len() {
+                0 => panic!("Must have at least one neuron"),
+                1 => vec![0, 0],
+                _ => (0..self.neurons.len() + 1).choose_multiple(&mut rng, 2),
             }
         };
         self.add_connection(neuron_ids_to_connect[0], neuron_ids_to_connect[1]);
     }
 
     fn mutate_connection_weight(&mut self) {
-        for gene in &mut self.genes {
+        // TODO mutate all or just one?
+        for gene in &mut self.connections {
             let perturbation = rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY;
 
-            let mut new_weight = Gene::generate_weight();
+            let mut new_weight = ConnectionGene::generate_weight();
             if perturbation {
                 new_weight += gene.weight;
             }
@@ -219,95 +220,94 @@ impl NeuralNetwork {
         }
     }
 
+    /// Toggles the expression of a random connection
     fn mutate_toggle_expression(&mut self) {
         let mut rng = rand::thread_rng();
-        let selected_gene = Uniform::from(0..self.genes.len()).sample(&mut rng);
-        self.genes[selected_gene].enabled = !self.genes[selected_gene].enabled;
+        let selected_gene = Uniform::from(0..self.connections.len()).sample(&mut rng);
+        self.connections[selected_gene].enabled = !self.connections[selected_gene].enabled;
     }
 
-    fn mutate_toggle_bias(&mut self) {
+    /// Sets the bias of a random neuron to a sample from the normal distribution
+    fn mutate_bias(&mut self) {
         let mut rng = rand::thread_rng();
-        let selected_gene = Uniform::from(0..self.genes.len()).sample(&mut rng);
-        self.genes[selected_gene].is_bias = !self.genes[selected_gene].is_bias;
+        let selected_gene = Uniform::from(0..self.neurons.len()).sample(&mut rng);
+        self.neurons[selected_gene].bias = Normal::new(0.0, 1.0).sample(&mut rng);
     }
 
     fn mutate_add_neuron(&mut self) {
-        // Select a random gene
+        // Select a random connections along which to add neuron.. and disable it 
         let mut rng = rand::thread_rng();
-        let gene = Uniform::from(0..self.genes.len()).sample(&mut rng);
+        let gene = Uniform::from(0..self.connections.len()).sample(&mut rng);
+        self.connections[gene].enabled = false;
         // Create new neuron
-        self.last_neuron_id += 1;
-        // Disable the selected gene ...
-        self.genes[gene].enabled = false;
-        // ... And instead make two connections that go through the new neuron
-        self.add_gene(
-            Gene::new(self.genes[gene].in_neuron_id(), self.last_neuron_id, 1.0, true, false));
-        self.add_gene(
-            Gene::new(self.last_neuron_id, self.genes[gene].out_neuron_id(), self.genes[gene].weight, true, false));
+        let new_neuron = NeuronGene::new(0.0);
+        self.neurons.push(new_neuron);
+        // ... and make two new connections that go through the new neuron
+        self.add_connection(
+            ConnectionGene::new(self.connections[gene].in_neuron_id(), self.neurons.len(), 1.0, true));
+        self.add_connection(
+            ConnectionGene::new(self.neurons.len(),
+                self.connections[gene].out_neuron_id(),
+                self.connections[gene].weight, true));
     }
 
-    fn add_connection(&mut self, in_neuron_id: usize, out_neuron_id: usize) {
-        self.add_gene(Gene::new(in_neuron_id, out_neuron_id, Gene::generate_weight(), true, false));
-    }
 
-    fn mate_genes(&self, other: &NeuralNetwork, fittest: bool) -> NeuralNetwork {
-        let mut genome = NeuralNetwork::default();
-        genome.last_neuron_id = std::cmp::max(self.last_neuron_id, other.last_neuron_id);
-        for gene in &self.genes {
-            genome.add_gene({
-                //Only mate half of the genes randomly
-                if !fittest || rand::random::<f64>() > 0.5 {
+    fn mate_neurons(&self, other: &NeuralNetwork, fittest: bool) -> Vec<NeuronGene> {
+        // Guarantee: self.neurons.len() is greater than other.neurons.len()
+        // TODO: change `0.5` according to which organism is the fittest
+        let mut genes = Vec::new();
+        for i in 0..self.neurons.len() {
+            genes.push({
+                if rand::random::<f64>() > 0.5 {
+                    self.neurons[i]
+                } else {
+                    if let Some(gene) = other.neurons.get(i) {
+                        *gene
+                    } else {
+                        self.neurons[i]
+                    }
+                }
+            });
+        }
+        genes
+    }
+    fn mate_connections(&self, other: &NeuralNetwork, fittest: bool) -> Vec<ConnectionGene> {
+        // Guarantee: self.connections.len() is greater than other.connections.len()
+        let mut genes = Vec::new();
+        for gene in &self.connections {
+            genes.push({
+                if rand::random::<f64>() > 0.5 {
                     *gene
                 } else {
-                    match other.genes.binary_search(gene) {
-                        Ok(position) => other.genes[position],
+                    match other.connections.binary_search(gene) {
+                        Ok(position) => other.connections[position],
                         Err(_) => *gene,
                     }
                 }
             });
         }
-        genome
+        genes.sort();
+        genes
     }
 
 
-    /// Add a new gene and checks if is allowed. Can only connect to the next neuron or already connected
-    /// neurons.
-    pub fn add_gene(&mut self, gene: Gene) {
-        let max_neuron_id = self.last_neuron_id + 1;
+    /// Add a new connection.
+    pub fn add_connection(&mut self, in_neuron: usize, out_neuron: usize, weight: f64) {
+        let new_gene = ConnectionGene::new(in_neuron, out_neuron, weight, true);
+        let max_neuron_id = self.neurons.len()-1;
 
-        if gene.in_neuron_id() == gene.out_neuron_id() && gene.in_neuron_id() > max_neuron_id {
-            panic!(
-                "Try to create a gene neuron unconnected, max neuron id {}, {} -> {}",
-                max_neuron_id, gene.in_neuron_id(), gene.out_neuron_id()
-            );
+        if gene.in_neuron_id() > max_neuron_id
+            || gene.out_neuron_id() > max_neuron_id
+            || gene.in_neuron_id() == gene.out_neuron_id() {
+            panic!("Invalid connection ({} -> {}). (max neuron id = {})",
+                   gene.in_neuron_id(), gene.out_neuron_id(), max_neuron_id);
         }
 
-        //assert!(
-        //    gene.in_neuron_id() <= max_neuron_id,
-        //    format!(
-        //        "in_neuron_id {} is greater than max allowed id {}",
-        //        gene.in_neuron_id(), max_neuron_id
-        //    )
-        //);
-        //assert!(
-        //    gene.out_neuron_id() <= max_neuron_id,
-        //    format!(
-        //        "out_neuron_id {} is greater than max allowed id {}",
-        //        gene.out_neuron_id(), max_neuron_id
-        //    )
-        //);
-
-        if gene.in_neuron_id() > self.last_neuron_id {
-            self.last_neuron_id = gene.in_neuron_id();
+        match self.connections.binary_search(&gene) {
+            Ok(pos) => self.connections[pos].enabled = true,
+            Err(_) => self.connections.push(gene),
         }
-        if gene.out_neuron_id() > self.last_neuron_id {
-            self.last_neuron_id = gene.out_neuron_id();
-        }
-        match self.genes.binary_search(&gene) {
-            Ok(pos) => self.genes[pos].enabled = true,
-            Err(_) => self.genes.push(gene),
-        }
-        self.genes.sort();
+        self.connections.sort();
     }
 
 
