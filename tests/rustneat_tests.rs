@@ -5,7 +5,7 @@ mod test {
 
     struct MyEnvironment;
 
-    impl Environment<NeuralNetwork> for MyEnvironment {
+    impl Environment for MyEnvironment {
         fn test(&self, _: &mut NeuralNetwork) -> f64 {
             0.1234f64
         }
@@ -13,7 +13,7 @@ mod test {
 
     struct XORClassification;
 
-    impl Environment<NeuralNetwork> for XORClassification {
+    impl Environment for XORClassification {
         fn test(&self, organism: &mut NeuralNetwork) -> f64 {
             let mut output = vec![0f64];
             let mut distance: f64;
@@ -31,13 +31,13 @@ mod test {
 
     #[test]
     fn should_be_able_to_generate_a_population() {
-        let population = Population::<NeuralNetwork>::create_population(150);
+        let population = Population::create_population(150);
         assert!(population.size() == 150);
     }
 
     #[test]
     fn population_can_evolve() {
-        let mut population = Population::<NeuralNetwork>::create_population(1);
+        let mut population = Population::create_population(1);
         population.evolve();
         let genome = &population.get_organisms()[0].genome;
         assert_eq!(genome.total_genes(), 1);
@@ -46,7 +46,7 @@ mod test {
 
     #[test]
     fn population_can_be_tested_on_environment() {
-        let mut population = Population::<NeuralNetwork>::create_population(10);
+        let mut population = Population::create_population(10);
         let mut environment = MyEnvironment;
         population.evaluate_in(&mut environment);
         assert!(population.get_organisms()[0].fitness == 0.1234f64);
@@ -54,9 +54,9 @@ mod test {
 
     #[test]
     fn network_should_be_able_to_solve_xor_classification() {
-        let mut population = Population::<NeuralNetwork>::create_population(150);
+        let mut population = Population::create_population(150);
         let mut environment = XORClassification;
-        let mut champion_option: Option<Organism<NeuralNetwork>> = None;
+        let mut champion_option: Option<Organism> = None;
         while champion_option.is_none() {
             population.evolve();
             population.evaluate_in(&mut environment);

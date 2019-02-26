@@ -1,3 +1,4 @@
+use crate::NeuralNetwork;
 const COMPATIBILITY_THRESHOLD: f64 = 3.0; //used to speciate organisms
 
 /// Implementing `Genome` conceptually means that the implementor "has a genome", and the
@@ -24,7 +25,7 @@ pub trait Genome: Clone + Default + Send {
 /// Used in algorithm just to group an organism (genome) with its fitness, and also in the
 /// interface to get the fitness of organisms
 #[derive(Default, Clone, Debug)]
-pub struct Organism<G> {
+pub struct Organism<G = NeuralNetwork> {
     /// The genome of this organism
     pub genome: G,
     /// The fitness calculated internally

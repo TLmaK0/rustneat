@@ -1,5 +1,5 @@
 use conv::prelude::*;
-use crate::{Genome, Organism, Environment, Specie, SpeciesEvaluator};
+use crate::{Genome, Organism, Environment, Specie, SpeciesEvaluator, NeuralNetwork};
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -10,7 +10,7 @@ use serde_json;
 
 /// Contains several species, and a way to evolve these to the next generation.
 #[derive(Debug)]
-pub struct Population<G> {
+pub struct Population<G = NeuralNetwork> {
     /// container of species
     pub species: Vec<Specie<G>>,
     champion_fitness: f64,
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn after_population_evolve_population_should_be_the_same() {
-        let mut population = Population::<NeuralNetwork>::create_population(150);
+        let mut population = Population::create_population(150);
         for _ in 0..150 {
             population.evolve();
         }

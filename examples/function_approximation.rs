@@ -13,7 +13,7 @@ use rustneat::{Environment, Organism, Population, NeuralNetwork};
 static mut BEST_FITNESS: f64 = 0.0;
 struct FunctionApproximation;
 
-impl Environment<NeuralNetwork> for FunctionApproximation {
+impl Environment for FunctionApproximation {
   fn test(&self, organism: &mut NeuralNetwork) -> f64 {
       let mut output = vec![0f64];
       let mut distance = 0f64;
@@ -41,7 +41,7 @@ impl Environment<NeuralNetwork> for FunctionApproximation {
 fn main() {
     let mut population = Population::create_population(150);
     let mut environment = FunctionApproximation;
-    let mut champion: Option<Organism<NeuralNetwork>> = None;
+    let mut champion: Option<Organism> = None;
 
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry("?max_fitness=100&ioNeurons=1,2", true);
