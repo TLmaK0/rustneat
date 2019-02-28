@@ -21,8 +21,9 @@ impl<'a> Ctrnn<'a> {
         let i = Ctrnn::vector_to_column_matrix(self.i);
         let tau = Ctrnn::vector_to_column_matrix(self.tau);
         let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * self.delta_t;
+
         for _ in 0..steps {
-            let activations = (&y - &theta).apply(&Ctrnn::sigmoid);
+            let activations = (&y + &theta).apply(&Ctrnn::sigmoid);
             y = &y + delta_t_tau.elemul(
                 &((&wij * activations) - &y + &i)
             );

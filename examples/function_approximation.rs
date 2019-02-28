@@ -13,7 +13,7 @@ use rustneat::{Environment, Organism, Population, NeuralNetwork};
 static mut BEST_FITNESS: f64 = 0.0;
 struct FunctionApproximation;
 
-impl Environment<NeuralNetwork> for FunctionApproximation {
+impl Environment for FunctionApproximation {
   fn test(&self, organism: &mut NeuralNetwork) -> f64 {
       let mut output = vec![0f64];
       let mut distance = 0f64;
@@ -41,7 +41,7 @@ impl Environment<NeuralNetwork> for FunctionApproximation {
 fn main() {
     let mut population = Population::create_population(150);
     let mut environment = FunctionApproximation;
-    let mut champion: Option<Organism<NeuralNetwork>> = None;
+    let mut champion: Option<Organism> = None;
 
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry("?max_fitness=100&ioNeurons=1,2", true);
@@ -56,8 +56,7 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
     while champion.is_none() {
-        population.evolve();
-        population.evaluate_in(&mut environment);
+        population.evolve(&mut environment);
         for organism in &population.get_organisms() {
             if organism.fitness >= 96f64 {
                 champion = Some(organism.clone());

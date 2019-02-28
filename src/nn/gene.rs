@@ -1,30 +1,49 @@
 use rand;
 use std::cmp::Ordering;
 
-/// Gene for a connection in the `NeuralNetwork`
+/// Gene for a neuron in the `NeuralNetwork`.
+#[derive(Default, Debug, Copy, Clone)]
+pub struct NeuronGene {
+    /// Bias of the neuron.
+    pub bias: f64,
+}
+impl NeuronGene {
+    ///
+    pub fn new(bias: f64) -> NeuronGene {
+        NeuronGene {
+            bias,
+        }
+    }
+    /// Randomly generate a bias
+    pub fn generate_bias() -> f64 {
+        use rand::distributions::{Normal, Distribution};
+        let mut rng = rand::thread_rng();
+        Normal::new(0.0, 1.0).sample(&mut rng)
+    }
+}
+
+/// Gene for a synapse/connection in the `NeuralNetwork`.
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "telemetry", derive(Serialize))]
-pub struct Gene {
+pub struct ConnectionGene {
     in_neuron_id: usize,
     out_neuron_id: usize,
     /// Weight of the connection
     pub weight: f64,
     /// Whether the expression of a gene is enabled.
     pub enabled: bool,
-    /// Whether this gene functions as a bias in the neural network.
-    pub is_bias: bool
 }
 
-impl Eq for Gene {}
+impl Eq for ConnectionGene {}
 
-impl PartialEq for Gene {
-    fn eq(&self, other: &Gene) -> bool {
+impl PartialEq for ConnectionGene {
+    fn eq(&self, other: &ConnectionGene) -> bool {
         self.in_neuron_id == other.in_neuron_id && self.out_neuron_id == other.out_neuron_id
     }
 }
 
-impl Ord for Gene {
-    fn cmp(&self, other: &Gene) -> Ordering {
+impl Ord for ConnectionGene {
+    fn cmp(&self, other: &ConnectionGene) -> Ordering {
         if self == other {
             Ordering::Equal
         } else if self.in_neuron_id == other.in_neuron_id {
@@ -41,24 +60,23 @@ impl Ord for Gene {
     }
 }
 
-impl PartialOrd for Gene {
-    fn partial_cmp(&self, other: &Gene) -> Option<Ordering> {
+impl PartialOrd for ConnectionGene {
+    fn partial_cmp(&self, other: &ConnectionGene) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Gene {
+impl ConnectionGene {
     /// Create a new gene
-    pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64, enabled: bool, is_bias: bool) -> Gene {
-        Gene {
+    pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64, enabled: bool) -> ConnectionGene {
+        ConnectionGene {
             in_neuron_id: in_neuron_id,
             out_neuron_id: out_neuron_id,
             weight: weight,
             enabled: enabled,
-            is_bias: is_bias
         }
     }
-    /// Generate a weight
+    /// ConnectionGenerate a weight
     pub fn generate_weight() -> f64 {
         rand::random::<f64>() * 2.0 - 1.0
     }
@@ -72,14 +90,13 @@ impl Gene {
     }
 }
 
-impl Default for Gene {
-    fn default() -> Gene {
-        Gene {
+impl Default for ConnectionGene {
+    fn default() -> ConnectionGene {
+        ConnectionGene {
             in_neuron_id: 1,
             out_neuron_id: 1,
-            weight: Gene::generate_weight(),
+            weight: ConnectionGene::generate_weight(),
             enabled: true,
-            is_bias: false
         }
     }
 }
@@ -87,12 +104,11 @@ impl Default for Gene {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn g(n_in: usize, n_out: usize) -> Gene {
-        Gene {
+    fn g(n_in: usize, n_out: usize) -> ConnectionGene {
+        ConnectionGene {
             in_neuron_id: n_in,
             out_neuron_id: n_out,
-            ..Gene::default()
+            ..ConnectionGene::default()
         }
     }
 

@@ -1,8 +1,8 @@
+use crate::NeuralNetwork;
 const COMPATIBILITY_THRESHOLD: f64 = 3.0; //used to speciate organisms
 
 /// Implementing `Genome` conceptually means that the implementor "has a genome", and the
 /// implementor can be called an "organism".
-// (TODO: remove Default?)
 pub trait Genome: Clone + Default + Send {
     /// Returns a new organism which is a clone of `&self` apart from possible mutations
     fn mutate(&self) -> Self;
@@ -24,12 +24,10 @@ pub trait Genome: Clone + Default + Send {
 /// Used in algorithm just to group an organism (genome) with its fitness, and also in the
 /// interface to get the fitness of organisms
 #[derive(Default, Clone, Debug)]
-pub struct Organism<G> {
+pub struct Organism<G = NeuralNetwork> {
     /// The genome of this organism
     pub genome: G,
-    /// The fitness calculated internally
-    // TODO: Make fitness private with a getter?
-    //       or Option<f64>
+    /// The fitness calculated as part of the NEAT algorithm
     pub fitness: f64,
 }
 impl<G: Genome> Organism<G> {
