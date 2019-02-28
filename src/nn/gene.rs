@@ -2,15 +2,23 @@ use rand;
 use std::cmp::Ordering;
 
 /// Gene for a neuron in the `NeuralNetwork`.
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct NeuronGene {
+    /// Bias of the neuron.
     pub bias: f64,
 }
 impl NeuronGene {
+    ///
     pub fn new(bias: f64) -> NeuronGene {
         NeuronGene {
             bias,
         }
+    }
+    /// Randomly generate a bias
+    pub fn generate_bias() -> f64 {
+        use rand::distributions::{Normal, Distribution};
+        let mut rng = rand::thread_rng();
+        Normal::new(0.0, 1.0).sample(&mut rng)
     }
 }
 
@@ -89,7 +97,6 @@ impl Default for ConnectionGene {
             out_neuron_id: 1,
             weight: ConnectionGene::generate_weight(),
             enabled: true,
-            is_bias: false
         }
     }
 }

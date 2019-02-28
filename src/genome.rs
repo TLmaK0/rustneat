@@ -2,7 +2,6 @@ const COMPATIBILITY_THRESHOLD: f64 = 3.0; //used to speciate organisms
 
 /// Implementing `Genome` conceptually means that the implementor "has a genome", and the
 /// implementor can be called an "organism".
-// (TODO: remove Default?)
 pub trait Genome: Clone + Default + Send {
     /// Returns a new organism which is a clone of `&self` apart from possible mutations
     fn mutate(&self) -> Self;
@@ -27,9 +26,7 @@ pub trait Genome: Clone + Default + Send {
 pub struct Organism<G> {
     /// The genome of this organism
     pub genome: G,
-    /// The fitness calculated internally
-    // TODO: Make fitness private with a getter?
-    //       or Option<f64>
+    /// The fitness calculated as part of the NEAT algorithm
     pub fitness: f64,
 }
 impl<G: Genome> Organism<G> {

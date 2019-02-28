@@ -1,4 +1,4 @@
-use rand::{self, seq::IteratorRandom, distributions::{Distribution, Uniform, Normal}};
+use rand::{self, distributions::{Distribution, Uniform}};
 use std::cmp;
 use crate::Genome;
 
@@ -10,13 +10,24 @@ pub use self::gene::*;
 /// Vector of Genes
 /// Holds a count of last neuron added, similar to Innovation number
 // NOTE: With regard to the "competing conventions" problem in the orginal paper:
-// Connections are identified by their (in_neuron_id, out_neuron_id) pair. Neurons are identified just
-// by their position in the Vec (implicit id).
-#[derive(Default, Debug, Clone)]
+// Connections are identified by their (in_neuron_id, out_neuron_id) pair, which serves as their 'innovration number'.
+// Neurons are identified just by their position in the Vec (implicit id).
+#[derive(Debug, Clone)]
 pub struct NeuralNetwork {
-    /// Sorted at all times
+    /// Connections between neurons. Sorted at all times. Use `add_connection()` to add a
+    /// connection!
+    // TODO :should it be private with a getter?
     pub connections: Vec<ConnectionGene>,
+    /// Neurons with bias. Can simple be pushed to.
     pub neurons: Vec<NeuronGene>,
+}
+impl Default for NeuralNetwork {
+    fn default() -> NeuralNetwork {
+        NeuralNetwork {
+            connections: Vec::new(),
+            neurons: vec![NeuronGene::new(0.0)],
+        }
+    }
 }
 
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90;
@@ -116,45 +127,47 @@ impl Genome for NeuralNetwork {
 impl NeuralNetwork {
     /// Creates a network that with no connections, but enough neurons to cover all inputs and
     /// outputs.
-    pub fn with_input_and_output(inputs: usize, outputs: usize) -> NeuralNetwork {
-        let mut nn = NeuralNetwork::default();
-        for _ in 0..(inputs+outputs) {
-            nn.neurons.push(NeuronGene::new(0.0))
+    pub fn with_neurons(n: usize) -> NeuralNetwork {
+        let mut neurons = Vec::new();
+        for _ in 0..n {
+            neurons.push(NeuronGene::new(0.0))
         }
-        nn
+        NeuralNetwork {
+            neurons,
+            connections: Vec::new(),
+        }
     }
 
-    /// Activate the neural network by sending input `sensors` into its first `sensors.len()`
+    /// Activate the neural network by sending input `inputs` into its first `inputs.len()`
     /// neurons
-    pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
-        let neurons_len = self.n_neurons();
-        let sensors_len = sensors.len();
+    pub fn activate(&mut self, mut inputs: Vec<f64>, outputs: &mut Vec<f64>) {
+        let n_neurons = self.n_neurons();
+        let n_inputs = inputs.len();
 
-        let tau = vec![1.0; neurons_len];
+        let tau = vec![1.0; n_neurons];
         let theta = self.get_bias(); 
 
-        let mut i = sensors.clone();
 
-        if neurons_len < sensors_len {
-            i.truncate(neurons_len);
+        if n_neurons < n_inputs {
+            inputs.truncate(n_neurons);
         } else {
-            i = [i, vec![0.0; neurons_len - sensors_len]].concat();
+            inputs = [inputs, vec![0.0; n_neurons - n_inputs]].concat();
         }
 
         let wij = self.get_weights();
 
         let activations =
             Ctrnn {
-                y: &i,  //initial state is the sensors
+                y: &inputs,  //initial state is the sensors
                 delta_t: 1.0,
                 tau: &tau,
                 wij: &wij,
                 theta: &theta,
-                i: &i
+                i: &inputs
             }.activate_nn(10);
 
-        if sensors_len < neurons_len {
-            let outputs_activations = activations.split_at(sensors_len).1.to_vec();
+        if n_inputs < n_neurons {
+            let outputs_activations = activations.split_at(n_inputs).1.to_vec();
 
             for n in 0..cmp::min(outputs_activations.len(), outputs.len()) {
                 outputs[n] = outputs_activations[n];
@@ -164,7 +177,7 @@ impl NeuralNetwork {
 
     /// Helper function for `activate()`. Get weights of connections (as a matrix represented
     /// linearly)
-    fn get_weights(&self) -> Vec<f64> {
+    pub fn get_weights(&self) -> Vec<f64> {
         let n_neurons = self.neurons.len();
         let mut matrix = vec![0.0; n_neurons * n_neurons];
         for gene in &self.connections {
@@ -174,37 +187,32 @@ impl NeuralNetwork {
         }
         matrix
     }
-
     /// Helper function for `activate()`. Get bias of neurons.
-    fn get_bias(&self) -> Vec<f64> {
+    pub fn get_bias(&self) -> Vec<f64> {
         self.neurons.iter().map(|x| x.bias).collect()
     }
-
+    /// Returns a list of the 'enabled' field along connections
+    pub fn get_enabled(&self) -> Vec<bool> { // TODO remove
+        self.connections.iter().map(|x| x.enabled).collect()
+    }
 
     /// Get number of neurons
     pub fn n_neurons(&self) -> usize {
         self.neurons.len()
     }
-    /// Get number of connections (this equals the number of genes)
+    /// Get number of connections
     pub fn n_connections(&self) -> usize {
         self.connections.len()
     }
-    /// is genome empty
-    pub fn is_empty(&self) -> bool {
-        self.n_neurons() == 0
-    }
 
     fn mutate_add_connection(&mut self) {
-        let mut rng = rand::thread_rng();
-        assert!(self.neurons.len() != 0);
-        let neuron_ids_to_connect = {
-            match self.neurons.len() {
-                0 => panic!("Must have at least one neuron"),
-                1 => vec![0, 0],
-                _ => (0..self.neurons.len() + 1).choose_multiple(&mut rng, 2),
-            }
-        };
-        self.add_connection(neuron_ids_to_connect[0], neuron_ids_to_connect[1]);
+        if self.neurons.len() == 0 {
+            return
+        }
+        let in_neuron_id = rand::random::<usize>() % self.neurons.len();
+        let out_neuron_id = rand::random::<usize>() % self.neurons.len();
+        // TODO: function to pick multiple random unique values from a range?
+        self.add_connection(in_neuron_id, out_neuron_id, ConnectionGene::generate_weight());
     }
 
     fn mutate_connection_weight(&mut self) {
@@ -222,6 +230,9 @@ impl NeuralNetwork {
 
     /// Toggles the expression of a random connection
     fn mutate_toggle_expression(&mut self) {
+        if self.connections.len() == 0 {
+            return;
+        }
         let mut rng = rand::thread_rng();
         let selected_gene = Uniform::from(0..self.connections.len()).sample(&mut rng);
         self.connections[selected_gene].enabled = !self.connections[selected_gene].enabled;
@@ -230,29 +241,37 @@ impl NeuralNetwork {
     /// Sets the bias of a random neuron to a sample from the normal distribution
     fn mutate_bias(&mut self) {
         let mut rng = rand::thread_rng();
-        let selected_gene = Uniform::from(0..self.neurons.len()).sample(&mut rng);
-        self.neurons[selected_gene].bias = Normal::new(0.0, 1.0).sample(&mut rng);
+
+        let gene = Uniform::from(0..self.neurons.len()).sample(&mut rng);
+
+        let perturbation = rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY;
+        let mut new_bias = NeuronGene::generate_bias();
+        if perturbation {
+            new_bias += self.neurons[gene].bias;
+        }
+        self.neurons[gene].bias = new_bias;
     }
 
     fn mutate_add_neuron(&mut self) {
-        // Select a random connections along which to add neuron.. and disable it 
-        let mut rng = rand::thread_rng();
-        let gene = Uniform::from(0..self.connections.len()).sample(&mut rng);
-        self.connections[gene].enabled = false;
-        // Create new neuron
-        let new_neuron = NeuronGene::new(0.0);
-        self.neurons.push(new_neuron);
-        // ... and make two new connections that go through the new neuron
-        self.add_connection(
-            ConnectionGene::new(self.connections[gene].in_neuron_id(), self.neurons.len(), 1.0, true));
-        self.add_connection(
-            ConnectionGene::new(self.neurons.len(),
-                self.connections[gene].out_neuron_id(),
-                self.connections[gene].weight, true));
+        if self.connections.len() == 0 {
+            self.neurons.push(NeuronGene::new(0.0));
+        } else {
+            // Select a random connections along which to add neuron.. and disable it 
+            let mut rng = rand::thread_rng();
+            let gene = Uniform::from(0..self.connections.len()).sample(&mut rng);
+            self.connections[gene].enabled = false;
+            // Create new neuron
+            self.neurons.push(NeuronGene::new(0.0));
+            let new_neuron_id = self.neurons.len()-1;
+            // ... and make two new connections that go through the new neuron
+            self.add_connection(self.connections[gene].in_neuron_id(), new_neuron_id, 1.0);
+            self.add_connection(new_neuron_id, self.connections[gene].out_neuron_id(),
+                                self.connections[gene].weight);
+        }
     }
 
 
-    fn mate_neurons(&self, other: &NeuralNetwork, fittest: bool) -> Vec<NeuronGene> {
+    fn mate_neurons(&self, other: &NeuralNetwork, _fittest: bool) -> Vec<NeuronGene> {
         // Guarantee: self.neurons.len() is greater than other.neurons.len()
         // TODO: change `0.5` according to which organism is the fittest
         let mut genes = Vec::new();
@@ -276,7 +295,7 @@ impl NeuralNetwork {
         let mut genes = Vec::new();
         for gene in &self.connections {
             genes.push({
-                if rand::random::<f64>() > 0.5 {
+                if !fittest || rand::random::<f64>() > 0.5 {
                     *gene
                 } else {
                     match other.connections.binary_search(gene) {
@@ -291,21 +310,20 @@ impl NeuralNetwork {
     }
 
 
-    /// Add a new connection.
+    /// Add a new connection. Panics if in_neuron or out_neuron are invalid neuron IDs.
     pub fn add_connection(&mut self, in_neuron: usize, out_neuron: usize, weight: f64) {
+        assert!(self.neurons.len() > 0, "add_connection: Tried to add a connection to network with no neurons");
         let new_gene = ConnectionGene::new(in_neuron, out_neuron, weight, true);
         let max_neuron_id = self.neurons.len()-1;
 
-        if gene.in_neuron_id() > max_neuron_id
-            || gene.out_neuron_id() > max_neuron_id
-            || gene.in_neuron_id() == gene.out_neuron_id() {
+        if in_neuron > max_neuron_id || out_neuron > max_neuron_id {
             panic!("Invalid connection ({} -> {}). (max neuron id = {})",
-                   gene.in_neuron_id(), gene.out_neuron_id(), max_neuron_id);
+                   new_gene.in_neuron_id(), new_gene.out_neuron_id(), max_neuron_id);
         }
 
-        match self.connections.binary_search(&gene) {
+        match self.connections.binary_search(&new_gene) {
             Ok(pos) => self.connections[pos].enabled = true,
-            Err(_) => self.connections.push(gene),
+            Err(_) => self.connections.push(new_gene),
         }
         self.connections.sort();
     }
@@ -314,125 +332,118 @@ impl NeuralNetwork {
     /// Total weigths of all genes
     pub fn total_weights(&self) -> f64 {
         let mut total = 0.0;
-        for gene in &self.genes {
+        for gene in &self.connections {
             total += gene.weight;
         }
         total
     }
-
-    /// Total num genes
-    // TODO len() is enough
-    pub fn total_genes(&self) -> usize {
-        self.genes.len()
-    }
-
 }
 
 #[cfg(test)]
 mod tests {
     use std::f64::EPSILON;
-    use crate::{nn::NeuralNetwork, nn::Gene, Genome, Organism};
+    use crate::{nn::NeuralNetwork, nn::ConnectionGene, Genome};
 
     #[test]
     fn mutation_connection_weight() {
-        let mut genome = NeuralNetwork::default();
-        genome.add_gene(Gene::new(0, 0, 1.0, true, false));
-        let orig_gene = genome.genes[0];
+        let mut genome = NeuralNetwork::with_neurons(1);
+        genome.add_connection(0, 0, 1.0);
+        let orig_gene = genome.connections[0];
         genome.mutate_connection_weight();
         // These should not be same size
-        assert!((genome.genes[0].weight - orig_gene.weight).abs() > EPSILON);
+        assert!((genome.connections[0].weight - orig_gene.weight).abs() > EPSILON);
     }
 
     #[test]
     fn mutation_add_connection() {
-        let mut genome = NeuralNetwork::default();
-        genome.add_connection(1, 2);
+        let mut genome = NeuralNetwork::with_neurons(3);
+        genome.add_connection(1, 2, ConnectionGene::generate_weight());
 
-        assert!(genome.genes[0].in_neuron_id() == 1);
-        assert!(genome.genes[0].out_neuron_id() == 2);
+        assert!(genome.connections[0].in_neuron_id() == 1);
+        assert!(genome.connections[0].out_neuron_id() == 2);
     }
 
     #[test]
     fn mutation_add_neuron() {
-        let mut genome = NeuralNetwork::default();
+        let mut genome = NeuralNetwork::with_neurons(1);
         genome.mutate_add_connection();
         genome.mutate_add_neuron();
-        assert!(!genome.genes[0].enabled);
-        assert!(genome.genes[1].in_neuron_id() == genome.genes[0].in_neuron_id());
-        assert!(genome.genes[1].out_neuron_id() == 1);
-        assert!(genome.genes[2].in_neuron_id() == 1);
-        assert!(genome.genes[2].out_neuron_id() == genome.genes[0].out_neuron_id());
+        assert!(!genome.connections[0].enabled);
+        assert!(genome.connections[1].in_neuron_id() == genome.connections[0].in_neuron_id());
+        assert!(genome.connections[1].out_neuron_id() == 1);
+        assert!(genome.connections[2].in_neuron_id() == 1);
+        assert!(genome.connections[2].out_neuron_id() == genome.connections[0].out_neuron_id());
     }
 
     #[test]
-    #[should_panic(expected = "Try to create a gene neuron unconnected, max neuron id 1, 2 -> 2")]
+    #[should_panic(expected = "Invalid connection (2 -> 2). (max neuron id = 0)")]
     fn try_to_inject_a_unconnected_neuron_gene_should_panic() {
-        let mut genome1 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(2, 2, 0.5, true, false));
+        let mut genome1 = NeuralNetwork::with_neurons(1);
+        genome1.add_connection(2, 2, 0.5);
     }
 
     #[test]
-    fn two_genomes_without_differences_should_be_in_same_specie() {
-        let mut genome1 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(0, 0, 1.0, true, false));
-        genome1.add_gene(Gene::new(0, 1, 1.0, true, false));
-        let mut genome2 = NeuralNetwork::default();
-        genome2.add_gene(Gene::new(0, 0, 0.0, true, false));
-        genome2.add_gene(Gene::new(0, 1, 0.0, true, false));
-        genome2.add_gene(Gene::new(0, 2, 0.0, true, false));
+    fn two_genomes_with_little_differences_should_be_in_same_specie() {
+        let mut genome1 = NeuralNetwork::with_neurons(2);
+        genome1.add_connection(0, 0, 1.0);
+        genome1.add_connection(0, 1, 1.0);
+        let mut genome2 = NeuralNetwork::with_neurons(3);
+        genome2.add_connection(0, 0, 0.0);
+        genome2.add_connection(0, 1, 0.0);
+        genome2.add_connection(0, 2, 0.0);
         assert!(genome1.is_same_specie(&genome2));
     }
 
     #[test]
-    fn two_genomes_with_enought_difference_should_be_in_different_species() {
-        let mut genome1 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(0, 0, 1.0, true, false));
-        genome1.add_gene(Gene::new(0, 1, 1.0, true, false));
-        let mut genome2 = NeuralNetwork::default();
-        genome2.add_gene(Gene::new(0, 0, 5.0, true, false));
-        genome2.add_gene(Gene::new(0, 1, 5.0, true, false));
-        genome2.add_gene(Gene::new(0, 2, 1.0, true, false));
-        genome2.add_gene(Gene::new(0, 3, 1.0, true, false));
+    fn two_genomes_with_enough_difference_should_be_in_different_species() {
+        let mut genome1 = NeuralNetwork::with_neurons(2);
+        genome1.add_connection(0, 0, 1.0);
+        genome1.add_connection(0, 1, 1.0);
+        let mut genome2 = NeuralNetwork::with_neurons(4);
+        genome2.add_connection(0, 0, 5.0);
+        genome2.add_connection(0, 1, 5.0);
+        genome2.add_connection(0, 2, 1.0);
+        genome2.add_connection(0, 3, 1.0);
         assert!(!genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn already_existing_gene_should_be_not_duplicated() {
-        let mut genome1 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(0, 0, 1.0, true, false));
-        genome1.add_connection(0, 0);
-        assert_eq!(genome1.genes.len(), 1);
-        assert!((genome1.get_genes()[0].weight - 1.0).abs() < EPSILON);
+        let mut genome1 = NeuralNetwork::with_neurons(2);
+        genome1.add_connection(0, 0, 1.0);
+        genome1.add_connection(0, 0, ConnectionGene::generate_weight());
+        assert_eq!(genome1.connections.len(), 1);
+        assert!((genome1.connections[0].weight - 1.0).abs() < EPSILON);
     }
 
     #[test]
     fn adding_an_existing_gene_disabled_should_enable_original() {
-        let mut genome1 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(0, 1, 0.0, true, false));
+        let mut genome1 = NeuralNetwork::with_neurons(2);
+        genome1.add_connection(0, 1, 0.0);
         genome1.mutate_add_neuron();
-        assert!(!genome1.genes[0].enabled);
-        assert!(genome1.genes.len() == 3);
-        genome1.add_connection(0, 1);
-        assert!(genome1.genes[0].enabled);
-        assert!((genome1.genes[0].weight - 0.0).abs() < EPSILON);
-        assert_eq!(genome1.genes.len(), 3);
+        assert!(!genome1.connections[0].enabled);
+        assert!(genome1.connections.len() == 3);
+        genome1.add_connection(0, 1, ConnectionGene::generate_weight());
+        assert!(genome1.connections[0].enabled);
+        assert!((genome1.connections[0].weight - 0.0).abs() < EPSILON);
+        assert_eq!(genome1.connections.len(), 3);
     }
 
     #[test]
     fn genomes_with_same_genes_with_little_differences_on_weight_should_be_in_same_specie() {
-        let mut genome1 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(0, 0, 16.0, true, false));
-        let mut genome2 = NeuralNetwork::default();
-        genome2.add_gene(Gene::new(0, 0, 16.1, true, false));
+        let mut genome1 = NeuralNetwork::with_neurons(1);
+        genome1.add_connection(0, 0, 16.0);
+        let mut genome2 = NeuralNetwork::with_neurons(1);
+        genome2.add_connection(0, 0, 16.1);
         assert!(genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn genomes_with_same_genes_with_big_differences_on_weight_should_be_in_other_specie() {
-        let mut genome1 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(0, 0, 5.0, true, false));
-        let mut genome2 = NeuralNetwork::default();
-        genome2.add_gene(Gene::new(0, 0, 15.0, true, false));
+        let mut genome1 = NeuralNetwork::with_neurons(1);
+        genome1.add_connection(0, 0, 5.0);
+        let mut genome2 = NeuralNetwork::with_neurons(1);
+        genome2.add_connection(0, 0, 15.0);
         assert!(!genome1.is_same_specie(&genome2));
     }
 
@@ -441,8 +452,8 @@ mod tests {
 
     #[test]
     fn should_propagate_signal_without_hidden_layers() {
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, 5.0, true, false));
+        let mut organism = NeuralNetwork::with_neurons(2);
+        organism.add_connection(0, 1, 5.0);
         let sensors = vec![7.5];
         let mut output = vec![0.0];
         organism.activate(sensors, &mut output);
@@ -451,8 +462,8 @@ mod tests {
             format!("{:?} is not bigger than 0.9", output[0])
         );
 
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, -2.0, true, false));
+        let mut organism = NeuralNetwork::with_neurons(2);
+        organism.add_connection(0, 1, -2.0);
         let sensors = vec![1.0];
         let mut output = vec![0.0];
         organism.activate(sensors, &mut output);
@@ -464,10 +475,10 @@ mod tests {
 
     #[test]
     fn should_propagate_signal_over_hidden_layers() {
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, 0.0, true, false));
-        organism.add_gene(Gene::new(0, 2, 5.0, true, false));
-        organism.add_gene(Gene::new(2, 1, 5.0, true, false));
+        let mut organism = NeuralNetwork::with_neurons(3);
+        organism.add_connection(0, 1, 0.0);
+        organism.add_connection(0, 2, 5.0);
+        organism.add_connection(2, 1, 5.0);
         let sensors = vec![0.0];
         let mut output = vec![0.0];
         organism.activate(sensors, &mut output);
@@ -479,10 +490,10 @@ mod tests {
 
     #[test]
     fn should_work_with_cyclic_networks() {
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, 2.0, true, false));
-        organism.add_gene(Gene::new(1, 2, 2.0, true, false));
-        organism.add_gene(Gene::new(2, 1, 2.0, true, false));
+        let mut organism = NeuralNetwork::with_neurons(3);
+        organism.add_connection(0, 1, 2.0);
+        organism.add_connection(1, 2, 2.0);
+        organism.add_connection(2, 1, 2.0);
         let mut output = vec![0.0];
         organism.activate(vec![1.0], &mut output);
         assert!(
@@ -490,10 +501,10 @@ mod tests {
             format!("{:?} is not bigger than 0.9", output[0])
         ); // <- TODO this fails... -7.14... not bigger than 0.9
 
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, -2.0, true, false));
-        organism.add_gene(Gene::new(1, 2, -2.0, true, false));
-        organism.add_gene(Gene::new(2, 1, -2.0, true, false));
+        let mut organism = NeuralNetwork::with_neurons(3);
+        organism.add_connection(0, 1, -2.0);
+        organism.add_connection(1, 2, -2.0);
+        organism.add_connection(2, 1, -2.0);
         let mut output = vec![0.0];
         organism.activate(vec![1.0], &mut output);
         assert!(
@@ -504,8 +515,8 @@ mod tests {
 
     #[test]
     fn activate_organims_sensor_without_enough_neurons_should_ignore_it() {
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, 1.0, true, false));
+        let mut organism = NeuralNetwork::with_neurons(2);
+        organism.add_connection(0, 1, 1.0);
         let sensors = vec![0.0, 0.0, 0.0];
         let mut output = vec![0.0];
         organism.activate(sensors, &mut output);
@@ -513,21 +524,21 @@ mod tests {
 
     #[test]
     fn should_allow_multiple_output() {
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, 1.0, true, false));
+        let mut organism = NeuralNetwork::with_neurons(2);
+        organism.add_connection(0, 1, 1.0);
         let sensors = vec![0.0];
         let mut output = vec![0.0, 0.0];
         organism.activate(sensors, &mut output);
     }
 
     #[test]
-    fn should_be_able_to_get_matrix_representation_of_the_neuron_connections() {
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, 1.0, true, false));
-        organism.add_gene(Gene::new(1, 2, 0.5, true, false));
-        organism.add_gene(Gene::new(2, 1, 0.5, true, false));
-        organism.add_gene(Gene::new(2, 2, 0.75, true, false));
-        organism.add_gene(Gene::new(1, 0, 1.0, true, false));
+    fn should_be_able_to_get_correct_matrix_representation_of_connections() {
+        let mut organism = NeuralNetwork::with_neurons(3);
+        organism.add_connection(0, 1, 1.0);
+        organism.add_connection(1, 2, 0.5);
+        organism.add_connection(2, 1, 0.5);
+        organism.add_connection(2, 2, 0.75);
+        organism.add_connection(1, 0, 1.0);
         assert_eq!(
             organism.get_weights(),
             vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]
@@ -536,8 +547,8 @@ mod tests {
 
     #[test]
     fn should_not_raise_exception_if_less_neurons_than_required() {
-        let mut organism = NeuralNetwork::default();
-        organism.add_gene(Gene::new(0, 1, 1.0, true, false));
+        let mut organism = NeuralNetwork::with_neurons(2);
+        organism.add_connection(0, 1, 1.0);
         let sensors = vec![0.0, 0.0, 0.0];
         let mut output = vec![0.0, 0.0, 0.0];
         organism.activate(sensors, &mut output);

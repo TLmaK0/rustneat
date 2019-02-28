@@ -8,8 +8,6 @@ pub struct Specie<G> {
     representative: Organism<G>,
     average_fitness: f64,
     champion_fitness: f64,
-    age: usize,
-    age_last_improvement: usize,
     /// All orgnamisms in this species
     pub organisms: Vec<Organism<G>>,
 }
@@ -18,20 +16,14 @@ const MUTATION_PROBABILITY: f64 = 0.25;
 const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001;
 
 impl<G: Genome> Specie<G> {
-    /// Create a new species from a representative Genome
+    /// Create a new species from a representative Organism. Adds this organism as the only member.
     pub fn new(genome: Organism<G>) -> Specie<G> {
         Specie {
-            organisms: vec![],
+            organisms: vec![genome.clone()],
             representative: genome,
-            average_fitness: 0f64,
-            champion_fitness: 0f64,
-            age: 0,
-            age_last_improvement: 0,
+            average_fitness: 0.0,
+            champion_fitness: 0.0,
         }
-    }
-    /// Add an organism to the species
-    pub fn add(&mut self, organism: Organism<G>) {
-        self.organisms.push(organism);
     }
     /// Check if another organism is of the same species as this one.
     pub fn match_genome(&self, organism: &G) -> bool {
@@ -39,7 +31,7 @@ impl<G: Genome> Specie<G> {
     }
     /// Get the most performant organism
     pub fn calculate_champion_fitness(&self) -> f64 {
-        self.organisms.iter().fold(0f64, |max, organism| {
+        self.organisms.iter().fold(0.0, |max, organism| {
             if organism.fitness > max {
                 organism.fitness
             } else {
@@ -47,44 +39,38 @@ impl<G: Genome> Specie<G> {
             }
         })
     }
-    /// Work out average fitness of this species
-    pub fn calculate_average_fitness(&mut self) -> f64 {
-        let organisms_count = self.organisms.len().value_as::<f64>().unwrap();
-        if organisms_count == 0.0 {
+    /// Get the average shared fitness of the organisms in the species.
+    /// This is the same as the average of the real fitness of the members,
+    /// divided by the number of members.
+    pub fn average_shared_fitness(&self) -> f64 {
+        let n_organisms = self.organisms.len().value_as::<f64>().unwrap();
+        if n_organisms == 0.0 {
             return 0.0;
         }
 
-        let total_fitness = self.organisms
-            .iter()
-            .fold(0.0, |total, organism| total + organism.fitness);
-
-        let new_fitness = total_fitness / organisms_count;
-
-        if new_fitness > self.average_fitness {
-            self.age_last_improvement = self.age;
-        }
-
-        self.average_fitness = new_fitness;
-        self.average_fitness
+        let avg_fitness = self.organisms.iter().map(|o| o.fitness)
+            .sum::<f64>() / n_organisms;
+        avg_fitness / n_organisms // TODO: correct?
     }
 
     /// Mate and generate offspring, delete old organisms and use the children
     /// as "new" species.
-    pub fn generate_offspring(
-        &mut self,
-        num_of_organisms: usize,
-        population_organisms: &[Organism<G>],
-    ) {
+    pub fn generate_offspring(&mut self, n_organisms: usize, population_organisms: &[Organism<G>]) {
+
+        if n_organisms == 0 {
+            self.organisms = Vec::new();
+            return;
+        }
+        // TODO Review this.
         let mut rng = rand::thread_rng();
-        self.age += 1;
 
-        let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
+        let copy_champion = if n_organisms > 5 { 1 } else { 0 };
 
-        // Select `num_of_organisms` organisms in this specie, and make offspring from them.
+        // Select `n_organisms` organisms in this specie, and make offspring from them.
         let mut offspring: Vec<Organism<G>> = {
             let mut selected_organisms = vec![];
             let uniform = Uniform::from(0..self.organisms.len());
-            for _ in 0..num_of_organisms - copy_champion {
+            for _ in 0..n_organisms - copy_champion {
                 selected_organisms.push(uniform.sample(&mut rng));
             }
             selected_organisms.iter()
@@ -115,13 +101,7 @@ impl<G: Genome> Specie<G> {
     }
     /// Clear existing organisms in this species.
     pub fn remove_organisms(&mut self) {
-        self.adjust_fitness();
         self.organisms = vec![];
-    }
-
-    /// TODO
-    pub fn adjust_fitness(&mut self) {
-        // TODO: adjust fitness
     }
 
     /// Create a new child by mutating and existing one or mating two genomes.
@@ -137,11 +117,7 @@ impl<G: Genome> Specie<G> {
         organism.mutate()
     }
 
-    fn create_child_by_mate(
-        &self,
-        organism: &Organism<G>,
-        population_organisms: &[Organism<G>],
-    ) -> Organism<G> {
+    fn create_child_by_mate(&self, organism: &Organism<G>, population_organisms: &[Organism<G>]) -> Organism<G> {
         let mut rng = rand::thread_rng();
         if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
             let selected_mate = Uniform::from(0..self.organisms.len()).sample(&mut rng);
@@ -160,20 +136,18 @@ mod tests {
 
     #[test]
     fn specie_should_return_correct_average_fitness() {
-        let mut specie = Specie::new(Organism::new(NeuralNetwork::default()));
         let mut organism1 = Organism::new(NeuralNetwork::default());
-        organism1.fitness = 10f64;
+        organism1.fitness = 10.0;
 
         let mut organism2 = Organism::new(NeuralNetwork::default());
-        organism2.fitness = 15f64;
+        organism2.fitness = 15.0;
 
         let mut organism3 = Organism::new(NeuralNetwork::default());
-        organism3.fitness = 20f64;
+        organism3.fitness = 20.0;
+        
+        let mut specie = Specie::new(Organism::default());
+        specie.organisms = vec![organism1, organism2, organism3];
 
-        specie.organisms.push(organism1);
-        specie.organisms.push(organism2);
-        specie.organisms.push(organism3);
-
-        assert!((specie.calculate_average_fitness() - 15f64).abs() < EPSILON);
+        assert!((specie.average_shared_fitness() - 5.0).abs() < EPSILON);
     }
 }
