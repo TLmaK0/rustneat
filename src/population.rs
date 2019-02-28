@@ -1,4 +1,4 @@
-use crate::{Genome, Organism, Environment, Specie};
+use crate::{Genome, Organism, Environment, Specie, NeuralNetwork};
 use rayon::prelude::*;
 
 #[cfg(feature = "telemetry")]
@@ -10,7 +10,7 @@ use serde_json;
 
 /// Contains several species, and a way to evolve these to the next generation.
 #[derive(Debug)]
-pub struct Population<G> {
+pub struct Population<G = NeuralNetwork> {
     /// container of species
     pub species: Vec<Specie<G>>,
     champion_fitness: f64,
@@ -222,7 +222,7 @@ mod tests {
             fn test(&self, organism: &mut NeuralNetwork) -> f64 { 0.0 }
         }
 
-        let mut population = Population::<NeuralNetwork>::create_population(150);
+        let mut population = Population::create_population(150);
         for _ in 0..150 {
             population.evolve(&mut X);
         }

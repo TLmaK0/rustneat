@@ -8,7 +8,7 @@ mod telemetry_helper;
 
 struct XORClassification;
 
-impl Environment<NeuralNetwork> for XORClassification {
+impl Environment for XORClassification {
     fn test(&self, organism: &mut NeuralNetwork) -> f64 {
         let mut output = vec![0f64];
         let mut distance: f64;
@@ -36,7 +36,7 @@ fn main() {
 
     let mut population = Population::create_population(150);
     let mut environment = XORClassification;
-    let mut champion: Option<Organism<NeuralNetwork>> = None;
+    let mut champion: Option<Organism> = None;
     let mut i = 0;
     while champion.is_none() {
         i += 1;
