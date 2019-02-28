@@ -47,7 +47,7 @@ impl<'a> Ctrnn<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::*;
     macro_rules! assert_delta_vector {
         ($x:expr, $y:expr, $d:expr) => {
             for pos in 0..$x.len() {

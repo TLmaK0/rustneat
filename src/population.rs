@@ -1,5 +1,7 @@
 use crate::{Genome, Organism, Environment, Specie, NeuralNetwork};
 use rayon::prelude::*;
+// use std::cmp::Ordering::*;
+use rand::distributions::{Uniform, Distribution};
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -13,6 +15,7 @@ use serde_json;
 pub struct Population<G = NeuralNetwork> {
     /// container of species
     pub species: Vec<Specie<G>>,
+    target_size: usize,
     champion_fitness: f64,
     generations_without_improvements: usize,
 }
@@ -38,6 +41,7 @@ impl<G: Genome> Population<G> {
 
         Population {
             species: vec![specie],
+            target_size: population_size,
             champion_fitness: 0f64,
             generations_without_improvements: 0usize,
         }
@@ -85,30 +89,43 @@ impl<G: Genome> Population<G> {
         if self.generations_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
             // After a certain generations with no improvement, we prune all species except the two
             // best ones
-            let mut best_species = self.get_best_species();
+            let mut best_species = self.get_two_best_species();
             let n_species = best_species.len();
             for specie in &mut best_species {
                 specie.generate_offspring(organisms.len() / n_species, &organisms);
             }
             self.generations_without_improvements = 0;
         } else {
-            // Normal case: Give each species a number of offsprings related to that species
+            // Normal case: Give each species a number of offsprings related to that species'
             // average fitness
 
-            let offspring_per_fitness = organisms.len() as f64 / sum_of_species_fitness;
+            // Gather the average shared fitness, and the calculated number of offsprings, per species
+            let species_fitness = self.species.iter()
+                .map(|species| species.average_shared_fitness())
+                .collect::<Vec<_>>();
 
-            for specie in &mut self.species {
-                let specie_fitness = specie.average_shared_fitness();
-                let offspring_size = if sum_of_species_fitness == 0.0 {
-                    specie.organisms.len()
+            let n_offspring: Vec<_> = 
+                if sum_of_species_fitness == 0.0 {
+                    print!("A");
+                    self.species.iter()
+                        .map(|species| species.organisms.len()).collect()
                 } else {
-                    (specie_fitness * offspring_per_fitness).round() as usize
+                    print!("B -- {}", self.species.len());
+                    Self::partition(
+                        organisms.len(),
+                        &species_fitness.iter()
+                            .map(|fitness|
+                                 fitness / sum_of_species_fitness
+                            ).collect::<Vec<_>>())
                 };
-                specie.generate_offspring(offspring_size, &organisms);
+            println!("(n_offsprings ={:?})", n_offspring);
+
+            for (species, n_offspring) in self.species.iter_mut().zip(n_offspring) {
+                species.generate_offspring(n_offspring, &organisms);
             }
         }
 
-        // Evaluate the fitness of all organisms
+        // Evaluate the fitness of all organisms, in parallel
         self.species.par_iter_mut()
             .for_each(|species| species.organisms.par_iter_mut()
                 .for_each(|organism| {
@@ -120,18 +137,39 @@ impl<G: Genome> Population<G> {
                 }))
     }
 
-    fn get_best_species(&self) -> Vec<Specie<G>> {
-        // TODO rewrite
-        let mut result = vec![];
+    // Helper of `evolve`. Partition `total` into partitions with size given by `fractions`.
+    // We need this logic to ensure that the total stays the same after partitioning.
+    fn partition(total: usize, fractions: &[f64]) -> Vec<usize> {
+        let mut rng = rand::thread_rng();
+        let mut partitions: Vec<usize> = fractions.iter().map(|x| ((total as f64 * x) as usize)).collect();
+        let mut sum: usize = partitions.iter().sum();
+        let range = Uniform::from(0..partitions.len());
 
+        while sum != total {
+            let residue = sum as i32 - total as i32;
+            let selected = range.sample(&mut rng);
+            if residue > 0 {
+                partitions[selected] -= 1;
+                sum -= 1;
+            } else if residue < 0 && partitions[selected] > 0 {
+                partitions[selected] += 1;
+                sum += 1;
+            }
+        }
+        partitions
+    }
+
+    /// Returns a Vec that contains up to 2 species, which are the two species with the maximum
+    /// champion fitness.
+    fn get_two_best_species(&self) -> Vec<Specie<G>> {
         if self.species.len() < 2 {
             return self.species.clone();
         }
-
+        let mut result = vec![];
         for specie in &self.species {
-            if result.len() < 1 {
+            if result.len() == 0 {
                 result.push(specie.clone())
-            } else if result.len() < 2 {
+            } else if result.len() == 1 {
                 if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
                     result.insert(0, specie.clone());
                 } else {
@@ -192,7 +230,7 @@ impl<G: Genome> Population<G> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{nn::ConnectionGene, Organism, Specie, nn::NeuralNetwork, Population, Environment};
+    use crate::{Organism, Specie, NeuralNetwork, Population, Environment};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
@@ -219,7 +257,7 @@ mod tests {
     fn after_population_evolve_population_should_be_the_same() {
         struct X;
         impl Environment<NeuralNetwork> for X {
-            fn test(&self, organism: &mut NeuralNetwork) -> f64 { 0.0 }
+            fn test(&self, _organism: &mut NeuralNetwork) -> f64 { 0.0 }
         }
 
         let mut population = Population::create_population(150);

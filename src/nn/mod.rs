@@ -37,6 +37,9 @@ const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001;
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.9;
 const MUTATE_BIAS: f64 = 0.01;
 
+/// Probability of including a disjoint/excess gene from the weakest parent during mating
+const INCLUDE_WEAK_DISJOINT_GENE: f64 = 0.1;
+
 impl Genome for NeuralNetwork {
     // http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
     // Doesn't distinguish between disjoint and excess genes.
@@ -104,7 +107,7 @@ impl Genome for NeuralNetwork {
         new
     }
 
-    /// Mate two genes
+    /// Mate two genes. `fittest` is true if `self` is the fittest one
     fn mate(&self, other: &NeuralNetwork, fittest: bool) -> NeuralNetwork {
         let mut genome = NeuralNetwork::default();
         genome.neurons = 
@@ -271,13 +274,13 @@ impl NeuralNetwork {
     }
 
 
-    fn mate_neurons(&self, other: &NeuralNetwork, _fittest: bool) -> Vec<NeuronGene> {
+    /// `fittest` is true if `self` is the fittest one
+    fn mate_neurons(&self, other: &NeuralNetwork, fittest: bool) -> Vec<NeuronGene> {
         // Guarantee: self.neurons.len() is greater than other.neurons.len()
-        // TODO: change `0.5` according to which organism is the fittest
         let mut genes = Vec::new();
         for i in 0..self.neurons.len() {
             genes.push({
-                if rand::random::<f64>() > 0.5 {
+                if fittest {
                     self.neurons[i]
                 } else {
                     if let Some(gene) = other.neurons.get(i) {
@@ -290,25 +293,46 @@ impl NeuralNetwork {
         }
         genes
     }
+    /// `fittest` is true if `self` is the fittest oneo
+    /// This logic is inspired from the implementation of SharpNEAT:
+    /// - matching genes always at random (0.5)
+    /// - disjoint genes are inherited for sure from the fittest organism,
+    /// - disjoint genes are inherited from the not fittest organism with probability `INCLUDE_WEAK_DISJOINT_GENE`
     fn mate_connections(&self, other: &NeuralNetwork, fittest: bool) -> Vec<ConnectionGene> {
-        // Guarantee: self.connections.len() is greater than other.connections.len()
+
         let mut genes = Vec::new();
+
+        // Add all shared genes, as well as the genes unique to `self`
         for gene in &self.connections {
-            genes.push({
-                if !fittest || rand::random::<f64>() > 0.5 {
-                    *gene
-                } else {
-                    match other.connections.binary_search(gene) {
-                        Ok(position) => other.connections[position],
-                        Err(_) => *gene,
+            match other.connections.binary_search(gene) {
+                Ok(pos) => {
+                    // *Shared* genes are copied from a random parent
+                    if rand::random::<f64>() < 0.5 {
+                        genes.push(*gene);
+                    } else {
+                        genes.push(other.connections[pos])
                     }
                 }
-            });
+                Err(_) => {
+                    // *Disjoint/excess* gene in `self`
+                    if fittest || (!fittest && rand::random::<f64>() < INCLUDE_WEAK_DISJOINT_GENE) {
+                        genes.push(*gene);
+                    }
+                }
+            }
+        }
+
+        // Add genes unique to `other`
+        for gene in &other.connections {
+            if let Err(_) = self.connections.binary_search(gene) {
+                if fittest || (!fittest && rand::random::<f64>() < INCLUDE_WEAK_DISJOINT_GENE) {
+                    genes.push(*gene);
+                }
+            }
         }
         genes.sort();
         genes
     }
-
 
     /// Add a new connection. Panics if in_neuron or out_neuron are invalid neuron IDs.
     pub fn add_connection(&mut self, in_neuron: usize, out_neuron: usize, weight: f64) {
