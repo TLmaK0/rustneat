@@ -46,7 +46,7 @@ impl<G: Genome> Organism<G> {
     pub fn mate(&self, other: &Self) -> Organism<G> {
         Organism::new(
             self.genome
-                .mate(&other.genome, self.fitness < other.fitness))
+                .mate(&other.genome, self.fitness > other.fitness))
     }
     /// 
     pub fn distance(&self, other: &Self) -> f64 {

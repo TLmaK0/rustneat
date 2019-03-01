@@ -32,6 +32,11 @@ impl<'a> Ctrnn<'a> {
     }
 
     fn sigmoid(y: f64) -> f64 {
+        // if y > 0.0 {
+            // 1.0
+        // } else {
+            // 0.0
+        // }
         1.0 / (1.0 + (-y).exp())
     }
 
@@ -47,7 +52,7 @@ impl<'a> Ctrnn<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::*;
     macro_rules! assert_delta_vector {
         ($x:expr, $y:expr, $d:expr) => {
             for pos in 0..$x.len() {

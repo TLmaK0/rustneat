@@ -34,11 +34,13 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let mut population = Population::create_population(150);
+    let start_genome = NeuralNetwork::with_neurons(3);
+    let mut population = Population::create_population_from(start_genome, 150);
     let mut environment = XORClassification;
     let mut champion: Option<Organism> = None;
     let mut i = 0;
     while champion.is_none() {
+        assert_eq!(population.size(), 150);
         i += 1;
         population.evolve(&mut environment);
         let mut best_fitness = 0.0;
@@ -48,16 +50,18 @@ fn main() {
                 best_fitness = organism.fitness;
                 best_organism = Some(organism.clone());
             }
-            if organism.fitness > 15.5 {
+            if organism.fitness > 15.9 {
                 champion = Some(organism.clone());
             }
         }
-        if i % 50 == 0 {
+        if i % 1 == 0 {
             let best_organism = best_organism.unwrap().genome;
-            println!("Gen {}: {}", i, best_fitness);
-            // println!(" - Genome: {:?}", best_organism);
+            println!("= Gen {}: {} =", i, best_fitness);
             println!(" - {} neurons, {} connections", best_organism.n_neurons(), best_organism.n_connections());
-
+            let specie_stats = population.species.iter()
+                .map(|s| (s.organisms.len(), s.calculate_champion_fitness()))
+                .collect::<Vec<_>>();
+            println!(" - {} species: {:?}", population.species.len(), specie_stats);
             { // print the test
                 let mut organism = best_organism.clone();
                 let mut output = vec![0f64];
@@ -74,13 +78,8 @@ fn main() {
                 organism.activate(vec![1f64, 1f64], &mut output);
                 distance += (0f64 - output[0]).powi(2);
                 println!(" - [1, 1]: {}", output[0]);
-            }
-
-            // Print weights, biases ETC
-            println!("Weights:");
-            print_table(&best_organism.get_weights());
-            println!("Biases: {:?}", best_organism.get_bias());
-            println!("Enabled: {:?}", best_organism.get_enabled());
+}
+            println!("");
         }
     }
     println!("{:?}", champion.unwrap().genome);

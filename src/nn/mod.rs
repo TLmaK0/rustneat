@@ -30,12 +30,15 @@ impl Default for NeuralNetwork {
     }
 }
 
-const MUTATE_CONNECTION_WEIGHT: f64 = 0.90;
+const MUTATE_CONNECTION_WEIGHT: f64 = 0.9;
 const MUTATE_ADD_CONNECTION: f64 = 0.005;
 const MUTATE_ADD_NEURON: f64 = 0.004;
 const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001;
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.9;
-const MUTATE_BIAS: f64 = 0.01;
+const MUTATE_BIAS: f64 = 0.001;
+
+/// Probability of including a disjoint/excess gene from the weakest parent during mating
+const INCLUDE_WEAK_DISJOINT_GENE: f64 = 0.2;
 
 impl Genome for NeuralNetwork {
     // http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
@@ -44,7 +47,7 @@ impl Genome for NeuralNetwork {
     fn distance(&self, other: &NeuralNetwork) -> f64 {
         // TODO: optimize this method
         let c2 = 1.0;
-        let c3 = 0.4;
+        let c3 = 0.0;
 
         // Number of excess
         let n1 = self.connections.len();
@@ -104,7 +107,7 @@ impl Genome for NeuralNetwork {
         new
     }
 
-    /// Mate two genes
+    /// Mate two genes. `fittest` is true if `self` is the fittest one
     fn mate(&self, other: &NeuralNetwork, fittest: bool) -> NeuralNetwork {
         let mut genome = NeuralNetwork::default();
         genome.neurons = 
@@ -140,7 +143,7 @@ impl NeuralNetwork {
 
     /// Activate the neural network by sending input `inputs` into its first `inputs.len()`
     /// neurons
-    pub fn activate(&mut self, mut inputs: Vec<f64>, outputs: &mut Vec<f64>) {
+    pub fn activate(&self, mut inputs: Vec<f64>, outputs: &mut Vec<f64>) {
         let n_neurons = self.n_neurons();
         let n_inputs = inputs.len();
 
@@ -216,16 +219,27 @@ impl NeuralNetwork {
     }
 
     fn mutate_connection_weight(&mut self) {
-        // TODO mutate all or just one?
-        for gene in &mut self.connections {
+        // NOTE: the SharpNeat implementation seems to mutate 1 to 3 connections.
+        // However, this didn't seem to be any good. Anyway, the code to pick N random connections
+        // is still here.
+        use rand::seq::index::sample;
+        let mut rng = rand::thread_rng();
+
+        // Random :
+        // let n_connections_to_mutate =
+            // std::cmp::min(self.connections.len(), rand::random::<usize>() % 3);
+        // let selected =
+            // sample(&mut rng, self.connections.len(), n_connections_to_mutate).iter();
+        let selected = 0..self.connections.len();
+        selected.for_each(|i| {
             let perturbation = rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY;
 
             let mut new_weight = ConnectionGene::generate_weight();
             if perturbation {
-                new_weight += gene.weight;
+                new_weight += self.connections[i].weight;
             }
-            gene.weight = new_weight;
-        }
+            self.connections[i].weight = new_weight;
+        });
     }
 
     /// Toggles the expression of a random connection
@@ -271,13 +285,13 @@ impl NeuralNetwork {
     }
 
 
-    fn mate_neurons(&self, other: &NeuralNetwork, _fittest: bool) -> Vec<NeuronGene> {
+    /// `fittest` is true if `self` is the fittest one
+    fn mate_neurons(&self, other: &NeuralNetwork, fittest: bool) -> Vec<NeuronGene> {
         // Guarantee: self.neurons.len() is greater than other.neurons.len()
-        // TODO: change `0.5` according to which organism is the fittest
         let mut genes = Vec::new();
         for i in 0..self.neurons.len() {
             genes.push({
-                if rand::random::<f64>() > 0.5 {
+                if fittest {
                     self.neurons[i]
                 } else {
                     if let Some(gene) = other.neurons.get(i) {
@@ -290,25 +304,46 @@ impl NeuralNetwork {
         }
         genes
     }
+    /// `fittest` is true if `self` is the fittest oneo
+    /// This logic is inspired from the implementation of SharpNEAT:
+    /// - matching genes always at random (0.5)
+    /// - disjoint genes are inherited for sure from the fittest organism,
+    /// - disjoint genes are inherited from the not fittest organism with probability `INCLUDE_WEAK_DISJOINT_GENE`
     fn mate_connections(&self, other: &NeuralNetwork, fittest: bool) -> Vec<ConnectionGene> {
-        // Guarantee: self.connections.len() is greater than other.connections.len()
+
         let mut genes = Vec::new();
+
+        // Add all shared genes, as well as the genes unique to `self`
         for gene in &self.connections {
-            genes.push({
-                if !fittest || rand::random::<f64>() > 0.5 {
-                    *gene
-                } else {
-                    match other.connections.binary_search(gene) {
-                        Ok(position) => other.connections[position],
-                        Err(_) => *gene,
+            match other.connections.binary_search(gene) {
+                Ok(pos) => {
+                    // *Shared* genes are copied from a random parent
+                    if rand::random::<f64>() < 0.5 {
+                        genes.push(*gene);
+                    } else {
+                        genes.push(other.connections[pos])
                     }
                 }
-            });
+                Err(_) => {
+                    // *Disjoint/excess* gene in `self`
+                    if fittest || (!fittest && rand::random::<f64>() < INCLUDE_WEAK_DISJOINT_GENE) {
+                        genes.push(*gene);
+                    }
+                }
+            }
+        }
+
+        // Add genes unique to `other`
+        for gene in &other.connections {
+            if let Err(_) = self.connections.binary_search(gene) {
+                if fittest || (!fittest && rand::random::<f64>() < INCLUDE_WEAK_DISJOINT_GENE) {
+                    genes.push(*gene);
+                }
+            }
         }
         genes.sort();
         genes
     }
-
 
     /// Add a new connection. Panics if in_neuron or out_neuron are invalid neuron IDs.
     pub fn add_connection(&mut self, in_neuron: usize, out_neuron: usize, weight: f64) {
@@ -552,6 +587,31 @@ mod tests {
         let sensors = vec![0.0, 0.0, 0.0];
         let mut output = vec![0.0, 0.0, 0.0];
         organism.activate(sensors, &mut output);
+    }
+
+    #[test]
+    fn xor_solution() {
+        let mut nn = NeuralNetwork::with_neurons(3);
+        nn.add_connection(0, 1, -7.782108477795758);
+        nn.add_connection(0, 2, 1.3884584755783556);
+        nn.add_connection(1, 0, -5.530080797669007);
+        nn.add_connection(1, 2, 1.1255631958464876);
+        nn.add_connection(2, 1, 0.8066131214269232);
+
+        let mut output = vec![0.0];
+        nn.activate(vec![0.0, 0.0], &mut output);
+        println!("(0.0, 0.0) -> {}", output[0]);
+        assert!(output[0] < 0.15);
+        nn.activate(vec![0.0, 1.0], &mut output);
+        println!("(0.0, 1.0) -> {}", output[0]);
+        assert!(output[0] > 0.85);
+        nn.activate(vec![1.0, 0.0], &mut output);
+        println!("(1.0, 0.0) -> {}", output[0]);
+        assert!(output[0] > 0.85);
+        nn.activate(vec![1.0, 1.0], &mut output);
+        println!("(1.0, 1.0) -> {}", output[0]);
+        assert!(output[0] < 0.15);
+
     }
 }
 
