@@ -44,8 +44,7 @@ impl<G: Genome> Specie<G> {
         })
     }
     /// Get the average shared fitness of the organisms in the species.
-    /// This is the same as the average of the real fitness of the members,
-    /// divided by the number of members.
+    // (TODO is not really 'shared' it's just average)
     pub fn average_shared_fitness(&self) -> f64 {
         let n_organisms = self.organisms.len().value_as::<f64>().unwrap();
         if n_organisms == 0.0 {
@@ -58,8 +57,8 @@ impl<G: Genome> Specie<G> {
     }
 
     /// Generate the next generation of genomes, which will replace the old within this species.
-    pub fn generate_offspring(&mut self, n_organisms: usize, population_organisms: &[Organism<G>]) {
-        if n_organisms == 0 {
+    pub fn generate_offspring(&mut self, n_offspring: usize, population_offspring: &[Organism<G>]) {
+        if n_offspring == 0 {
             self.organisms = Vec::new();
             return;
         }
@@ -69,24 +68,35 @@ impl<G: Genome> Specie<G> {
 
         // Organisms are split into 3 parts: Those that are culled, those that are guaranteed
         // offspring through elitism, and the rest which are amenable to random selection.
-        let n_elite = std::cmp::min(n_organisms, (self.organisms.len() as f64 * ELITE_FRACTION) as usize);
-        let n_elite = std::cmp::max(1, n_elite);
+        // NOTE: For now, we always have n_elite = 2 or 0.
+
+        // let n_elite = std::cmp::min(n_offspring, (self.organisms.len() as f64 * ELITE_FRACTION) as usize);
+        // let n_elite = std::cmp::max(1, n_elite);
+        let n_elite = if self.organisms.len() > 5 {
+            std::cmp::min(2, n_offspring)
+        } else {
+            0
+        };
         let first_elite = self.organisms.len() - n_elite;
 
-        let n_random = n_organisms - n_elite;
+        let n_random = n_offspring - n_elite;
 
         let n_to_cull = std::cmp::min(first_elite,
                                       (self.organisms.len() as f64 * CULL_FRACTION) as usize);
 
 
-        // println!("n_offspring={}, n_organisms={}, n_elite={}, first_elite={}, n_random={}, n_to_cull={}",
-                 // n_organisms, self.organisms.len(), n_elite, first_elite, n_random, n_to_cull);
+        // println!("n_offspring={}, n_offspring={}, n_elite={}, first_elite={}, n_random={}, n_to_cull={}",
+                 // n_offspring, self.organisms.len(), n_elite, first_elite, n_random, n_to_cull);
         let range = Uniform::from(n_to_cull..self.organisms.len());
         let offspring: Vec<Organism<G>> =
             Iterator::chain(
-                range.sample_iter(&mut rng).take(n_random),     // take n_random random organisms
-                first_elite..self.organisms.len())              // and all elite organisms
-            .map(|i| self.create_child(&self.organisms[i], population_organisms))
+                // mate n_random random organisms
+                range.sample_iter(&mut rng).take(n_random)
+                    .map(|i| self.create_child(&self.organisms[i], population_offspring)),
+                // copy elite organisms
+                (first_elite..self.organisms.len())
+                    .map(|i| self.organisms[i].clone())
+            )
             .collect();
 
         self.organisms = offspring;

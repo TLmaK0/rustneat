@@ -30,7 +30,7 @@ impl Default for NeuralNetwork {
     }
 }
 
-const MUTATE_CONNECTION_WEIGHT: f64 = 0.90;
+const MUTATE_CONNECTION_WEIGHT: f64 = 0.9;
 const MUTATE_ADD_CONNECTION: f64 = 0.005;
 const MUTATE_ADD_NEURON: f64 = 0.004;
 const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001;
@@ -47,7 +47,7 @@ impl Genome for NeuralNetwork {
     fn distance(&self, other: &NeuralNetwork) -> f64 {
         // TODO: optimize this method
         let c2 = 1.0;
-        let c3 = 0.4;
+        let c3 = 0.0;
 
         // Number of excess
         let n1 = self.connections.len();
@@ -143,11 +143,11 @@ impl NeuralNetwork {
 
     /// Activate the neural network by sending input `inputs` into its first `inputs.len()`
     /// neurons
-    pub fn activate(&mut self, mut inputs: Vec<f64>, outputs: &mut Vec<f64>) {
+    pub fn activate(&self, mut inputs: Vec<f64>, outputs: &mut Vec<f64>) {
         let n_neurons = self.n_neurons();
         let n_inputs = inputs.len();
 
-        let tau = vec![4.0; n_neurons];
+        let tau = vec![1.0; n_neurons];
         let theta = self.get_bias(); 
 
 
@@ -219,16 +219,27 @@ impl NeuralNetwork {
     }
 
     fn mutate_connection_weight(&mut self) {
-        // TODO mutate all or just one?
-        for gene in &mut self.connections {
+        // NOTE: the SharpNeat implementation seems to mutate 1 to 3 connections.
+        // However, this didn't seem to be any good. Anyway, the code to pick N random connections
+        // is still here.
+        use rand::seq::index::sample;
+        let mut rng = rand::thread_rng();
+
+        // Random :
+        // let n_connections_to_mutate =
+            // std::cmp::min(self.connections.len(), rand::random::<usize>() % 3);
+        // let selected =
+            // sample(&mut rng, self.connections.len(), n_connections_to_mutate).iter();
+        let selected = 0..self.connections.len();
+        selected.for_each(|i| {
             let perturbation = rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY;
 
             let mut new_weight = ConnectionGene::generate_weight();
             if perturbation {
-                new_weight += gene.weight;
+                new_weight += self.connections[i].weight;
             }
-            gene.weight = new_weight;
-        }
+            self.connections[i].weight = new_weight;
+        });
     }
 
     /// Toggles the expression of a random connection
@@ -576,6 +587,31 @@ mod tests {
         let sensors = vec![0.0, 0.0, 0.0];
         let mut output = vec![0.0, 0.0, 0.0];
         organism.activate(sensors, &mut output);
+    }
+
+    #[test]
+    fn xor_solution() {
+        let mut nn = NeuralNetwork::with_neurons(3);
+        nn.add_connection(0, 1, -7.782108477795758);
+        nn.add_connection(0, 2, 1.3884584755783556);
+        nn.add_connection(1, 0, -5.530080797669007);
+        nn.add_connection(1, 2, 1.1255631958464876);
+        nn.add_connection(2, 1, 0.8066131214269232);
+
+        let mut output = vec![0.0];
+        nn.activate(vec![0.0, 0.0], &mut output);
+        println!("(0.0, 0.0) -> {}", output[0]);
+        assert!(output[0] < 0.15);
+        nn.activate(vec![0.0, 1.0], &mut output);
+        println!("(0.0, 1.0) -> {}", output[0]);
+        assert!(output[0] > 0.85);
+        nn.activate(vec![1.0, 0.0], &mut output);
+        println!("(1.0, 0.0) -> {}", output[0]);
+        assert!(output[0] > 0.85);
+        nn.activate(vec![1.0, 1.0], &mut output);
+        println!("(1.0, 1.0) -> {}", output[0]);
+        assert!(output[0] < 0.15);
+
     }
 }
 

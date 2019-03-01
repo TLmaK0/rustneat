@@ -50,7 +50,7 @@ fn main() {
                 best_fitness = organism.fitness;
                 best_organism = Some(organism.clone());
             }
-            if organism.fitness > 15.5 {
+            if organism.fitness > 15.9 {
                 champion = Some(organism.clone());
             }
         }
@@ -62,6 +62,23 @@ fn main() {
                 .map(|s| (s.organisms.len(), s.calculate_champion_fitness()))
                 .collect::<Vec<_>>();
             println!(" - {} species: {:?}", population.species.len(), specie_stats);
+            { // print the test
+                let mut organism = best_organism.clone();
+                let mut output = vec![0f64];
+                let mut distance: f64;
+                organism.activate(vec![0f64, 0f64], &mut output);
+                distance = (0f64 - output[0]).powi(2);
+                println!(" - [0, 0]: {}", output[0]);
+                organism.activate(vec![0f64, 1f64], &mut output);
+                distance += (1f64 - output[0]).powi(2);
+                println!(" - [0, 1]: {}", output[0]);
+                organism.activate(vec![1f64, 0f64], &mut output);
+                distance += (1f64 - output[0]).powi(2);
+                println!(" - [1, 0]: {}", output[0]);
+                organism.activate(vec![1f64, 1f64], &mut output);
+                distance += (0f64 - output[0]).powi(2);
+                println!(" - [1, 1]: {}", output[0]);
+}
             println!("");
         }
     }
