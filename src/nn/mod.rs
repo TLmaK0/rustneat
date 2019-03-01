@@ -35,10 +35,10 @@ const MUTATE_ADD_CONNECTION: f64 = 0.005;
 const MUTATE_ADD_NEURON: f64 = 0.004;
 const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001;
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.9;
-const MUTATE_BIAS: f64 = 0.01;
+const MUTATE_BIAS: f64 = 0.001;
 
 /// Probability of including a disjoint/excess gene from the weakest parent during mating
-const INCLUDE_WEAK_DISJOINT_GENE: f64 = 0.1;
+const INCLUDE_WEAK_DISJOINT_GENE: f64 = 0.2;
 
 impl Genome for NeuralNetwork {
     // http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
@@ -147,7 +147,7 @@ impl NeuralNetwork {
         let n_neurons = self.n_neurons();
         let n_inputs = inputs.len();
 
-        let tau = vec![1.0; n_neurons];
+        let tau = vec![4.0; n_neurons];
         let theta = self.get_bias(); 
 
 

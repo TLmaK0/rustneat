@@ -106,11 +106,9 @@ impl<G: Genome> Population<G> {
 
             let n_offspring: Vec<_> = 
                 if sum_of_species_fitness == 0.0 {
-                    print!("A");
                     self.species.iter()
                         .map(|species| species.organisms.len()).collect()
                 } else {
-                    print!("B -- {}", self.species.len());
                     Self::partition(
                         organisms.len(),
                         &species_fitness.iter()
@@ -118,7 +116,6 @@ impl<G: Genome> Population<G> {
                                  fitness / sum_of_species_fitness
                             ).collect::<Vec<_>>())
                 };
-            println!("(n_offsprings ={:?})", n_offspring);
 
             for (species, n_offspring) in self.species.iter_mut().zip(n_offspring) {
                 species.generate_offspring(n_offspring, &organisms);
