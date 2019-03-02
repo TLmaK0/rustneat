@@ -1,6 +1,6 @@
+use crate::{Genome, Organism, Params};
 use conv::prelude::*;
 use rand::{self, distributions::{Distribution, Uniform}};
-use crate::{Genome, Organism};
 
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
@@ -12,12 +12,6 @@ pub struct Specie<G> {
     pub organisms: Vec<Organism<G>>,
 }
 
-const MUTATION_PROBABILITY: f64 = 0.25;
-const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001;
-/// The fraction of organisms in a species to cull (the worst ones)
-const CULL_FRACTION: f64 = 0.1;
-/// The fraction of organisms in a species that are definitely mated (the best ones)
-const ELITE_FRACTION: f64 = 0.2;
 
 impl<G: Genome> Specie<G> {
     /// Create a new species from a representative Organism. Adds this organism as the only member.
@@ -30,8 +24,8 @@ impl<G: Genome> Specie<G> {
         }
     }
     /// Check if another organism is of the same species as this one.
-    pub fn match_genome(&self, organism: &G) -> bool {
-        self.representative.genome.is_same_specie(&organism)
+    pub fn match_genome(&self, organism: &G, p: &Params) -> bool {
+        self.representative.genome.is_same_specie(&organism, p)
     }
     /// Get the most performant organism
     pub fn calculate_champion_fitness(&self) -> f64 {
@@ -57,7 +51,9 @@ impl<G: Genome> Specie<G> {
     }
 
     /// Generate the next generation of genomes, which will replace the old within this species.
-    pub fn generate_offspring(&mut self, n_offspring: usize, population_offspring: &[Organism<G>]) {
+    pub fn generate_offspring(&mut self, n_offspring: usize,
+                                         population_offspring: &[Organism<G>],
+                                         p: &Params) {
         if n_offspring == 0 {
             self.organisms = Vec::new();
             return;
@@ -82,7 +78,7 @@ impl<G: Genome> Specie<G> {
         let n_random = n_offspring - n_elite;
 
         let n_to_cull = std::cmp::min(first_elite,
-                                      (self.organisms.len() as f64 * CULL_FRACTION) as usize);
+                                      (self.organisms.len() as f64 * p.cull_fraction) as usize);
 
 
         // println!("n_offspring={}, n_offspring={}, n_elite={}, first_elite={}, n_random={}, n_to_cull={}",
@@ -92,7 +88,7 @@ impl<G: Genome> Specie<G> {
             Iterator::chain(
                 // mate n_random random organisms
                 range.sample_iter(&mut rng).take(n_random)
-                    .map(|i| self.create_child(&self.organisms[i], population_offspring)),
+                    .map(|i| self.create_child(&self.organisms[i], population_offspring, p)),
                 // copy elite organisms
                 (first_elite..self.organisms.len())
                     .map(|i| self.organisms[i].clone())
@@ -112,26 +108,26 @@ impl<G: Genome> Specie<G> {
     }
 
     /// Create a new child by mutating and existing one or mating two genomes.
-    fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>]) -> Organism<G> {
-        if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() < 2 {
-            self.create_child_by_mutation(organism)
+    fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &Params) -> Organism<G> {
+        if rand::random::<f64>() < p.mutation_pr || population_organisms.len() < 2 {
+            self.create_child_by_mutation(organism, p)
         } else {
-            self.create_child_by_mate(organism, population_organisms)
+            self.create_child_by_mate(organism, population_organisms, p)
         }
     }
 
-    fn create_child_by_mutation(&self, organism: &Organism<G>) -> Organism<G> {
-        organism.mutate()
+    fn create_child_by_mutation(&self, organism: &Organism<G>, p: &Params) -> Organism<G> {
+        organism.mutate(p)
     }
 
-    fn create_child_by_mate(&self, organism: &Organism<G>, population_organisms: &[Organism<G>]) -> Organism<G> {
+    fn create_child_by_mate(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &Params) -> Organism<G> {
         let mut rng = rand::thread_rng();
-        if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
+        if rand::random::<f64>() > p.interspecie_mate_pr {
             let selected_mate = Uniform::from(0..self.organisms.len()).sample(&mut rng);
-            organism.mate(&self.organisms[selected_mate])
+            organism.mate(&self.organisms[selected_mate], p)
         } else {
             let selected_mate = Uniform::from(0..population_organisms.len()).sample(&mut rng);
-            organism.mate(&population_organisms[selected_mate])
+            organism.mate(&population_organisms[selected_mate], p)
         }
     }
 }

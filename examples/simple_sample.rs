@@ -1,7 +1,7 @@
 extern crate rand;
 extern crate rustneat;
 
-use rustneat::{Environment, Organism, Population, NeuralNetwork};
+use rustneat::{Environment, Organism, Population, NeuralNetwork, Params};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
@@ -34,6 +34,8 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
+    let p = Params::default();
+
     let start_genome = NeuralNetwork::with_neurons(3);
     let mut population = Population::create_population_from(start_genome, 150);
     let mut environment = XORClassification;
@@ -42,7 +44,7 @@ fn main() {
     while champion.is_none() {
         assert_eq!(population.size(), 150);
         i += 1;
-        population.evolve(&mut environment);
+        population.evolve(&mut environment, &p);
         let mut best_fitness = 0.0;
         let mut best_organism = None;
         for organism in &population.get_organisms() {
@@ -78,7 +80,7 @@ fn main() {
                 organism.activate(vec![1f64, 1f64], &mut output);
                 distance += (0f64 - output[0]).powi(2);
                 println!(" - [1, 1]: {}", output[0]);
-}
+            }
             println!("");
         }
     }

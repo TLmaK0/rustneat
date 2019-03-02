@@ -1,6 +1,6 @@
+use crate::{Genome, Params};
 use rand::{self, distributions::{Distribution, Uniform}};
 use std::cmp;
-use crate::Genome;
 
 mod ctrnn;
 mod gene;
@@ -30,24 +30,15 @@ impl Default for NeuralNetwork {
     }
 }
 
-const MUTATE_CONNECTION_WEIGHT: f64 = 0.9;
-const MUTATE_ADD_CONNECTION: f64 = 0.005;
-const MUTATE_ADD_NEURON: f64 = 0.004;
-const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001;
-const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.9;
-const MUTATE_BIAS: f64 = 0.001;
-
-/// Probability of including a disjoint/excess gene from the weakest parent during mating
-const INCLUDE_WEAK_DISJOINT_GENE: f64 = 0.2;
 
 impl Genome for NeuralNetwork {
     // http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
     // Doesn't distinguish between disjoint and excess genes.
     // Only cares about connection genes (topology).
-    fn distance(&self, other: &NeuralNetwork) -> f64 {
+    fn distance(&self, other: &NeuralNetwork, p: &Params) -> f64 {
         // TODO: optimize this method
-        let c2 = 1.0;
-        let c3 = 0.0;
+        let c2 = p.c2;
+        let c3 = p.c3;
 
         // Number of excess
         let n1 = self.connections.len();
@@ -83,32 +74,32 @@ impl Genome for NeuralNetwork {
     }
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
-    fn mutate(&self) -> Self {
+    fn mutate(&self, p: &Params) -> Self {
         let mut new = self.clone();
-        if rand::random::<f64>() < MUTATE_ADD_CONNECTION || new.connections.is_empty() {
+        if rand::random::<f64>() < p.mutate_add_conn_pr || new.connections.is_empty() {
             new.mutate_add_connection();
         };
 
-        if rand::random::<f64>() < MUTATE_ADD_NEURON {
+        if rand::random::<f64>() < p.mutate_add_neuron_pr {
             new.mutate_add_neuron();
         };
 
-        if rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT {
-            new.mutate_connection_weight();
+        if rand::random::<f64>() < p.mutate_conn_weight_pr {
+            new.mutate_connection_weight(p);
         };
 
-        if rand::random::<f64>() < MUTATE_TOGGLE_EXPRESSION {
+        if rand::random::<f64>() < p.mutate_toggle_expr_pr {
             new.mutate_toggle_expression();
         };
 
-        if rand::random::<f64>() < MUTATE_BIAS {
-            new.mutate_bias();
+        if rand::random::<f64>() < p.mutate_bias_pr {
+            new.mutate_bias(p);
         };
         new
     }
 
     /// Mate two genes. `fittest` is true if `self` is the fittest one
-    fn mate(&self, other: &NeuralNetwork, fittest: bool) -> NeuralNetwork {
+    fn mate(&self, other: &NeuralNetwork, fittest: bool, p: &Params) -> NeuralNetwork {
         let mut genome = NeuralNetwork::default();
         genome.neurons = 
             if self.neurons.len() > other.neurons.len() {
@@ -118,9 +109,9 @@ impl Genome for NeuralNetwork {
             };
         genome.connections = 
             if self.connections.len() > other.connections.len() {
-                self.mate_connections(other, fittest)
+                self.mate_connections(other, fittest, p)
             } else {
-                other.mate_connections(self, !fittest)
+                other.mate_connections(self, !fittest, p)
             };
         genome
     }
@@ -218,21 +209,21 @@ impl NeuralNetwork {
         self.add_connection(in_neuron_id, out_neuron_id, ConnectionGene::generate_weight());
     }
 
-    fn mutate_connection_weight(&mut self) {
+    fn mutate_connection_weight(&mut self, p: &Params) {
         // NOTE: the SharpNeat implementation seems to mutate 1 to 3 connections.
         // However, this didn't seem to be any good. Anyway, the code to pick N random connections
         // is still here.
-        use rand::seq::index::sample;
         let mut rng = rand::thread_rng();
 
         // Random :
+        // use rand::seq::index::sample;
         // let n_connections_to_mutate =
             // std::cmp::min(self.connections.len(), rand::random::<usize>() % 3);
         // let selected =
             // sample(&mut rng, self.connections.len(), n_connections_to_mutate).iter();
         let selected = 0..self.connections.len();
         selected.for_each(|i| {
-            let perturbation = rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY;
+            let perturbation = rand::random::<f64>() < p.mutate_conn_weight_perturbed_pr;
 
             let mut new_weight = ConnectionGene::generate_weight();
             if perturbation {
@@ -253,12 +244,12 @@ impl NeuralNetwork {
     }
 
     /// Sets the bias of a random neuron to a sample from the normal distribution
-    fn mutate_bias(&mut self) {
+    fn mutate_bias(&mut self, p: &Params) {
         let mut rng = rand::thread_rng();
 
         let gene = Uniform::from(0..self.neurons.len()).sample(&mut rng);
 
-        let perturbation = rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY;
+        let perturbation = rand::random::<f64>() < p.mutate_conn_weight_perturbed_pr;
         let mut new_bias = NeuronGene::generate_bias();
         if perturbation {
             new_bias += self.neurons[gene].bias;
@@ -309,8 +300,7 @@ impl NeuralNetwork {
     /// - matching genes always at random (0.5)
     /// - disjoint genes are inherited for sure from the fittest organism,
     /// - disjoint genes are inherited from the not fittest organism with probability `INCLUDE_WEAK_DISJOINT_GENE`
-    fn mate_connections(&self, other: &NeuralNetwork, fittest: bool) -> Vec<ConnectionGene> {
-
+    fn mate_connections(&self, other: &NeuralNetwork, fittest: bool, p: &Params) -> Vec<ConnectionGene> {
         let mut genes = Vec::new();
 
         // Add all shared genes, as well as the genes unique to `self`
@@ -326,7 +316,7 @@ impl NeuralNetwork {
                 }
                 Err(_) => {
                     // *Disjoint/excess* gene in `self`
-                    if fittest || (!fittest && rand::random::<f64>() < INCLUDE_WEAK_DISJOINT_GENE) {
+                    if fittest || (!fittest && rand::random::<f64>() < p.include_weak_disjoint_gene) {
                         genes.push(*gene);
                     }
                 }
@@ -336,7 +326,7 @@ impl NeuralNetwork {
         // Add genes unique to `other`
         for gene in &other.connections {
             if let Err(_) = self.connections.binary_search(gene) {
-                if fittest || (!fittest && rand::random::<f64>() < INCLUDE_WEAK_DISJOINT_GENE) {
+                if fittest || (!fittest && rand::random::<f64>() < p.include_weak_disjoint_gene) {
                     genes.push(*gene);
                 }
             }
