@@ -28,6 +28,7 @@ pub use self::environment::Environment;
 pub use self::population::Population;
 pub use self::specie::Specie;
 pub use self::nn::{NeuralNetwork, ConnectionGene, NeuronGene};
+pub use self::params::Params;
 
 /// Contains the definition of the genome of neural networks, which is the basic building block of
 /// an organism (and in many cases, the only building block).
@@ -39,3 +40,4 @@ mod genome;
 /// A collection of species with champion
 mod population;
 mod specie;
+mod params;
