@@ -41,7 +41,7 @@ name = "openai"
 required-features = ["cpython"]
 
 [[example]]
-name = "simple_sample"
+name = "simple"
 
 [[example]]
 name = "function_approximation"
