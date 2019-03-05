@@ -55,11 +55,15 @@ impl Default for Params {
     /// Sane default parameters
     fn default() -> Params {
         Params {
+            // population
             max_generations_without_improvement: 20,
+
+            // specie
             mutation_pr: 0.25,
             interspecie_mate_pr: 0.001,
             cull_fraction: 0.1,
 
+            // neural network
             c2: 1.0,
             c3: 0.0,
             mutate_conn_weight_pr: 0.9,
@@ -71,6 +75,7 @@ impl Default for Params {
             mutate_bias_pr: 0.001,
             include_weak_disjoint_gene: 0.2,
 
+            // other
             compatibility_threshold: 3.0,
         }
     }

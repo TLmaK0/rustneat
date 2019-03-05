@@ -63,6 +63,7 @@ fn main() {
 
     {
         println!("= BEST FITNESS LAST GENERATION =");
+        println!("- values: {:?}", scores);
         let mean = scores.iter().sum::<f64>() / scores.len() as f64;
         let var = scores.iter().map(|x| (x - mean).powf(2.0)).sum::<f64>() / scores.len() as f64;
         println!("- mean {}", mean);

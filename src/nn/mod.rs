@@ -74,28 +74,26 @@ impl Genome for NeuralNetwork {
     }
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
-    fn mutate(&self, p: &Params) -> Self {
-        let mut new = self.clone();
-        if rand::random::<f64>() < p.mutate_add_conn_pr || new.connections.is_empty() {
-            new.mutate_add_connection();
+    fn mutate(&mut self, p: &Params) {
+        if rand::random::<f64>() < p.mutate_add_conn_pr || self.connections.is_empty() {
+            self.mutate_add_connection();
         };
 
         if rand::random::<f64>() < p.mutate_add_neuron_pr {
-            new.mutate_add_neuron();
+            self.mutate_add_neuron();
         };
 
         if rand::random::<f64>() < p.mutate_conn_weight_pr {
-            new.mutate_connection_weight(p);
+            self.mutate_connection_weight(p);
         };
 
         if rand::random::<f64>() < p.mutate_toggle_expr_pr {
-            new.mutate_toggle_expression();
+            self.mutate_toggle_expression();
         };
 
         if rand::random::<f64>() < p.mutate_bias_pr {
-            new.mutate_bias(p);
+            self.mutate_bias(p);
         };
-        new
     }
 
     /// Mate two genes. `fittest` is true if `self` is the fittest one

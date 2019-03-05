@@ -4,7 +4,7 @@ use crate::{NeuralNetwork, Params};
 /// implementor can be called an "organism".
 pub trait Genome: Clone + Default + Send {
     /// Returns a new organism which is a clone of `&self` apart from possible mutations
-    fn mutate(&self, p: &Params) -> Self;
+    fn mutate(&mut self, p: &Params);
 
     /// `fittest` is true if `other` is more fit.
     fn mate(&self, other: &Self, fittest: bool, p: &Params) -> Self;
@@ -38,8 +38,8 @@ impl<G: Genome> Organism<G> {
         }
     }
     /// Returns a cloned `Organism` with a mutated genome
-    pub fn mutate(&self, p: &Params) -> Organism<G> {
-        Organism::new(self.genome.mutate(p))
+    pub fn mutate(&mut self, p: &Params) {
+        self.genome.mutate(p)
     }
     /// Mate with another organism -- this mates the two genomes.
     pub fn mate(&self, other: &Self, p: &Params) -> Organism<G> {

@@ -109,15 +109,12 @@ impl<G: Genome> Specie<G> {
 
     /// Create a new child by mutating and existing one or mating two genomes.
     fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &Params) -> Organism<G> {
-        if rand::random::<f64>() < p.mutation_pr || population_organisms.len() < 2 {
-            self.create_child_by_mutation(organism, p)
-        } else {
-            self.create_child_by_mate(organism, population_organisms, p)
-        }
-    }
+        let mut child = self.create_child_by_mate(organism, population_organisms, p);
 
-    fn create_child_by_mutation(&self, organism: &Organism<G>, p: &Params) -> Organism<G> {
-        organism.mutate(p)
+        if rand::random::<f64>() < p.mutation_pr {
+            child.mutate(p)
+        }
+        child
     }
 
     fn create_child_by_mate(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &Params) -> Organism<G> {
