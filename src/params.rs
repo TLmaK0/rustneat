@@ -5,9 +5,11 @@ use serde_derive::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Params {
     // In `Population`
-    /// Maximum nuumber of generations without improvement before proceed with only the two best
+    /// Maximum nuumber of generations without improvement before proceed with only the `n_to_prune` best
     /// species.
-    pub max_generations_without_improvement: usize,
+    pub prune_after_n_generations: usize,
+    /// Maximum amount of species that survive a 'pruning'
+    pub n_to_prune: usize,
 
     // In `Specie`
     /// The probability of just mutating (as opposed to mating), during selection
@@ -56,7 +58,9 @@ impl Default for Params {
     fn default() -> Params {
         Params {
             // population
-            max_generations_without_improvement: 20,
+            prune_after_n_generations: 20,
+            /// Maximum amount of species that survive a 'pruning'
+            n_to_prune: 3,
 
             // specie
             mutation_pr: 0.25,

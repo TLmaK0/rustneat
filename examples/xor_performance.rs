@@ -28,8 +28,8 @@ impl Environment for XORClassification {
 }
 
 fn main() {
-    const N_EXP: usize = 16;
-    const N_ITER: usize = 150;
+    const N_EXP: usize = 22;
+    const N_GEN: usize = 150;
     let p = Params::default();
 
     let mut scores = Vec::new();
@@ -40,21 +40,15 @@ fn main() {
         let start_genome = NeuralNetwork::with_neurons(3);
         let mut population = Population::create_population_from(start_genome, 150);
         let mut environment = XORClassification;
-        for i in 0..N_ITER {
+
+        for i in 0..N_GEN {
             population.evolve(&mut environment, &p);
 
-            let mut best_fitness = 0.0;
-            let mut best_organism = None;
-            for organism in &population.get_organisms() {
-                if organism.fitness > best_fitness {
-                    best_fitness = organism.fitness;
-                    best_organism = Some(organism.clone());
-                }
-            }
-            let best_organism = best_organism.unwrap();
+            let best_organism = population.get_champion();
 
-            if i == N_ITER-1 {
-                scores.push(best_fitness);
+
+            if i == N_GEN-1 {
+                scores.push(best_organism.fitness);
                 neurons.push(best_organism.genome.n_neurons());
                 connections.push(best_organism.genome.n_connections());
             }
@@ -69,6 +63,7 @@ fn main() {
         println!("- mean {}", mean);
         println!("- var {}", var);
     }
+
 
 
     {

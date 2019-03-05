@@ -6,8 +6,7 @@ use rand::{self, distributions::{Distribution, Uniform}};
 #[derive(Debug, Clone)]
 pub struct Specie<G> {
     representative: Organism<G>,
-    average_fitness: f64,
-    champion_fitness: f64,
+    champion_fitness: Option<f64>,
     /// All orgnamisms in this species
     pub organisms: Vec<Organism<G>>,
 }
@@ -19,27 +18,32 @@ impl<G: Genome> Specie<G> {
         Specie {
             organisms: vec![genome.clone()],
             representative: genome,
-            average_fitness: 0.0,
-            champion_fitness: 0.0,
+            champion_fitness: None,
         }
     }
     /// Check if another organism is of the same species as this one.
     pub fn match_genome(&self, organism: &G, p: &Params) -> bool {
         self.representative.genome.is_same_specie(&organism, p)
     }
-    /// Get the most performant organism
-    pub fn calculate_champion_fitness(&self) -> f64 {
-        self.organisms.iter().fold(0.0, |max, organism| {
-            if organism.fitness > max {
-                organism.fitness
-            } else {
-                max
-            }
-        })
+    /// Get the best fitness of this species. Stores the value internally, and uses it in
+    /// subsequent calls to the function
+    pub fn champion_fitness(&self) -> f64 {
+        match self.champion_fitness {
+            Some(fitness) => fitness,
+            None => panic!("Calling Specie::champion_fitness requires that you first call calculate_champion_fitness!"),
+        }
     }
-    /// Get the average shared fitness of the organisms in the species.
-    // (TODO is not really 'shared' it's just average)
-    pub fn average_shared_fitness(&self) -> f64 {
+    /// Calculate fitness of champion and store it internally, to be retrieved by `champion_fitness`
+    pub fn calculate_champion_fitness(&mut self) {
+        self.champion_fitness = Some(self.organisms.iter().fold(std::f64::NEG_INFINITY, |max, organism| {
+                    if organism.fitness > max {
+                        organism.fitness
+                    } else {
+                        max
+                    }}));
+    }
+    /// Get the average fitness of the organisms in the species.
+    pub fn average_fitness(&self) -> f64 {
         let n_organisms = self.organisms.len().value_as::<f64>().unwrap();
         if n_organisms == 0.0 {
             return 0.0;
@@ -47,10 +51,12 @@ impl<G: Genome> Specie<G> {
 
         let avg_fitness = self.organisms.iter().map(|o| o.fitness)
             .sum::<f64>() / n_organisms;
-        avg_fitness  // TODO: make actually shared???
+        avg_fitness
     }
 
     /// Generate the next generation of genomes, which will replace the old within this species.
+    /// `champion_fitness`: the fitness of the population-wide champion. The reason for this
+    /// parameter is that the species should see if it is the best-performing one.
     pub fn generate_offspring(&mut self, n_offspring: usize,
                                          population_offspring: &[Organism<G>],
                                          p: &Params) {
@@ -69,7 +75,7 @@ impl<G: Genome> Specie<G> {
         // let n_elite = std::cmp::min(n_offspring, (self.organisms.len() as f64 * ELITE_FRACTION) as usize);
         // let n_elite = std::cmp::max(1, n_elite);
         let n_elite = if self.organisms.len() > 5 {
-            std::cmp::min(2, n_offspring)
+            1
         } else {
             0
         };

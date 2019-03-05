@@ -52,11 +52,25 @@ impl<G: Genome> Population<G> {
             .fold(0, |total, specie| total + specie.organisms.len())
     }
     /// Collect all organisms of the population
-    pub fn get_organisms(&self) -> Vec<Organism<G>> {
+    pub fn get_organisms<'a>(&'a self) -> impl Iterator<Item = &'a Organism<G>> {
         self.species
             .iter()
-            .flat_map(|specie| specie.organisms.clone())
-            .collect::<Vec<_>>()
+            .flat_map(|specie| specie.organisms.iter())
+    }
+    /// Get the best-performing organism of the entire population.
+    /// Fitness is already calculated during the last call to `evolve()`
+    pub fn get_champion(&self) -> Organism<G> {
+        self.get_organisms().fold(None,
+            |state: Option<&Organism<G>>, organism|
+                Some(match state {
+                    None => organism,
+                    Some(state) => if organism.fitness > state.fitness {
+                        organism
+                    } else {
+                        state
+                    }
+                })
+        ).unwrap().clone()
     }
     /// How many generations have passed without improvement in peak fitness
     pub fn generations_without_improvements(&self) -> usize {
@@ -72,24 +86,24 @@ impl<G: Genome> Population<G> {
     /// Because of the last step, organisms will always have an up-to-date fitness value.
     pub fn evolve(&mut self, env: &mut Environment<G>, p: &Params) {
         // Collect all organisms
-        let organisms = self.get_organisms();
+        let organisms = self.get_organisms().cloned().collect::<Vec<_>>();
 
         // Divide into species
         self.species = Population::speciate(&organisms, p);
 
+        self.species.iter_mut().for_each(|specie| specie.calculate_champion_fitness());
+
         // Find champion, check if there is any improvement
-        self.update_champion(&organisms);
+        self.update_champion();
 
-        let sum_of_species_fitness: f64 = self.species.iter()
-            .map(|specie| specie.average_shared_fitness())
-            .sum();
-
-        if self.generations_without_improvements > p.max_generations_without_improvement {
+        if self.generations_without_improvements > p.prune_after_n_generations {
             // After a certain generations with no improvement, we prune all species except the two
             // best ones
-            let mut best_species = self.get_two_best_species();
-            let n_species = best_species.len();
-            for specie in &mut best_species {
+            println!("PRUNE");
+
+            self.prune_species();
+            let n_species = self.species.len();
+            for specie in &mut self.species {
                 specie.generate_offspring(organisms.len() / n_species, &organisms, p);
             }
             self.generations_without_improvements = 0;
@@ -99,8 +113,19 @@ impl<G: Genome> Population<G> {
 
             // Gather the average shared fitness, and the calculated number of offsprings, per species
             let species_fitness = self.species.iter()
-                .map(|species| species.average_shared_fitness())
+                .map(|species| species.average_fitness())
                 .collect::<Vec<_>>();
+
+            let sum_of_species_fitness: f64 = species_fitness.iter().sum();
+
+            let elite_species = (0..self.species.len()).fold((0.0, 0), |(best_f, best_i), i| {
+                if self.species[i].champion_fitness() > best_f {
+                    (self.species[i].champion_fitness(), i)
+                } else {
+                    (best_f, best_i)
+                }
+            });
+            let elite_species = elite_species.1;
 
             let n_offspring: Vec<_> = 
                 if sum_of_species_fitness == 0.0 {
@@ -110,9 +135,9 @@ impl<G: Genome> Population<G> {
                     Self::partition(
                         organisms.len(),
                         &species_fitness.iter()
-                            .map(|fitness|
-                                 fitness / sum_of_species_fitness
-                            ).collect::<Vec<_>>())
+                            .map(|fitness| fitness / sum_of_species_fitness)
+                            .collect::<Vec<_>>(),
+                        elite_species)
                 };
 
             for (species, n_offspring) in self.species.iter_mut().zip(n_offspring) {
@@ -134,7 +159,8 @@ impl<G: Genome> Population<G> {
 
     // Helper of `evolve`. Partition `total` into partitions with size given by `fractions`.
     // We need this logic to ensure that the total stays the same after partitioning.
-    fn partition(total: usize, fractions: &[f64]) -> Vec<usize> {
+    // `elite` is the index of a partition that will be ensured one spot
+    fn partition(total: usize, fractions: &[f64], elite: usize) -> Vec<usize> {
         let mut rng = rand::thread_rng();
         let mut partitions: Vec<usize> = fractions.iter().map(|x| ((total as f64 * x) as usize)).collect();
         let mut sum: usize = partitions.iter().sum();
@@ -151,34 +177,26 @@ impl<G: Genome> Population<G> {
                 sum += 1;
             }
         }
+        // Ensure that the elite gets a spot
+        while partitions[elite] == 0 {
+            let selected = range.sample(&mut rng);
+            if partitions[selected] > 0 {
+                partitions[elite] = 1;
+            }
+        }
         partitions
     }
 
-    /// Returns a Vec that contains up to 2 species, which are the two species with the maximum
-    /// champion fitness.
-    fn get_two_best_species(&self) -> Vec<Specie<G>> {
-        if self.species.len() < 2 {
-            return self.species.clone();
+    /// Leaves only the best 2 species
+    fn prune_species(&mut self) {
+        const N: usize = 2;
+        if self.species.len() < N {
+            return;
         }
-        let mut result = vec![];
-        for specie in &self.species {
-            if result.len() == 0 {
-                result.push(specie.clone())
-            } else if result.len() == 1 {
-                if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
-                    result.insert(0, specie.clone());
-                } else {
-                    result.push(specie.clone());
-                }
-            } else if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
-                result[1] = result[0].clone();
-                result[0] = specie.clone();
-            } else if result[1].calculate_champion_fitness() < specie.calculate_champion_fitness() {
-                result[1] = specie.clone();
-            }
-        }
-
-        result
+        self.species.sort_by(|a, b| {
+            b.champion_fitness().partial_cmp(&a.champion_fitness()).unwrap()
+        });
+        self.species.truncate(N);
     }
 
     /// Helper of `evolve`
@@ -197,15 +215,8 @@ impl<G: Genome> Population<G> {
         species
     }
     /// Helper of `evolve`. Find champion, and check if there is any improvement
-    fn update_champion(&mut self, organisms: &[Organism<G>]) {
-        let champion_fitness = organisms.iter().fold(0.0, |max, organism| {
-            if organism.fitness > max {
-                organism.fitness
-            } else {
-                max
-            }
-        });
-
+    fn update_champion(&mut self) {
+        let champion_fitness = self.get_champion().fitness;
         if self.champion_fitness >= champion_fitness {
             self.generations_without_improvements += 1;
         } else {
