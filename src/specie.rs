@@ -1,13 +1,20 @@
-use crate::{Genome, Organism, Params};
+use crate::{Genome, Organism, NeatParams};
 use conv::prelude::*;
 use rand::{self, distributions::{Distribution, Uniform}};
 
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
-pub struct Specie<G> {
-    representative: Organism<G>,
-    average_fitness: f64,
-    champion_fitness: f64,
+pub struct Specie<G: Genome> {
+    ///
+    pub id: usize,
+    /// A representative organism from the previous generation
+    pub representative: Organism<G>,
+    champion: Option<Organism<G>>,
+    /// Number of generations this species has existed
+    pub age: usize,
+    /// The age of the species at the last improvement
+    pub age_last_improvement: usize,
+    
     /// All orgnamisms in this species
     pub organisms: Vec<Organism<G>>,
 }
@@ -15,31 +22,56 @@ pub struct Specie<G> {
 
 impl<G: Genome> Specie<G> {
     /// Create a new species from a representative Organism. Adds this organism as the only member.
-    pub fn new(genome: Organism<G>) -> Specie<G> {
+    pub fn new(genome: Organism<G>, id: usize) -> Specie<G> {
         Specie {
+            id,
             organisms: vec![genome.clone()],
             representative: genome,
-            average_fitness: 0.0,
-            champion_fitness: 0.0,
+            champion: None,
+            age: 0,
+            age_last_improvement: 0,
         }
     }
     /// Check if another organism is of the same species as this one.
-    pub fn match_genome(&self, organism: &G, p: &Params) -> bool {
+    pub fn match_genome(&self, organism: &G, p: &NeatParams) -> bool {
         self.representative.genome.is_same_specie(&organism, p)
     }
-    /// Get the most performant organism
-    pub fn calculate_champion_fitness(&self) -> f64 {
-        self.organisms.iter().fold(0.0, |max, organism| {
-            if organism.fitness > max {
-                organism.fitness
-            } else {
-                max
-            }
-        })
+    ///
+    pub fn get_champion(&self) -> Organism<G> {
+        self.organisms.iter().fold((std::f64::NEG_INFINITY, None), |state, organism| {
+                    if organism.fitness > state.0 {
+                        (organism.fitness, Some(organism))
+                    } else {
+                        state
+                    }
+        }).1.unwrap().clone()
     }
-    /// Get the average shared fitness of the organisms in the species.
-    // (TODO is not really 'shared' it's just average)
-    pub fn average_shared_fitness(&self) -> f64 {
+    /// Get the best fitness of this species. Stores the value internally, and uses it in
+    /// subsequent calls to the function
+    pub fn champion_fitness(&self) -> f64 {
+        match self.champion {
+            Some(ref champion) => champion.fitness,
+            None => panic!("Calling Specie::champion_fitness requires that you first call calculate_champion_fitness!"),
+        }
+    }
+    /// Calculate fitness of champion and store it internally, to be retrieved by `champion_fitness`
+    pub fn update_champion(&mut self) {
+        assert!(self.organisms.len() > 0);
+        let old_fitness = self.champion.as_ref().map(|x| x.fitness);
+        self.champion = Some(self.organisms.iter().fold((std::f64::NEG_INFINITY, None), |state, organism| {
+                    if organism.fitness > state.0 {
+                        (organism.fitness, Some(organism.clone()))
+                    } else {
+                        state
+                    }}).1.unwrap());
+        if let Some(old_fitness) = old_fitness {
+            if self.champion.as_ref().unwrap().fitness > old_fitness {
+                self.age_last_improvement = self.age;
+            }
+        }
+    }
+    /// Get the average fitness of the organisms in the species.
+    pub fn average_fitness(&self) -> f64 {
         let n_organisms = self.organisms.len().value_as::<f64>().unwrap();
         if n_organisms == 0.0 {
             return 0.0;
@@ -47,13 +79,18 @@ impl<G: Genome> Specie<G> {
 
         let avg_fitness = self.organisms.iter().map(|o| o.fitness)
             .sum::<f64>() / n_organisms;
-        avg_fitness  // TODO: make actually shared???
+        avg_fitness
     }
 
+
     /// Generate the next generation of genomes, which will replace the old within this species.
+    /// `champion_fitness`: the fitness of the population-wide champion. The reason for this
+    /// parameter is that the species should see if it is the best-performing one.
     pub fn generate_offspring(&mut self, n_offspring: usize,
                                          population_offspring: &[Organism<G>],
-                                         p: &Params) {
+                                         innovation_id: &mut usize,
+                                         p: &NeatParams) {
+        self.age += 1;
         if n_offspring == 0 {
             self.organisms = Vec::new();
             return;
@@ -69,9 +106,9 @@ impl<G: Genome> Specie<G> {
         // let n_elite = std::cmp::min(n_offspring, (self.organisms.len() as f64 * ELITE_FRACTION) as usize);
         // let n_elite = std::cmp::max(1, n_elite);
         let n_elite = if self.organisms.len() > 5 {
-            std::cmp::min(2, n_offspring)
+            1
         } else {
-            0
+            1
         };
         let first_elite = self.organisms.len() - n_elite;
 
@@ -80,7 +117,6 @@ impl<G: Genome> Specie<G> {
         let n_to_cull = std::cmp::min(first_elite,
                                       (self.organisms.len() as f64 * p.cull_fraction) as usize);
 
-
         // println!("n_offspring={}, n_offspring={}, n_elite={}, first_elite={}, n_random={}, n_to_cull={}",
                  // n_offspring, self.organisms.len(), n_elite, first_elite, n_random, n_to_cull);
         let range = Uniform::from(n_to_cull..self.organisms.len());
@@ -88,7 +124,7 @@ impl<G: Genome> Specie<G> {
             Iterator::chain(
                 // mate n_random random organisms
                 range.sample_iter(&mut rng).take(n_random)
-                    .map(|i| self.create_child(&self.organisms[i], population_offspring, p)),
+                    .map(|i| self.create_child(&self.organisms[i], population_offspring, innovation_id, p)),
                 // copy elite organisms
                 (first_elite..self.organisms.len())
                     .map(|i| self.organisms[i].clone())
@@ -108,19 +144,17 @@ impl<G: Genome> Specie<G> {
     }
 
     /// Create a new child by mutating and existing one or mating two genomes.
-    fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &Params) -> Organism<G> {
-        if rand::random::<f64>() < p.mutation_pr || population_organisms.len() < 2 {
-            self.create_child_by_mutation(organism, p)
-        } else {
-            self.create_child_by_mate(organism, population_organisms, p)
+    fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>],
+                    innovation_id: &mut usize, p: &NeatParams) -> Organism<G> {
+        let mut child = self.create_child_by_mate(organism, population_organisms, p);
+
+        if rand::random::<f64>() < p.mutation_pr {
+            child.mutate(innovation_id, p);
         }
+        child
     }
 
-    fn create_child_by_mutation(&self, organism: &Organism<G>, p: &Params) -> Organism<G> {
-        organism.mutate(p)
-    }
-
-    fn create_child_by_mate(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &Params) -> Organism<G> {
+    fn create_child_by_mate(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &NeatParams) -> Organism<G> {
         let mut rng = rand::thread_rng();
         if rand::random::<f64>() > p.interspecie_mate_pr {
             let selected_mate = Uniform::from(0..self.organisms.len()).sample(&mut rng);
@@ -148,9 +182,9 @@ mod tests {
         let mut organism3 = Organism::new(NeuralNetwork::default());
         organism3.fitness = 20.0;
         
-        let mut specie = Specie::new(Organism::default());
+        let mut specie = Specie::new(Organism::default(), 0);
         specie.organisms = vec![organism1, organism2, organism3];
 
-        assert!((specie.average_shared_fitness() - 15.0).abs() < EPSILON);
+        assert!((specie.average_fitness() - 15.0).abs() < EPSILON);
     }
 }
