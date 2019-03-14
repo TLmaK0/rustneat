@@ -77,7 +77,7 @@ impl<G: Genome> Specie<G> {
         let n_elite = if self.organisms.len() > 5 {
             1
         } else {
-            0
+            1
         };
         let first_elite = self.organisms.len() - n_elite;
 
@@ -154,6 +154,6 @@ mod tests {
         let mut specie = Specie::new(Organism::default());
         specie.organisms = vec![organism1, organism2, organism3];
 
-        assert!((specie.average_shared_fitness() - 15.0).abs() < EPSILON);
+        assert!((specie.average_fitness() - 15.0).abs() < EPSILON);
     }
 }

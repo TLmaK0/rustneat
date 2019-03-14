@@ -99,8 +99,6 @@ impl<G: Genome> Population<G> {
         if self.generations_without_improvements > p.prune_after_n_generations {
             // After a certain generations with no improvement, we prune all species except the two
             // best ones
-            println!("PRUNE");
-
             self.prune_species();
             let n_species = self.species.len();
             for specie in &mut self.species {
@@ -236,7 +234,7 @@ impl<G: Genome> Population<G> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Organism, Specie, NeuralNetwork, Population, Environment};
+    use crate::{Organism, Specie, NeuralNetwork, Population, Environment, Params};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
@@ -254,7 +252,7 @@ mod tests {
         specie.organisms.push(Organism::new(genome2));
         population.species = vec![specie];
         // (note: there is only one species)
-        let new_species = Population::speciate(&population.species[0].organisms);
+        let new_species = Population::speciate(&population.species[0].organisms, &Params::default());
 
         assert_eq!(new_species.len(), 2);
     }
@@ -266,9 +264,10 @@ mod tests {
             fn test(&self, _organism: &mut NeuralNetwork) -> f64 { 0.0 }
         }
 
+        let p = Params::default();
         let mut population = Population::create_population(150);
         for _ in 0..150 {
-            population.evolve(&mut X);
+            population.evolve(&mut X, &p);
         }
         assert!(population.size() == 150);
     }

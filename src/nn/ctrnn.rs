@@ -32,11 +32,15 @@ impl<'a> Ctrnn<'a> {
     }
 
     fn sigmoid(y: f64) -> f64 {
-        // if y > 0.0 {
-            // 1.0
-        // } else {
-            // 0.0
-        // }
+        // Inspired from neat-python
+        let y = y * 5.0;
+        let y = if y < -60.0 {
+            -60.0
+        } else if y > 60.0 {
+            60.0
+        } else {
+            y
+        };
         1.0 / (1.0 + (-y).exp())
     }
 

@@ -1,7 +1,8 @@
 extern crate rand;
 extern crate rustneat;
 
-use rustneat::{Environment, Organism, Population, NeuralNetwork, Params};
+use rustneat::{Environment, Population, NeuralNetwork, Params, Organism};
+use std::io::Write;
 
 // This example measure average XOR performance, and should be useful to check that changes in the
 // algorithm doesn't break the algorithm
@@ -28,15 +29,94 @@ impl Environment for XORClassification {
 }
 
 fn main() {
-    const N_EXP: usize = 22;
-    const N_GEN: usize = 150;
-    let p = Params::default();
+    let p = Params {
+        prune_after_n_generations: 37,
+        n_to_prune: 3,
+        mutation_pr: 0.74,
+        interspecie_mate_pr: 0.001,
+        cull_fraction: 0.122,
 
+        c2: 0.8,
+        c3: 0.16,
+        mutate_conn_weight_pr: 0.39,
+        mutate_conn_weight_perturbed_pr: 0.9,
+        n_conn_to_mutate: 0,
+        mutate_add_conn_pr: 0.00354,
+        mutate_add_neuron_pr: 0.001,
+        mutate_toggle_expr_pr: 0.00171,
+        mutate_bias_pr: 0.0222,
+        include_weak_disjoint_gene: 0.183,
+        compatibility_threshold: 3.1725
+    };
+
+    solve_time_perf(&p);
+    // fixed_generations_perf(&p);
+
+}
+
+/// See how fast, on average, rustneat can solve XOR
+fn solve_time_perf(p: &Params) {
+    const N_EXP: usize = 40;
+    const MAX_GEN: usize = 800;
+    let mut solve_gens = Vec::new();
+    let mut neurons = Vec::new();
+    let mut connections = Vec::new();
+    let mut could_not_solve = 0;
+    for exp in 0..N_EXP {
+        print!("Experiment {}/{}\r", exp+1, N_EXP);
+        std::io::stdout().flush().unwrap();
+        let start_genome = NeuralNetwork::with_neurons(3);
+        let mut population = Population::create_population_from(start_genome, 150);
+        let mut environment = XORClassification;
+
+        let mut champion: Option<Organism> = None;
+        let mut i = 0;
+        while champion.is_none() && i < MAX_GEN {
+            population.evolve(&mut environment, &p);
+            for organism in population.get_organisms() {
+                if organism.fitness > 15.7 {
+                    champion = Some(organism.clone());
+                }
+            }
+            i += 1;
+        }
+        if let Some(champion) = champion {
+            solve_gens.push(i);
+            neurons.push(champion.genome.n_neurons());
+            connections.push(champion.genome.n_connections());
+        } else {
+            could_not_solve += 1;
+        }
+    }
+    println!("");
+    println!("Could not solve {} times", could_not_solve);
+    {
+        let mean = solve_gens.iter().sum::<usize>() as f64 / solve_gens.len() as f64;
+        println!("{:?}", solve_gens);
+        println!("Mean solve time: {}", mean);
+    }
+
+    {
+        let mean = neurons.iter().sum::<usize>() as f64 / neurons.len() as f64;
+        println!("Neurons:      {}", mean);
+    }
+
+    {
+        let mean = connections.iter().sum::<usize>() as f64 / connections.len() as f64;
+        println!("Connections:  {}", mean);
+    }
+}
+
+/// See the best fitness, on average, after a fixed amount of generations
+fn fixed_generations_perf(p: &Params) {
+    const N_EXP: usize = 40;
+    const N_GEN: usize = 300;
     let mut scores = Vec::new();
     let mut neurons = Vec::new();
     let mut connections = Vec::new();
     for exp in 0..N_EXP {
-        println!("Experiment {}/{}", exp+1, N_EXP);
+        print!("Experiment {}/{}\r", exp+1, N_EXP);
+        std::io::stdout().flush().unwrap();
         let start_genome = NeuralNetwork::with_neurons(3);
         let mut population = Population::create_population_from(start_genome, 150);
         let mut environment = XORClassification;
@@ -55,31 +135,21 @@ fn main() {
         }
     }
 
+    println!("");
     {
-        println!("= BEST FITNESS LAST GENERATION =");
-        println!("- values: {:?}", scores);
         let mean = scores.iter().sum::<f64>() / scores.len() as f64;
-        let var = scores.iter().map(|x| (x - mean).powf(2.0)).sum::<f64>() / scores.len() as f64;
-        println!("- mean {}", mean);
-        println!("- var {}", var);
+        println!("{:?}", scores);
+        println!("Mean:         {}", mean);
     }
 
-
-
     {
-        println!("= N NEURONS LAST GENERATION");
         let mean = neurons.iter().sum::<usize>() as f64 / neurons.len() as f64;
-        let var = neurons.iter().map(|x| (*x as f64 - mean).powf(2.0)).sum::<f64>() / neurons.len() as f64;
-        println!("- mean {}", mean);
-        println!("- var {}", var);
+        println!("Neurons:      {}", mean);
     }
 
     {
-        println!("= N CONNECTIONS LAST GENERATION");
         let mean = connections.iter().sum::<usize>() as f64 / connections.len() as f64;
-        let var = connections.iter().map(|x| (*x as f64 - mean).powf(2.0)).sum::<f64>() / connections.len() as f64;
-        println!("- mean {}", mean);
-        println!("- var {}", var);
+        println!("Connections:  {}", mean);
     }
 
 

@@ -13,17 +13,20 @@ impl Environment for XORClassification {
         let mut output = vec![0f64];
         let mut distance: f64;
         organism.activate(vec![0f64, 0f64], &mut output);
-        distance = (0f64 - output[0]).powi(2);
+        distance = (0f64 - output[0]).abs();
         organism.activate(vec![0f64, 1f64], &mut output);
-        distance += (1f64 - output[0]).powi(2);
+        distance += (1f64 - output[0]).abs();
         organism.activate(vec![1f64, 0f64], &mut output);
-        distance += (1f64 - output[0]).powi(2);
+        distance += (1f64 - output[0]).abs();
         organism.activate(vec![1f64, 1f64], &mut output);
-        distance += (0f64 - output[0]).powi(2);
+        distance += (0f64 - output[0]).abs();
 
-        let fitness = 16.0 / (1.0 + distance);
-
-        fitness
+        let fitness = 4.0 - distance;
+        if fitness < 0.0 {
+            0.0
+        } else  { 
+            fitness.powf(2.0)
+        }
     }
 }
 
@@ -36,55 +39,61 @@ fn main() {
 
     let p = Params::default();
 
-    let start_genome = NeuralNetwork::with_neurons(3);
+    const MAX_ITERATIONS: usize = 100;
+    let mut start_genome = NeuralNetwork::with_neurons(3);
+    start_genome.add_connection(0, 2, 0.0);
+    start_genome.add_connection(1, 2, 0.0);
     let mut population = Population::create_population_from(start_genome, 150);
     let mut environment = XORClassification;
     let mut champion: Option<Organism> = None;
+    let mut best_organism = None;
+    let mut best_fitness = 0.0;
     let mut i = 0;
-    while champion.is_none() {
-        assert_eq!(population.size(), 150);
+    while champion.is_none() && i < MAX_ITERATIONS {
         i += 1;
         population.evolve(&mut environment, &p);
-        let mut best_fitness = 0.0;
-        let mut best_organism = None;
-        for organism in &population.get_organisms() {
+        for organism in population.get_organisms() {
             if organism.fitness > best_fitness {
                 best_fitness = organism.fitness;
                 best_organism = Some(organism.clone());
             }
-            if organism.fitness > 15.9 {
+            if organism.fitness > 15.0 {
                 champion = Some(organism.clone());
             }
         }
-        if i % 1 == 0 {
-            let best_organism = best_organism.unwrap().genome;
-            println!("= Gen {}: {} =", i, best_fitness);
-            println!(" - {} neurons, {} connections", best_organism.n_neurons(), best_organism.n_connections());
-            let specie_stats = population.species.iter()
-                .map(|s| (s.organisms.len(), s.calculate_champion_fitness()))
-                .collect::<Vec<_>>();
-            println!(" - {} species: {:?}", population.species.len(), specie_stats);
-            { // print the test
-                let mut organism = best_organism.clone();
-                let mut output = vec![0f64];
-                let mut distance: f64;
-                organism.activate(vec![0f64, 0f64], &mut output);
-                distance = (0f64 - output[0]).powi(2);
-                println!(" - [0, 0]: {}", output[0]);
-                organism.activate(vec![0f64, 1f64], &mut output);
-                distance += (1f64 - output[0]).powi(2);
-                println!(" - [0, 1]: {}", output[0]);
-                organism.activate(vec![1f64, 0f64], &mut output);
-                distance += (1f64 - output[0]).powi(2);
-                println!(" - [1, 0]: {}", output[0]);
-                organism.activate(vec![1f64, 1f64], &mut output);
-                distance += (0f64 - output[0]).powi(2);
-                println!(" - [1, 1]: {}", output[0]);
-            }
-            println!("");
+        if i % 10 == 0 {
+            // let best_organism = best_organism.unwrap().genome;
+            // println!("= Gen {}: {} =", i, best_fitness);
+            // let specie_stats = population.species.iter_mut()
+                // .map(|s| (s.organisms.len(), {s.calculate_champion_fitness(); s.champion_fitness()}))
+                // .collect::<Vec<_>>();
+            // println!(" - {} species: {:?}", population.species.len(), specie_stats);
+            // println!("");
         }
     }
-    println!("{:?}", champion.unwrap().genome);
+    let best_organism = best_organism.unwrap();
+    println!("Result: {}", best_fitness);
+    println!(" - {} neurons, {} connections",
+             best_organism.genome.n_neurons(),
+             best_organism.genome.n_connections());
+    { // print the test
+        let mut organism = best_organism.clone().genome;
+        let mut output = vec![0f64];
+        let mut distance: f64;
+        organism.activate(vec![0f64, 0f64], &mut output);
+        distance = (0f64 - output[0]).powi(2);
+        println!(" - [0, 0]: {}", output[0]);
+        organism.activate(vec![0f64, 1f64], &mut output);
+        distance += (1f64 - output[0]).powi(2);
+        println!(" - [0, 1]: {}", output[0]);
+        organism.activate(vec![1f64, 0f64], &mut output);
+        distance += (1f64 - output[0]).powi(2);
+        println!(" - [1, 0]: {}", output[0]);
+        organism.activate(vec![1f64, 1f64], &mut output);
+        distance += (0f64 - output[0]).powi(2);
+        println!(" - [1, 1]: {}", output[0]);
+    }
+    // println!("{:?}", champion.unwrap().genome);
 }
 fn print_table(table: &Vec<f64>) {
     let n = (table.len() as f64).sqrt() as usize;

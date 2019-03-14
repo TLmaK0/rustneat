@@ -365,14 +365,14 @@ impl NeuralNetwork {
 #[cfg(test)]
 mod tests {
     use std::f64::EPSILON;
-    use crate::{nn::NeuralNetwork, nn::ConnectionGene, Genome};
+    use crate::{nn::NeuralNetwork, nn::ConnectionGene, Genome, Params};
 
     #[test]
     fn mutation_connection_weight() {
         let mut genome = NeuralNetwork::with_neurons(1);
         genome.add_connection(0, 0, 1.0);
         let orig_gene = genome.connections[0];
-        genome.mutate_connection_weight();
+        genome.mutate_connection_weight(&Params::default());
         // These should not be same size
         assert!((genome.connections[0].weight - orig_gene.weight).abs() > EPSILON);
     }
@@ -414,11 +414,16 @@ mod tests {
         genome2.add_connection(0, 0, 0.0);
         genome2.add_connection(0, 1, 0.0);
         genome2.add_connection(0, 2, 0.0);
-        assert!(genome1.is_same_specie(&genome2));
+        assert!(genome1.is_same_specie(&genome2, &Params::default()));
     }
 
     #[test]
     fn two_genomes_with_enough_difference_should_be_in_different_species() {
+        let p = Params {
+            c2: 1.0,
+            c3: 0.4,
+            ..Default::default()
+        };
         let mut genome1 = NeuralNetwork::with_neurons(2);
         genome1.add_connection(0, 0, 1.0);
         genome1.add_connection(0, 1, 1.0);
@@ -427,7 +432,7 @@ mod tests {
         genome2.add_connection(0, 1, 5.0);
         genome2.add_connection(0, 2, 1.0);
         genome2.add_connection(0, 3, 1.0);
-        assert!(!genome1.is_same_specie(&genome2));
+        assert!(!genome1.is_same_specie(&genome2, &p));
     }
 
     #[test]
@@ -458,16 +463,21 @@ mod tests {
         genome1.add_connection(0, 0, 16.0);
         let mut genome2 = NeuralNetwork::with_neurons(1);
         genome2.add_connection(0, 0, 16.1);
-        assert!(genome1.is_same_specie(&genome2));
+        assert!(genome1.is_same_specie(&genome2, &Params::default()));
     }
 
     #[test]
     fn genomes_with_same_genes_with_big_differences_on_weight_should_be_in_other_specie() {
+        let p = Params {
+            c2: 1.0,
+            c3: 0.4,
+            ..Default::default()
+        };
         let mut genome1 = NeuralNetwork::with_neurons(1);
         genome1.add_connection(0, 0, 5.0);
         let mut genome2 = NeuralNetwork::with_neurons(1);
         genome2.add_connection(0, 0, 15.0);
-        assert!(!genome1.is_same_specie(&genome2));
+        assert!(!genome1.is_same_specie(&genome2, &p));
     }
 
 
