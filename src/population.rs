@@ -163,14 +163,13 @@ impl<G: Genome> Population<G> {
         let mut partitions: Vec<usize> = fractions.iter().map(|x| ((total as f64 * x) as usize)).collect();
         let mut sum: usize = partitions.iter().sum();
         let range = Uniform::from(0..partitions.len());
-
         while sum != total {
             let residue = sum as i32 - total as i32;
             let selected = range.sample(&mut rng);
-            if residue > 0 {
+            if residue > 0 && partitions[selected] > 0 {
                 partitions[selected] -= 1;
                 sum -= 1;
-            } else if residue < 0 && partitions[selected] > 0 {
+            } else if residue < 0 {
                 partitions[selected] += 1;
                 sum += 1;
             }

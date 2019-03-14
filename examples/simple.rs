@@ -37,7 +37,8 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let p = Params::default();
+    let mut p = Params::default();
+    p.compatibility_threshold = 3.0;
 
     const MAX_ITERATIONS: usize = 100;
     let mut start_genome = NeuralNetwork::with_neurons(3);
@@ -61,14 +62,14 @@ fn main() {
                 champion = Some(organism.clone());
             }
         }
-        if i % 10 == 0 {
+        if i % 1 == 0 {
             // let best_organism = best_organism.unwrap().genome;
             // println!("= Gen {}: {} =", i, best_fitness);
-            // let specie_stats = population.species.iter_mut()
-                // .map(|s| (s.organisms.len(), {s.calculate_champion_fitness(); s.champion_fitness()}))
-                // .collect::<Vec<_>>();
-            // println!(" - {} species: {:?}", population.species.len(), specie_stats);
-            // println!("");
+            let specie_stats = population.species.iter_mut()
+                .map(|s| (s.organisms.len(), {s.calculate_champion_fitness(); s.champion_fitness()}))
+                .collect::<Vec<_>>();
+            println!(" - {} species: {:?}", population.species.len(), specie_stats);
+            println!("");
         }
     }
     let best_organism = best_organism.unwrap();

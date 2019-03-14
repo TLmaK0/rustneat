@@ -32,45 +32,44 @@ impl Default for NeuralNetwork {
 
 
 impl Genome for NeuralNetwork {
-    // http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
-    // Doesn't distinguish between disjoint and excess genes.
-    // Only cares about connection genes (topology).
+    // Inspired by python-neat
     fn distance(&self, other: &NeuralNetwork, p: &Params) -> f64 {
-        // TODO: optimize this method
-        let c2 = p.c2;
-        let c3 = p.c3;
 
-        // Number of excess
-        let n1 = self.connections.len();
-        let n2 = other.connections.len();
-        let n = cmp::max(n1, n2);
-
-        if n == 0 {
-            return 0.0; // no genes in any genome, the genomes are equal
-        }
-
-        let z = if n < 20 { 1.0 } else { n as f64 };
-
-        let matching_genes = self.connections
+        let common_connections = self.connections
             .iter()
-            .filter(|i1_gene| other.connections.contains(i1_gene))
-            .collect::<Vec<_>>();
-        let n3 = matching_genes.len();
+            .filter_map(|conn| {
+                other.connections.binary_search(conn).ok()
+                    .map(|i| (*conn, other.connections[i]))
+            })
+            .collect::<Vec<(ConnectionGene, ConnectionGene)>>();
 
         // Disjoint / excess genes
-        let d = n1 + n2 - (2 * n3);
+        let disjoint_connections = (self.connections.len() + other.connections.len()
+            - (2 * common_connections.len())) as f64;
 
-        // average weight differences of matching genes
-        let w1 = matching_genes.iter().fold(0.0, |acc, &m_gene| {
-            acc + (m_gene.weight
-                - &other.connections[other.connections.binary_search(m_gene).unwrap()].weight)
-                .abs()
-        });
+        let disjoint_neurons = (self.neurons.len() as i32 - other.neurons.len() as i32).abs() as f64;
 
-        let w = if n3 == 0 { 0.0 } else { w1 / n3 as f64 };
+        // Get the distance between common connections and neurons
+        let connections_distance = common_connections.iter()
+            .map(|(conn1, conn2)| {
+                (conn1.weight - conn2.weight).abs()
+            })
+            .sum::<f64>();
 
-        // compatibility distance
-        (c2 * d as f64 / z) + c3 * w
+        let neurons_distance = self.neurons.iter().zip(&other.neurons)
+            .map(|(n1, n2)| {
+                (n1.bias - n2.bias)
+            })
+            .sum::<f64>();
+            
+        let max_connections = std::cmp::max(self.connections.len(), other.connections.len()) as f64;
+        let max_neurons = std::cmp::max(self.neurons.len(), other.neurons.len()) as f64;
+            
+        (disjoint_connections * p.distance_disjoint_coef
+            + connections_distance * p.distance_weight_coef) / max_connections
+        + (disjoint_neurons * p.distance_disjoint_coef
+            + neurons_distance * p.distance_weight_coef) / max_neurons
+
     }
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection

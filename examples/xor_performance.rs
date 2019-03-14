@@ -46,7 +46,8 @@ fn main() {
         mutate_toggle_expr_pr: 0.00171,
         mutate_bias_pr: 0.0222,
         include_weak_disjoint_gene: 0.183,
-        compatibility_threshold: 3.1725
+        compatibility_threshold: 3.1725,
+        ..Default::default()
     };
 
     solve_time_perf(&p);
