@@ -59,16 +59,28 @@ make_optimizer! {
 
         c2: f64 = 0.3 .. 1.0,
         c3: f64 = 0.0 .. 0.4,
-        mutate_conn_weight_pr: f64 = 0.2 .. 0.9,
-        mutate_conn_weight_perturbed_pr: f64 = 0.2 .. 0.9,
         // n_conn_to_mutate: 0,
         mutate_add_conn_pr: f64 = 0.001..0.004,
         // mutate_add_neuron_pr: f64 = 0.001..0.002,
         mutate_toggle_expr_pr: f64 = 0.001 .. 0.02,
-        mutate_bias_pr: f64 = 0.01 .. 0.05,
+
+        // weight_init_mean: 0.0, 
+        weight_init_var: f64 = 0.5 .. 2.0, 
+        weight_mutate_var: f64 = 0.2 .. 2.0,
+        weight_mutate_pr: f64 = 0.2 .. 0.8,
+        weight_replace_pr: f64 = 0.01 .. 0.2,
+
+        // bias_init_mean: 0.0, 
+        bias_init_var: f64 = 0.5 .. 2.0, 
+        bias_mutate_var: f64 = 0.2 .. 2.0,
+        bias_mutate_pr: f64 = 0.2 .. 0.8,
+        bias_replace_pr: f64 = 0.01 .. 0.2,
+
         include_weak_disjoint_gene: f64 = 0.1 .. 0.3,
 
         compatibility_threshold: f64 = 2.0 .. 4.0,
+        distance_weight_coef: f64 = 0.0 .. 0.5,
+        distance_disjoint_coef: f64 = 0.5 .. 1.0,
     }
 
     const N_GEN: usize = 30; // generations per round
@@ -83,16 +95,27 @@ make_optimizer! {
 
         c2,
         c3,
-        mutate_conn_weight_pr,
-        mutate_conn_weight_perturbed_pr,
         n_conn_to_mutate: 0,
         mutate_add_conn_pr,
         mutate_add_neuron_pr: 0.001,
         mutate_toggle_expr_pr,
-        mutate_bias_pr,
         include_weak_disjoint_gene,
 
+        weight_init_mean: 0.0,
+        weight_init_var, 
+        weight_mutate_var,
+        weight_mutate_pr,
+        weight_replace_pr,
+
+        bias_init_mean: 0.0,
+        bias_init_var, 
+        bias_mutate_var,
+        bias_mutate_pr,
+        bias_replace_pr,
+
         compatibility_threshold,
+        distance_weight_coef,
+        distance_disjoint_coef,
     };
     // Take the average of N rounds
     let score = (0..N_POPULATIONS)

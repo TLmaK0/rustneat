@@ -30,24 +30,8 @@ impl Environment for XORClassification {
 
 fn main() {
     let p = Params {
-        prune_after_n_generations: 37,
-        n_to_prune: 3,
-        mutation_pr: 0.74,
-        interspecie_mate_pr: 0.001,
-        cull_fraction: 0.122,
-
-        c2: 0.8,
-        c3: 0.16,
-        mutate_conn_weight_pr: 0.39,
-        mutate_conn_weight_perturbed_pr: 0.9,
-        n_conn_to_mutate: 0,
-        mutate_add_conn_pr: 0.00354,
-        mutate_add_neuron_pr: 0.001,
-        mutate_toggle_expr_pr: 0.00171,
-        mutate_bias_pr: 0.0222,
-        include_weak_disjoint_gene: 0.183,
-        compatibility_threshold: 3.1725,
-        ..Default::default()
+        // ..Params::optimized_for_xor()
+        ..Params::default()
     };
 
     solve_time_perf(&p);

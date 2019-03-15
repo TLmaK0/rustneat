@@ -37,8 +37,8 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let mut p = Params::default();
-    p.compatibility_threshold = 3.0;
+    let mut p = Params::optimized_for_xor();
+    p.compatibility_threshold = 1.5;
 
     const MAX_ITERATIONS: usize = 100;
     let mut start_genome = NeuralNetwork::with_neurons(3);

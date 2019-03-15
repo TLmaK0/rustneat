@@ -21,15 +21,6 @@ pub struct Params {
     // TODO: n_elites or elite_fraction
 
     // In `NeuralNetwork`
-    /// For measuring distance between neural networks (cf. paper)
-    pub c2: f64,
-    /// For measuring distance between neural networks
-    pub c3: f64,
-    /// The probability of mutating connection weights during mutation
-    pub mutate_conn_weight_pr: f64,
-    /// Once mutating the connection weight: the probability of _adding_ to the current weight
-    /// rather than _assigning_ to it. (For now, this also applies to mutating neuron bias)
-    pub mutate_conn_weight_perturbed_pr: f64,
     /// The maximum number of connections to mutate. A number `x <= 0` means `n_connections - x`.
     pub n_conn_to_mutate: i32,
     /// The probability of adding a connection during mutation
@@ -38,22 +29,33 @@ pub struct Params {
     pub mutate_add_neuron_pr: f64,
     /// The probability of toggling a connection during mutation
     pub mutate_toggle_expr_pr: f64,
-    /// The probability of mutating the bias of a neuron during mutation
-    pub mutate_bias_pr: f64,
 
 
-    ///
-    // pub weight_init_mean: f64, 
-    // pub weight_init_var: f64, 
-    // pub weight_mutate_power: f64,
-    // pub weight_mutate_rate: f64,
-    // pub weight_replace_rate: f64,
+    /// The mean (normal distribution) of the weight of a new connection
+    pub weight_init_mean: f64, 
+    /// The variance (normal distribution) of the weight of a new connection
+    pub weight_init_var: f64, 
+    /// The variance (normal distribution) of a mutation of the weight of an existing connection
+    pub weight_mutate_var: f64,
+    /// The probability to perturb the weights of a connection (simulated for each connection
+    /// individually) when mutating
+    pub weight_mutate_pr: f64,
+    /// The probability to replace the weights of a connection (simulated for each connection
+    /// individually) when mutating
+    pub weight_replace_pr: f64,
 
-    // pub bias_init_mean: f64, 
-    // pub bias_init_var: f64, 
-    // pub bias_mutate_power: f64,
-    // pub bias_mutate_rate: f64,
-    // pub bias_replace_rate: f64,
+    /// The mean (normal distribution) of the bias of a new connection
+    pub bias_init_mean: f64, 
+    /// The variance (normal distribution) of the bias of a new connection
+    pub bias_init_var: f64, 
+    /// The variance (normal distribution) of a mutation of the bias of an existing connection
+    pub bias_mutate_var: f64,
+    /// The probability to perturb the biases of a connection (simulated for each connection
+    /// individually) when mutating
+    pub bias_mutate_pr: f64,
+    /// The probability to replace the biases of a connection (simulated for each connection
+    /// individually) when mutating
+    pub bias_replace_pr: f64,
 
     /// The probability, during mating, of including a gene that is disjoint or excess,
     /// from the organisms that is least fit
@@ -86,15 +88,24 @@ impl Default for Params {
             cull_fraction: 0.1,
 
             // neural network
-            c2: 1.0,
-            c3: 0.0,
-            mutate_conn_weight_pr: 0.9,
-            mutate_conn_weight_perturbed_pr: 0.9,
             n_conn_to_mutate: 0,
             mutate_add_conn_pr: 0.005,
             mutate_add_neuron_pr: 0.004,
             mutate_toggle_expr_pr: 0.001,
-            mutate_bias_pr: 0.001,
+
+            weight_init_mean: 0.0, 
+            weight_init_var: 1.0, 
+            weight_mutate_var: 0.5,
+            weight_mutate_pr: 0.8,
+            weight_replace_pr: 0.1,
+
+            bias_init_mean: 0.0, 
+            bias_init_var: 1.0, 
+            bias_mutate_var: 0.5,
+            bias_mutate_pr: 0.7,
+            bias_replace_pr: 0.1,
+
+
             include_weak_disjoint_gene: 0.2,
 
             // other
@@ -106,3 +117,36 @@ impl Default for Params {
 }
 
 
+
+impl Params {
+    /// temporary
+    pub fn optimized_for_xor() -> Params {
+        Params {
+            prune_after_n_generations: 19,
+            n_to_prune: 2,
+            mutation_pr: 0.886247407101759,
+            interspecie_mate_pr: 0.001989480993503591,
+            cull_fraction: 0.1678207776504504,
+            n_conn_to_mutate: 0,
+            mutate_add_conn_pr: 0.003705672926030052,
+            mutate_add_neuron_pr: 0.001,
+            mutate_toggle_expr_pr: 0.004741272230391003,
+
+            weight_init_mean: 0.0,
+            weight_init_var: 1.63124335619358,
+            weight_mutate_var: 0.7944613405433263,
+            weight_mutate_pr: 0.22264676958558907,
+            weight_replace_pr: 0.07487760506419014,
+
+            bias_init_mean: 0.0,
+            bias_init_var: 1.1368762515242272,
+            bias_mutate_var: 0.5519888080987314,
+            bias_mutate_pr: 0.2533586967820932,
+            bias_replace_pr: 0.18821040418714985,
+            include_weak_disjoint_gene: 0.22339770722706298,
+            compatibility_threshold: 2.087256136498854,
+            distance_weight_coef: 0.2717466608295739,
+            distance_disjoint_coef: 0.9412445790399938
+        }
+    }
+}

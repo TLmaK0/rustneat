@@ -14,12 +14,6 @@ impl NeuronGene {
             bias,
         }
     }
-    /// Randomly generate a bias
-    pub fn generate_bias() -> f64 {
-        use rand::distributions::{Normal, Distribution};
-        let mut rng = rand::thread_rng();
-        Normal::new(0.0, 1.0).sample(&mut rng)
-    }
 }
 
 /// Gene for a synapse/connection in the `NeuralNetwork`.
@@ -67,7 +61,7 @@ impl PartialOrd for ConnectionGene {
 }
 
 impl ConnectionGene {
-    /// Create a new gene
+    /// Create a new connection
     pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64, enabled: bool) -> ConnectionGene {
         ConnectionGene {
             in_neuron_id: in_neuron_id,
@@ -76,15 +70,11 @@ impl ConnectionGene {
             enabled: enabled,
         }
     }
-    /// ConnectionGenerate a weight
-    pub fn generate_weight() -> f64 {
-        rand::random::<f64>() * 2.0 - 1.0
-    }
-    /// Connection in ->
+    /// The neuron that acts as the input of this connection
     pub fn in_neuron_id(&self) -> usize {
         self.in_neuron_id
     }
-    /// connection out <->
+    /// The neuron that acts as the output of this connection
     pub fn out_neuron_id(&self) -> usize {
         self.out_neuron_id
     }
@@ -95,7 +85,7 @@ impl Default for ConnectionGene {
         ConnectionGene {
             in_neuron_id: 1,
             out_neuron_id: 1,
-            weight: ConnectionGene::generate_weight(),
+            weight: 0.0,
             enabled: true,
         }
     }

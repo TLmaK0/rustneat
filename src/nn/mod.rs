@@ -58,7 +58,7 @@ impl Genome for NeuralNetwork {
 
         let neurons_distance = self.neurons.iter().zip(&other.neurons)
             .map(|(n1, n2)| {
-                (n1.bias - n2.bias)
+                (n1.bias - n2.bias).abs()
             })
             .sum::<f64>();
             
@@ -74,25 +74,41 @@ impl Genome for NeuralNetwork {
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
     fn mutate(&mut self, p: &Params) {
+        use rand::distributions::{Normal, Distribution};
+        let mut rng = rand::thread_rng();
+
+        // Topological mutations
         if rand::random::<f64>() < p.mutate_add_conn_pr || self.connections.is_empty() {
-            self.mutate_add_connection();
+            self.mutate_add_connection(p);
         };
 
         if rand::random::<f64>() < p.mutate_add_neuron_pr {
             self.mutate_add_neuron();
         };
 
-        if rand::random::<f64>() < p.mutate_conn_weight_pr {
-            self.mutate_connection_weight(p);
-        };
 
         if rand::random::<f64>() < p.mutate_toggle_expr_pr {
             self.mutate_toggle_expression();
         };
 
-        if rand::random::<f64>() < p.mutate_bias_pr {
-            self.mutate_bias(p);
-        };
+        // For each connection and neuron, there is some probability to mutate it
+
+        let bias_distr = Normal::new(0.0, p.bias_mutate_var);
+        let weight_distr = Normal::new(0.0, p.weight_mutate_var);
+        for gene in self.neurons.iter_mut() {
+            if rand::random::<f64>() < p.bias_mutate_pr {
+                gene.bias += bias_distr.sample(&mut rng);
+            } else if rand::random::<f64>() < p.bias_replace_pr {
+                gene.bias = bias_distr.sample(&mut rng);
+            }
+        }
+        for gene in self.connections.iter_mut() {
+            if rand::random::<f64>() < p.weight_mutate_pr {
+                gene.weight += weight_distr.sample(&mut rng);
+            } else if rand::random::<f64>() < p.weight_replace_pr {
+                gene.weight = weight_distr.sample(&mut rng);
+            }
+        }
     }
 
     /// Mate two genes. `fittest` is true if `self` is the fittest one
@@ -196,39 +212,19 @@ impl NeuralNetwork {
         self.connections.len()
     }
 
-    fn mutate_add_connection(&mut self) {
+    fn mutate_add_connection(&mut self, p: &Params) {
+        use rand::distributions::{Normal, Distribution};
+        let mut rng = rand::thread_rng();
         if self.neurons.len() == 0 {
             return
         }
+        // TODO: function to pick multiple random unique values from a range?
         let in_neuron_id = rand::random::<usize>() % self.neurons.len();
         let out_neuron_id = rand::random::<usize>() % self.neurons.len();
-        // TODO: function to pick multiple random unique values from a range?
-        self.add_connection(in_neuron_id, out_neuron_id, ConnectionGene::generate_weight());
+        let weight = Normal::new(0.0, p.weight_init_var).sample(&mut rng);
+        self.add_connection(in_neuron_id, out_neuron_id, weight);
     }
 
-    fn mutate_connection_weight(&mut self, p: &Params) {
-        // NOTE: the SharpNeat implementation seems to mutate 1 to 3 connections.
-        // However, this didn't seem to be any good. Anyway, the code to pick N random connections
-        // is still here.
-        let mut rng = rand::thread_rng();
-
-        // Random :
-        // use rand::seq::index::sample;
-        // let n_connections_to_mutate =
-            // std::cmp::min(self.connections.len(), rand::random::<usize>() % 3);
-        // let selected =
-            // sample(&mut rng, self.connections.len(), n_connections_to_mutate).iter();
-        let selected = 0..self.connections.len();
-        selected.for_each(|i| {
-            let perturbation = rand::random::<f64>() < p.mutate_conn_weight_perturbed_pr;
-
-            let mut new_weight = ConnectionGene::generate_weight();
-            if perturbation {
-                new_weight += self.connections[i].weight;
-            }
-            self.connections[i].weight = new_weight;
-        });
-    }
 
     /// Toggles the expression of a random connection
     fn mutate_toggle_expression(&mut self) {
@@ -240,19 +236,6 @@ impl NeuralNetwork {
         self.connections[selected_gene].enabled = !self.connections[selected_gene].enabled;
     }
 
-    /// Sets the bias of a random neuron to a sample from the normal distribution
-    fn mutate_bias(&mut self, p: &Params) {
-        let mut rng = rand::thread_rng();
-
-        let gene = Uniform::from(0..self.neurons.len()).sample(&mut rng);
-
-        let perturbation = rand::random::<f64>() < p.mutate_conn_weight_perturbed_pr;
-        let mut new_bias = NeuronGene::generate_bias();
-        if perturbation {
-            new_bias += self.neurons[gene].bias;
-        }
-        self.neurons[gene].bias = new_bias;
-    }
 
     fn mutate_add_neuron(&mut self) {
         if self.connections.len() == 0 {
