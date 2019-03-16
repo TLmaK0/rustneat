@@ -59,6 +59,7 @@ impl<G: Genome> Specie<G> {
     /// parameter is that the species should see if it is the best-performing one.
     pub fn generate_offspring(&mut self, n_offspring: usize,
                                          population_offspring: &[Organism<G>],
+                                         innovation_id: &mut usize,
                                          p: &Params) {
         if n_offspring == 0 {
             self.organisms = Vec::new();
@@ -86,7 +87,6 @@ impl<G: Genome> Specie<G> {
         let n_to_cull = std::cmp::min(first_elite,
                                       (self.organisms.len() as f64 * p.cull_fraction) as usize);
 
-
         // println!("n_offspring={}, n_offspring={}, n_elite={}, first_elite={}, n_random={}, n_to_cull={}",
                  // n_offspring, self.organisms.len(), n_elite, first_elite, n_random, n_to_cull);
         let range = Uniform::from(n_to_cull..self.organisms.len());
@@ -94,7 +94,7 @@ impl<G: Genome> Specie<G> {
             Iterator::chain(
                 // mate n_random random organisms
                 range.sample_iter(&mut rng).take(n_random)
-                    .map(|i| self.create_child(&self.organisms[i], population_offspring, p)),
+                    .map(|i| self.create_child(&self.organisms[i], population_offspring, innovation_id, p)),
                 // copy elite organisms
                 (first_elite..self.organisms.len())
                     .map(|i| self.organisms[i].clone())
@@ -114,11 +114,12 @@ impl<G: Genome> Specie<G> {
     }
 
     /// Create a new child by mutating and existing one or mating two genomes.
-    fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &Params) -> Organism<G> {
+    fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>],
+                    innovation_id: &mut usize, p: &Params) -> Organism<G> {
         let mut child = self.create_child_by_mate(organism, population_organisms, p);
 
         if rand::random::<f64>() < p.mutation_pr {
-            child.mutate(p)
+            child.mutate(innovation_id, p)
         }
         child
     }

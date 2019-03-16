@@ -18,6 +18,9 @@ pub struct Population<G = NeuralNetwork> {
     target_size: usize,
     champion_fitness: f64,
     generations_without_improvements: usize,
+
+    /// The latest innovation id
+    innovation_id: usize,
 }
 
 impl<G: Genome> Population<G> {
@@ -40,8 +43,9 @@ impl<G: Genome> Population<G> {
         Population {
             species: vec![specie],
             target_size: population_size,
-            champion_fitness: 0f64,
-            generations_without_improvements: 0usize,
+            champion_fitness: 0.0,
+            generations_without_improvements: 0,
+            innovation_id: 0,
         }
     }
 
@@ -102,7 +106,7 @@ impl<G: Genome> Population<G> {
             self.prune_species();
             let n_species = self.species.len();
             for specie in &mut self.species {
-                specie.generate_offspring(organisms.len() / n_species, &organisms, p);
+                specie.generate_offspring(organisms.len() / n_species, &organisms, &mut self.innovation_id, p);
             }
             self.generations_without_improvements = 0;
         } else {
@@ -139,7 +143,7 @@ impl<G: Genome> Population<G> {
                 };
 
             for (species, n_offspring) in self.species.iter_mut().zip(n_offspring) {
-                species.generate_offspring(n_offspring, &organisms, p);
+                species.generate_offspring(n_offspring, &organisms, &mut self.innovation_id, p);
             }
         }
 
@@ -237,6 +241,10 @@ mod tests {
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
+        let p = Params {
+            compatibility_threshold: 0.0,
+            ..Default::default()
+        };
         let mut genome1 = NeuralNetwork::with_neurons(2);
         genome1.add_connection(0, 0, 1.0);
         genome1.add_connection(0, 1, 1.0);
@@ -251,7 +259,7 @@ mod tests {
         specie.organisms.push(Organism::new(genome2));
         population.species = vec![specie];
         // (note: there is only one species)
-        let new_species = Population::speciate(&population.species[0].organisms, &Params::default());
+        let new_species = Population::speciate(&population.species[0].organisms, &p);
 
         assert_eq!(new_species.len(), 2);
     }

@@ -37,7 +37,7 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let mut p = Params::optimized_for_xor();
+    let mut p = Params::default();
     p.compatibility_threshold = 1.5;
 
     const MAX_ITERATIONS: usize = 100;

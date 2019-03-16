@@ -89,8 +89,8 @@ impl Default for Params {
 
             // neural network
             n_conn_to_mutate: 0,
-            mutate_add_conn_pr: 0.005,
-            mutate_add_neuron_pr: 0.004,
+            mutate_add_conn_pr: 0.05,
+            mutate_add_neuron_pr: 0.01,
             mutate_toggle_expr_pr: 0.001,
 
             weight_init_mean: 0.0, 

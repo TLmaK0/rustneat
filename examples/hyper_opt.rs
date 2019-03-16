@@ -93,8 +93,6 @@ make_optimizer! {
         interspecie_mate_pr,
         cull_fraction,
 
-        c2,
-        c3,
         n_conn_to_mutate: 0,
         mutate_add_conn_pr,
         mutate_add_neuron_pr: 0.001,

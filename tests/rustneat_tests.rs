@@ -40,7 +40,7 @@ mod test {
             mutation_pr: 1.0, // because mutation ensures we have connections
             ..Default::default()
         };
-        let mut population = Population::create_population(1);
+        let mut population = Population::create_population(2);
         population.evolve(&mut X, &p);
         let genome = &population.get_organisms().next().unwrap().genome;
         assert_eq!(genome.connections.len(), 1);
@@ -57,25 +57,7 @@ mod test {
     #[test]
     fn can_solve_xor() {
         const MAX_GENERATIONS: usize = 800;
-        let p = Params {
-            prune_after_n_generations: 37,
-            n_to_prune: 3,
-            mutation_pr: 0.74,
-            interspecie_mate_pr: 0.001,
-            cull_fraction: 0.122,
-
-            c2: 0.8,
-            c3: 0.16,
-            mutate_conn_weight_pr: 0.39,
-            mutate_conn_weight_perturbed_pr: 0.9,
-            n_conn_to_mutate: 0,
-            mutate_add_conn_pr: 0.00354,
-            mutate_add_neuron_pr: 0.001,
-            mutate_toggle_expr_pr: 0.00171,
-            mutate_bias_pr: 0.0222,
-            include_weak_disjoint_gene: 0.183,
-            compatibility_threshold: 3.1725
-        };
+        let p = Params::default();
         let start_genome = NeuralNetwork::with_neurons(3);
         let mut population = Population::create_population_from(start_genome, 150);
         let mut environment = XORClassification;
@@ -112,7 +94,7 @@ mod test {
         let mut population = Population::create_population(150);
         let mut environment = XORClassification;
         let mut best_fitness = std::f64::MIN;
-        for i in 0..MAX_GENERATIONS {
+        for _ in 0..MAX_GENERATIONS {
             population.evolve(&mut environment, &p);
 
             let mut best_fitness_in_gen = std::f64::MIN;
