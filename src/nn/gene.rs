@@ -57,18 +57,15 @@ pub struct ConnectionGene {
     out_neuron_id: usize,
     /// Weight of the connection
     pub weight: f64,
-    /// Whether the expression of a gene is enabled.
-    pub enabled: bool,
 }
 
 impl ConnectionGene {
     /// Create a new connection
-    pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64, enabled: bool) -> ConnectionGene {
+    pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64) -> ConnectionGene {
         ConnectionGene {
             in_neuron_id: in_neuron_id,
             out_neuron_id: out_neuron_id,
             weight: weight,
-            enabled: enabled,
         }
     }
     /// The neuron that acts as the input of this connection
@@ -97,7 +94,6 @@ impl Default for ConnectionGene {
             in_neuron_id: 1,
             out_neuron_id: 1,
             weight: 0.0,
-            enabled: true,
         }
     }
 }

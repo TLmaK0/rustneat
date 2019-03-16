@@ -119,7 +119,7 @@ impl<G: Genome> Population<G> {
                 .map(|species| species.average_fitness())
                 .collect::<Vec<_>>();
 
-            let sum_of_species_fitness: f64 = species_fitness.iter().sum();
+            // let sum_of_species_fitness: f64 = species_fitness.iter().sum();
 
             let elite_species = (0..self.species.len()).fold((0.0, 0), |(best_f, best_i), i| {
                 if self.species[i].champion_fitness() > best_f {

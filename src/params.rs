@@ -4,6 +4,10 @@ use serde_derive::{Deserialize, Serialize};
 /// internally. Usually you only need to give it to `Population::evolve`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Params {
+    /// Number of inputs to the neural network
+    pub n_inputs: usize,
+    /// Number of outputs to the neural network
+    pub n_outputs: usize,
     // In `Population`
     /// Maximum nuumber of generations without improvement before proceed with only the `n_to_prune` best
     /// species.
@@ -20,13 +24,15 @@ pub struct Params {
     pub cull_fraction: f64,
     // TODO: n_elites or elite_fraction
 
-    // In `NeuralNetwork`
+    // Topological mutations
     /// The probability of adding a connection during mutation
     pub mutate_add_conn_pr: f64,
+    /// The probability of deleting a connection during mutation
+    pub mutate_del_conn_pr: f64,
     /// The probability of adding a neuron during mutation
     pub mutate_add_neuron_pr: f64,
-    /// The probability of toggling a connection during mutation
-    pub mutate_toggle_expr_pr: f64,
+    /// The probability of deleting a neuron during mutation
+    pub mutate_del_neuron_pr: f64,
 
 
     /// The mean (normal distribution) of the weight of a new connection
@@ -71,24 +77,25 @@ pub struct Params {
     pub distance_disjoint_coef: f64,
 }
 
-impl Default for Params {
+impl Params {
     /// Sane default parameters
-    fn default() -> Params {
+    fn default(n_inputs: usize, n_outputs: usize) -> Params {
         Params {
+            n_inputs,
+            n_outputs,
             // population
             prune_after_n_generations: 20,
             /// Maximum amount of species that survive a 'pruning'
             n_to_prune: 3,
 
-            // specie
-            mutation_pr: 0.25,
+            mutation_pr: 0.5,
             interspecie_mate_pr: 0.001,
             cull_fraction: 0.1,
 
-            // neural network
-            mutate_add_conn_pr: 0.06,
-            mutate_add_neuron_pr: 0.02,
-            mutate_toggle_expr_pr: 0.001,
+            mutate_add_conn_pr: 0.25,
+            mutate_del_conn_pr: 0.25,
+            mutate_add_neuron_pr: 0.1,
+            mutate_del_neuron_pr: 0.1,
 
             weight_init_mean: 0.0, 
             weight_init_var: 1.0, 
@@ -118,16 +125,19 @@ impl Default for Params {
 impl Params {
     /// temporary
     /// 30gen, 30pop, 300iter
-    pub fn optimized_for_xor() -> Params {
+    pub fn optimized_for_xor(n_inputs: usize, n_outputs: usize) -> Params {
         Params {
+            n_inputs,
+            n_outputs,
             prune_after_n_generations: 24,
             n_to_prune: 3,
             mutation_pr: 0.7789911380525976,
             interspecie_mate_pr: 0.00011142344146628424,
             cull_fraction: 0.08461952672427815,
             mutate_add_conn_pr: 0.034419321300764874,
+            mutate_del_conn_pr: 0.02,
             mutate_add_neuron_pr: 0.010348211728832088,
-            mutate_toggle_expr_pr: 0.004702192289370327,
+            mutate_del_neuron_pr: 0.001,
             weight_init_mean: 0.0,
             weight_init_var: 0.739315871769454,
             weight_mutate_var: 0.6278347591284132,
@@ -145,16 +155,19 @@ impl Params {
         }
     }
     ///
-    pub fn optimized_for_xor2() -> Params {
+    pub fn optimized_for_xor2(n_inputs: usize, n_outputs: usize) -> Params {
         Params {
+            n_inputs,
+            n_outputs,
             prune_after_n_generations: 18,
             n_to_prune: 2,
             mutation_pr: 0.42511383143306747,
             interspecie_mate_pr: 0.0011253527448187332,
             cull_fraction: 0.26378491719510166,
             mutate_add_conn_pr: 0.03846985213713843,
+            mutate_del_conn_pr: 0.02,
             mutate_add_neuron_pr: 0.011185122817130088,
-            mutate_toggle_expr_pr: 0.005545119186907522,
+            mutate_del_neuron_pr: 0.001,
             weight_init_mean: 0.0,
             weight_init_var: 1.6933681857715341,
             weight_mutate_var: 0.6132724760136441,

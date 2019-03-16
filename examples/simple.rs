@@ -55,10 +55,11 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let p = Params{
+    let p = Params {
         compatibility_threshold: 1.5,
         mutation_pr: 1.0,
-        mutate_add_conn_pr: 0.07,
+        mutate_add_conn_pr: 0.2,
+        mutate_del_conn_pr: 0.2,
         mutate_add_neuron_pr: 0.07,
         weight_mutate_var: 0.1,
         weight_mutate_pr: 0.8,
@@ -73,8 +74,8 @@ fn main() {
 
     const MAX_ITERATIONS: usize = 100;
     let mut start_genome = NeuralNetwork::with_neurons(3);
-    start_genome.add_connection(0, 2, 0.0);
-    start_genome.add_connection(1, 2, 0.0);
+    start_genome.add_connection(0, 2, 1.0);
+    start_genome.add_connection(1, 2, 1.0);
     let mut population = Population::create_population_from(start_genome, 150);
     let mut environment = XORClassification;
     let mut champion: Option<Organism> = None;

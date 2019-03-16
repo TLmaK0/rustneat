@@ -75,17 +75,19 @@ impl Genome for NeuralNetwork {
         // Topological mutations
         if rand::random::<f64>() < p.mutate_add_conn_pr || self.connections.is_empty() {
             self.mutate_add_connection(p);
-        };
+        }
 
         if rand::random::<f64>() < p.mutate_add_neuron_pr {
             self.mutate_add_neuron(*innovation_id);
             *innovation_id += 1;
-        };
+        }
 
-
-        if rand::random::<f64>() < p.mutate_toggle_expr_pr {
-            self.mutate_toggle_expression();
-        };
+        if rand::random::<f64>() < p.mutate_del_neuron_pr {
+            self.mutate_del_neuron(p);
+        }
+        if rand::random::<f64>() < p.mutate_del_conn_pr {
+            self.mutate_del_conn();
+        }
 
         // For each connection and neuron, there is some probability to mutate it
 
@@ -176,11 +178,9 @@ impl NeuralNetwork {
         let n_neurons = self.neurons.len();
         let mut matrix = vec![0.0; n_neurons * n_neurons];
         for gene in self.connections.values() {
-            if gene.enabled {
-                let (out_neuron_idx,_,_) = self.neurons.get_full(&gene.out_neuron_id()).unwrap();
-                let (in_neuron_idx,_,_) = self.neurons.get_full(&gene.in_neuron_id()).unwrap();
-                matrix[(out_neuron_idx * n_neurons) + in_neuron_idx] = gene.weight;
-            }
+            let (out_neuron_idx,_,_) = self.neurons.get_full(&gene.out_neuron_id()).unwrap();
+            let (in_neuron_idx,_,_) = self.neurons.get_full(&gene.in_neuron_id()).unwrap();
+            matrix[(out_neuron_idx * n_neurons) + in_neuron_idx] = gene.weight;
         }
         matrix
     }
@@ -212,28 +212,20 @@ impl NeuralNetwork {
         self.add_connection(in_neuron_id, out_neuron_id, weight);
     }
 
-
-    /// Toggles the expression of a random connection
-    fn mutate_toggle_expression(&mut self) {
-        if self.connections.len() == 0 {
-            return;
-        }
-        let selected_gene = get_random_mut(&mut self.connections);
-        selected_gene.enabled = !selected_gene.enabled;
+    fn mutate_del_conn(&mut self) {
+        let selected_gene = get_random_key(&self.connections);
+        self.connections.remove(&selected_gene);
     }
-
 
     fn mutate_add_neuron(&mut self, innovation_id: usize) {
         if self.connections.len() == 0 {
             let gene = NeuronGene::new(0.0, innovation_id);
             self.neurons.insert(gene.id(), gene);
         } else {
-            // Select a random connections along which to add neuron.. and disable it 
-            let old_connection = {
-                let selected_gene = get_random_mut(&mut self.connections);
-                selected_gene.enabled = false;
-                *selected_gene
-            };
+            // Select a random connections along which to add neuron.. and remove it
+            let old_connection_id = get_random_key(&mut self.connections);
+            let old_connection = *self.connections.get_mut(&old_connection_id).unwrap();
+            self.connections.remove(&old_connection_id);
             // Create new neuron
             let new_neuron = NeuronGene::new(0.0, innovation_id);
             self.neurons.insert(new_neuron.id(), new_neuron);
@@ -241,6 +233,23 @@ impl NeuralNetwork {
             self.add_connection(old_connection.in_neuron_id(), new_neuron.id(), 1.0);
             self.add_connection(new_neuron.id(), old_connection.out_neuron_id(),
                                 old_connection.weight);
+        }
+    }
+    fn mutate_del_neuron(&mut self, p: &Params) {
+        let sacred_neurons = p.n_inputs + p.n_outputs;
+        let idx = (rand::random::<usize>() % (self.neurons.len() - sacred_neurons)) + sacred_neurons;
+        let id = *self.neurons.get_index(idx).unwrap().0;
+        // Delete it
+        self.neurons.remove(&id);
+        // Delete incoming and outgoing connections
+        let mut to_remove = Vec::new();
+        for (conn_id, conn) in self.connections.iter() {
+            if conn_id.0 == id && conn_id.1 == id {
+                to_remove.push(*conn_id);
+            }
+        }
+        for conn in &to_remove {
+            self.connections.remove(conn);
         }
     }
 
@@ -266,13 +275,12 @@ impl NeuralNetwork {
     /// Add a new connection. Panics if in_neuron or out_neuron are invalid neuron IDs.
     pub fn add_connection(&mut self, in_neuron: NeuronId, out_neuron: NeuronId, weight: f64) {
         assert!(self.neurons.len() > 0, "add_connection: Tried to add a connection to network with no neurons");
-        let new_gene = ConnectionGene::new(in_neuron, out_neuron, weight, true);
+        let new_gene = ConnectionGene::new(in_neuron, out_neuron, weight);
 
         assert!(self.neurons.contains_key(&in_neuron));
         assert!(self.neurons.contains_key(&out_neuron));
 
         if let Some(gene) = self.connections.get_mut(&new_gene.id()) {
-            gene.enabled = true;
             gene.weight = weight;
         } else {
             self.connections.insert(new_gene.id(), new_gene);
