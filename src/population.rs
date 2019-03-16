@@ -2,6 +2,7 @@ use crate::{Genome, Organism, Environment, Specie, NeuralNetwork, Params};
 use rayon::prelude::*;
 // use std::cmp::Ordering::*;
 use rand::distributions::{Uniform, Distribution};
+use std::f64;
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -129,18 +130,18 @@ impl<G: Genome> Population<G> {
             });
             let elite_species = elite_species.1;
 
+            let max_fitness = species_fitness.iter().cloned().fold(f64::NAN, f64::max);
+            let min_fitness = species_fitness.iter().cloned().fold(f64::NAN, f64::min);
+            let fitness_range = f64::max(1.0, max_fitness - min_fitness);
+            let adjusted_fitness = species_fitness.iter()
+                .map(|fitness| fitness - min_fitness + fitness_range*0.2).collect::<Vec<_>>();
+            let total_adjusted_fitness = adjusted_fitness.iter().sum::<f64>();
+
             let n_offspring: Vec<_> = 
-                if sum_of_species_fitness == 0.0 {
-                    self.species.iter()
-                        .map(|species| species.organisms.len()).collect()
-                } else {
-                    Self::partition(
-                        organisms.len(),
-                        &species_fitness.iter()
-                            .map(|fitness| fitness / sum_of_species_fitness)
-                            .collect::<Vec<_>>(),
-                        elite_species)
-                };
+                Self::partition(
+                    organisms.len(),
+                    &adjusted_fitness.iter().map(|x| x/total_adjusted_fitness).collect::<Vec<_>>(),
+                    elite_species);
 
             for (species, n_offspring) in self.species.iter_mut().zip(n_offspring) {
                 species.generate_offspring(n_offspring, &organisms, &mut self.innovation_id, p);
@@ -154,10 +155,12 @@ impl<G: Genome> Population<G> {
                     organism.fitness = env.test(&mut organism.genome);
                     if organism.fitness < 0.0 {
                         eprintln!("Fitness {} < 0.0", organism.fitness);
-                        std::process::exit(-1);
+                        std::process::exit(1);
                     }
                 }))
     }
+    
+    // fn determine_new_species_sizes()
 
     // Helper of `evolve`. Partition `total` into partitions with size given by `fractions`.
     // We need this logic to ensure that the total stays the same after partitioning.
@@ -167,6 +170,8 @@ impl<G: Genome> Population<G> {
         let mut partitions: Vec<usize> = fractions.iter().map(|x| ((total as f64 * x) as usize)).collect();
         let mut sum: usize = partitions.iter().sum();
         let range = Uniform::from(0..partitions.len());
+        println!("Fraction: {:?}", fractions);
+        println!("Partitions: {:?}", partitions);
         while sum != total {
             let residue = sum as i32 - total as i32;
             let selected = range.sample(&mut rng);

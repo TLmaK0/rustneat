@@ -25,6 +25,16 @@ impl<G: Genome> Specie<G> {
     pub fn match_genome(&self, organism: &G, p: &Params) -> bool {
         self.representative.genome.is_same_specie(&organism, p)
     }
+    ///
+    pub fn get_champion(&self) -> Organism<G> {
+        self.organisms.iter().fold((std::f64::NEG_INFINITY, None), |state, organism| {
+                    if organism.fitness > state.0 {
+                        (organism.fitness, Some(organism))
+                    } else {
+                        state
+                    }
+        }).1.unwrap().clone()
+    }
     /// Get the best fitness of this species. Stores the value internally, and uses it in
     /// subsequent calls to the function
     pub fn champion_fitness(&self) -> f64 {

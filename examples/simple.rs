@@ -38,7 +38,7 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
     let mut p = Params::default();
-    p.compatibility_threshold = 1.5;
+    p.compatibility_threshold = 2.6;
 
     const MAX_ITERATIONS: usize = 100;
     let mut start_genome = NeuralNetwork::with_neurons(3);
@@ -65,10 +65,13 @@ fn main() {
         if i % 1 == 0 {
             // let best_organism = best_organism.unwrap().genome;
             // println!("= Gen {}: {} =", i, best_fitness);
-            let specie_stats = population.species.iter_mut()
-                .map(|s| (s.organisms.len(), {s.calculate_champion_fitness(); s.champion_fitness()}))
-                .collect::<Vec<_>>();
-            println!(" - {} species: {:?}", population.species.len(), specie_stats);
+            for species in population.species.iter() {
+                let champ = species.get_champion();
+                println!(" - Species({}), peak {}, {} neurons, {} connections",
+                         species.organisms.len(), champ.fitness, champ.genome.n_neurons(),
+                         champ.genome.n_connections());
+
+            }
             println!("");
         }
     }
