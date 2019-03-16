@@ -21,8 +21,6 @@ pub struct Params {
     // TODO: n_elites or elite_fraction
 
     // In `NeuralNetwork`
-    /// The maximum number of connections to mutate. A number `x <= 0` means `n_connections - x`.
-    pub n_conn_to_mutate: i32,
     /// The probability of adding a connection during mutation
     pub mutate_add_conn_pr: f64,
     /// The probability of adding a neuron during mutation
@@ -88,7 +86,6 @@ impl Default for Params {
             cull_fraction: 0.1,
 
             // neural network
-            n_conn_to_mutate: 0,
             mutate_add_conn_pr: 0.06,
             mutate_add_neuron_pr: 0.02,
             mutate_toggle_expr_pr: 0.001,
@@ -120,33 +117,58 @@ impl Default for Params {
 
 impl Params {
     /// temporary
+    /// 30gen, 30pop, 300iter
     pub fn optimized_for_xor() -> Params {
         Params {
-            prune_after_n_generations: 19,
-            n_to_prune: 2,
-            mutation_pr: 0.886247407101759,
-            interspecie_mate_pr: 0.001989480993503591,
-            cull_fraction: 0.1678207776504504,
-            n_conn_to_mutate: 0,
-            mutate_add_conn_pr: 0.003705672926030052,
-            mutate_add_neuron_pr: 0.001,
-            mutate_toggle_expr_pr: 0.004741272230391003,
-
+            prune_after_n_generations: 24,
+            n_to_prune: 3,
+            mutation_pr: 0.7789911380525976,
+            interspecie_mate_pr: 0.00011142344146628424,
+            cull_fraction: 0.08461952672427815,
+            mutate_add_conn_pr: 0.034419321300764874,
+            mutate_add_neuron_pr: 0.010348211728832088,
+            mutate_toggle_expr_pr: 0.004702192289370327,
             weight_init_mean: 0.0,
-            weight_init_var: 1.63124335619358,
-            weight_mutate_var: 0.7944613405433263,
-            weight_mutate_pr: 0.22264676958558907,
-            weight_replace_pr: 0.07487760506419014,
-
+            weight_init_var: 0.739315871769454,
+            weight_mutate_var: 0.6278347591284132,
+            weight_mutate_pr: 0.5178002229984818,
+            weight_replace_pr: 0.14323022713090744,
             bias_init_mean: 0.0,
-            bias_init_var: 1.1368762515242272,
-            bias_mutate_var: 0.5519888080987314,
-            bias_mutate_pr: 0.2533586967820932,
-            bias_replace_pr: 0.18821040418714985,
-            include_weak_disjoint_gene: 0.22339770722706298,
-            compatibility_threshold: 2.087256136498854,
-            distance_weight_coef: 0.2717466608295739,
-            distance_disjoint_coef: 0.9412445790399938
+            bias_init_var: 0.6638680611444077,
+            bias_mutate_var: 0.3262182872253431,
+            bias_mutate_pr: 0.46351108180984113,
+            bias_replace_pr: 0.15485210902008673,
+            include_weak_disjoint_gene: 0.2592218898273462,
+            compatibility_threshold: 2.6013055853422187,
+            distance_weight_coef: 0.43937041525713183,
+            distance_disjoint_coef: 0.8007059311648334
+        }
+    }
+    ///
+    pub fn optimized_for_xor2() -> Params {
+        Params {
+            prune_after_n_generations: 18,
+            n_to_prune: 2,
+            mutation_pr: 0.42511383143306747,
+            interspecie_mate_pr: 0.0011253527448187332,
+            cull_fraction: 0.26378491719510166,
+            mutate_add_conn_pr: 0.03846985213713843,
+            mutate_add_neuron_pr: 0.011185122817130088,
+            mutate_toggle_expr_pr: 0.005545119186907522,
+            weight_init_mean: 0.0,
+            weight_init_var: 1.6933681857715341,
+            weight_mutate_var: 0.6132724760136441,
+            weight_mutate_pr: 0.3793931785569132,
+            weight_replace_pr: 0.07344761865136407,
+            bias_init_mean: 0.0,
+            bias_init_var: 1.576323126898198,
+            bias_mutate_var: 0.33893450130417346,
+            bias_mutate_pr: 0.6606222432143025,
+            bias_replace_pr: 0.020981083224497044,
+            include_weak_disjoint_gene: 0.2742797470379294,
+            compatibility_threshold: 3.111548605546438,
+            distance_weight_coef: 0.27947178737291656,
+            distance_disjoint_coef: 0.7320224906467249
         }
     }
 }

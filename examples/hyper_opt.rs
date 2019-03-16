@@ -57,11 +57,9 @@ make_optimizer! {
         interspecie_mate_pr: f64 = 0.0 .. 0.002,
         cull_fraction: f64 = 0.05 .. 0.3,
 
-        c2: f64 = 0.3 .. 1.0,
-        c3: f64 = 0.0 .. 0.4,
         // n_conn_to_mutate: 0,
-        mutate_add_conn_pr: f64 = 0.001..0.004,
-        // mutate_add_neuron_pr: f64 = 0.001..0.002,
+        mutate_add_conn_pr: f64 = 0.01..0.04,
+        mutate_add_neuron_pr: f64 = 0.01..0.04,
         mutate_toggle_expr_pr: f64 = 0.001 .. 0.02,
 
         // weight_init_mean: 0.0, 
@@ -83,7 +81,7 @@ make_optimizer! {
         distance_disjoint_coef: f64 = 0.5 .. 1.0,
     }
 
-    const N_GEN: usize = 30; // generations per round
+    const N_GEN: usize = 100; // generations per round
     const N_POPULATIONS: usize = 30; // populations per iteration
     let p = Params {
         prune_after_n_generations,
@@ -93,9 +91,8 @@ make_optimizer! {
         interspecie_mate_pr,
         cull_fraction,
 
-        n_conn_to_mutate: 0,
         mutate_add_conn_pr,
-        mutate_add_neuron_pr: 0.001,
+        mutate_add_neuron_pr,
         mutate_toggle_expr_pr,
         include_weak_disjoint_gene,
 

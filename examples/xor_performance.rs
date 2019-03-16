@@ -30,12 +30,28 @@ impl Environment for XORClassification {
 
 fn main() {
     let p = Params {
-        // ..Params::optimized_for_xor()
-        ..Params::default()
+        ..Params::optimized_for_xor()
+        // ..Params::default()
     };
+    // let p = Params {
+        // compatibility_threshold: 1.5,
+        // mutation_pr: 1.0,
+        // mutate_add_conn_pr: 0.07,
+        // mutate_add_neuron_pr: 0.07,
+        // weight_mutate_var: 0.1,
+        // weight_mutate_pr: 0.8,
+        // weight_replace_pr: 0.01,
+        // bias_mutate_var: 0.1,
+        // bias_mutate_pr: 0.8,
+        // bias_replace_pr: 0.01,
 
-    solve_time_perf(&p);
-    // fixed_generations_perf(&p);
+        
+        // ..Params::optimized_for_xor2()
+    // };
+
+
+    // solve_time_perf(&p);
+    fixed_generations_perf(&p);
 
 }
 
@@ -95,7 +111,7 @@ fn solve_time_perf(p: &Params) {
 /// See the best fitness, on average, after a fixed amount of generations
 fn fixed_generations_perf(p: &Params) {
     const N_EXP: usize = 40;
-    const N_GEN: usize = 300;
+    const N_GEN: usize = 100;
     let mut scores = Vec::new();
     let mut neurons = Vec::new();
     let mut connections = Vec::new();

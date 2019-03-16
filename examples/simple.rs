@@ -9,25 +9,43 @@ mod telemetry_helper;
 struct XORClassification;
 
 impl Environment for XORClassification {
+    // fn test(&self, organism: &mut NeuralNetwork) -> f64 {
+        // let mut output = vec![0f64];
+        // let mut distance: f64;
+        // organism.activate(vec![0f64, 0f64], &mut output);
+        // distance = (0f64 - output[0]).abs();
+        // organism.activate(vec![0f64, 1f64], &mut output);
+        // distance += (1f64 - output[0]).abs();
+        // organism.activate(vec![1f64, 0f64], &mut output);
+        // distance += (1f64 - output[0]).abs();
+        // organism.activate(vec![1f64, 1f64], &mut output);
+        // distance += (0f64 - output[0]).abs();
+
+        // let fitness = 4.0 - distance;
+        // if fitness < 0.0 {
+            // 0.0
+        // } else  { 
+            // fitness.powf(2.0)
+        // }
+    // }
+
     fn test(&self, organism: &mut NeuralNetwork) -> f64 {
         let mut output = vec![0f64];
         let mut distance: f64;
         organism.activate(vec![0f64, 0f64], &mut output);
-        distance = (0f64 - output[0]).abs();
+        distance = (0f64 - output[0]).powi(2);
         organism.activate(vec![0f64, 1f64], &mut output);
-        distance += (1f64 - output[0]).abs();
+        distance += (1f64 - output[0]).powi(2);
         organism.activate(vec![1f64, 0f64], &mut output);
-        distance += (1f64 - output[0]).abs();
+        distance += (1f64 - output[0]).powi(2);
         organism.activate(vec![1f64, 1f64], &mut output);
-        distance += (0f64 - output[0]).abs();
+        distance += (0f64 - output[0]).powi(2);
 
-        let fitness = 4.0 - distance;
-        if fitness < 0.0 {
-            0.0
-        } else  { 
-            fitness.powf(2.0)
-        }
+        let fitness = 16.0 / (1.0 + distance);
+
+        fitness
     }
+
 }
 
 fn main() {
@@ -37,8 +55,21 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let mut p = Params::default();
-    p.compatibility_threshold = 2.6;
+    let p = Params{
+        compatibility_threshold: 1.5,
+        mutation_pr: 1.0,
+        mutate_add_conn_pr: 0.07,
+        mutate_add_neuron_pr: 0.07,
+        weight_mutate_var: 0.1,
+        weight_mutate_pr: 0.8,
+        weight_replace_pr: 0.01,
+        bias_mutate_var: 0.1,
+        bias_mutate_pr: 0.8,
+        bias_replace_pr: 0.01,
+
+        
+        ..Params::optimized_for_xor2()
+    };
 
     const MAX_ITERATIONS: usize = 100;
     let mut start_genome = NeuralNetwork::with_neurons(3);
