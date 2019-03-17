@@ -79,12 +79,12 @@ pub struct Params {
 
 impl Params {
     /// Sane default parameters
-    fn default(n_inputs: usize, n_outputs: usize) -> Params {
+    pub fn default(n_inputs: usize, n_outputs: usize) -> Params {
         Params {
             n_inputs,
             n_outputs,
             // population
-            prune_after_n_generations: 20,
+            prune_after_n_generations: 100,
             /// Maximum amount of species that survive a 'pruning'
             n_to_prune: 3,
 
@@ -92,10 +92,10 @@ impl Params {
             interspecie_mate_pr: 0.001,
             cull_fraction: 0.1,
 
-            mutate_add_conn_pr: 0.25,
-            mutate_del_conn_pr: 0.25,
+            mutate_add_conn_pr: 0.5,
+            mutate_del_conn_pr: 0.5,
             mutate_add_neuron_pr: 0.1,
-            mutate_del_neuron_pr: 0.1,
+            mutate_del_neuron_pr: 0.08,
 
             weight_init_mean: 0.0, 
             weight_init_var: 1.0, 

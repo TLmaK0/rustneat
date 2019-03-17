@@ -213,8 +213,10 @@ impl NeuralNetwork {
     }
 
     fn mutate_del_conn(&mut self) {
-        let selected_gene = get_random_key(&self.connections);
-        self.connections.remove(&selected_gene);
+        if self.connections.len() > 0 {
+            let selected_gene = get_random_key(&self.connections);
+            self.connections.remove(&selected_gene);
+        }
     }
 
     fn mutate_add_neuron(&mut self, innovation_id: usize) {
@@ -237,6 +239,10 @@ impl NeuralNetwork {
     }
     fn mutate_del_neuron(&mut self, p: &Params) {
         let sacred_neurons = p.n_inputs + p.n_outputs;
+        if self.neurons.len() <= sacred_neurons {
+            return;
+        }
+
         let idx = (rand::random::<usize>() % (self.neurons.len() - sacred_neurons)) + sacred_neurons;
         let id = *self.neurons.get_index(idx).unwrap().0;
         // Delete it
@@ -244,7 +250,7 @@ impl NeuralNetwork {
         // Delete incoming and outgoing connections
         let mut to_remove = Vec::new();
         for (conn_id, conn) in self.connections.iter() {
-            if conn_id.0 == id && conn_id.1 == id {
+            if conn_id.0 == id || conn_id.1 == id {
                 to_remove.push(*conn_id);
             }
         }

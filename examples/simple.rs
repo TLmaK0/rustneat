@@ -56,20 +56,41 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
     let p = Params {
-        compatibility_threshold: 1.5,
+        prune_after_n_generations: 100,
+        /// Maximum amount of species that survive a 'pruning'
+        n_to_prune: 3,
+
         mutation_pr: 1.0,
-        mutate_add_conn_pr: 0.2,
-        mutate_del_conn_pr: 0.2,
-        mutate_add_neuron_pr: 0.07,
-        weight_mutate_var: 0.1,
+        interspecie_mate_pr: 0.01,
+        cull_fraction: 0.2,
+
+        mutate_add_conn_pr: 0.5,
+        mutate_del_conn_pr: 0.5,
+        mutate_add_neuron_pr: 0.1,
+        mutate_del_neuron_pr: 0.08,
+
+        weight_init_mean: 0.0, 
+        weight_init_var: 1.0, 
+        weight_mutate_var: 0.5,
         weight_mutate_pr: 0.8,
-        weight_replace_pr: 0.01,
-        bias_mutate_var: 0.1,
-        bias_mutate_pr: 0.8,
-        bias_replace_pr: 0.01,
+        weight_replace_pr: 0.1,
+
+        bias_init_mean: 0.0, 
+        bias_init_var: 1.0, 
+        bias_mutate_var: 0.5,
+        bias_mutate_pr: 0.7,
+        bias_replace_pr: 0.1,
+
+
+        include_weak_disjoint_gene: 0.0,
+
+        // other
+        compatibility_threshold: 3.0,
+        distance_weight_coef: 0.5,
+        distance_disjoint_coef: 1.0,
 
         
-        ..Params::optimized_for_xor2()
+        ..Params::default(2, 1)
     };
 
     const MAX_ITERATIONS: usize = 100;
