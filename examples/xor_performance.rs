@@ -32,10 +32,9 @@ fn main() {
     let p = Params {
         n_inputs: 2,
         n_outputs: 1,
-        // population
-        prune_after_n_generations: 100,
-        /// Maximum amount of species that survive a 'pruning'
-        n_to_prune: 3,
+
+        remove_after_n_generations: 18,
+        species_elite: 2,
 
         mutation_pr: 1.0,
         interspecie_mate_pr: 0.01,
@@ -44,7 +43,7 @@ fn main() {
         mutate_add_conn_pr: 0.5,
         mutate_del_conn_pr: 0.5,
         mutate_add_neuron_pr: 0.1,
-        mutate_del_neuron_pr: 0.08,
+        mutate_del_neuron_pr: 0.1,
 
         weight_init_mean: 0.0, 
         weight_init_var: 1.0, 
@@ -62,9 +61,9 @@ fn main() {
         include_weak_disjoint_gene: 0.0,
 
         // other
-        compatibility_threshold: 3.0,
-        distance_weight_coef: 0.5,
-        distance_disjoint_coef: 1.0,
+        compatibility_threshold: 3.3,
+        distance_weight_coef: 0.13,
+        distance_disjoint_coef: 0.6,
         // ..Params::default(2, 1)
     };
     // let p = Params {

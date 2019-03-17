@@ -17,7 +17,6 @@ pub struct Population<G = NeuralNetwork> {
     /// container of species
     pub species: Vec<Specie<G>>,
     target_size: usize,
-    champion_fitness: f64,
     generations_without_improvements: usize,
 
     /// The latest innovation id
@@ -44,7 +43,6 @@ impl<G: Genome> Population<G> {
         Population {
             species: vec![specie],
             target_size: population_size,
-            champion_fitness: 0.0,
             generations_without_improvements: 0,
             innovation_id: 0,
         }
@@ -94,58 +92,43 @@ impl<G: Genome> Population<G> {
         let organisms = self.get_organisms().cloned().collect::<Vec<_>>();
 
         // Divide into species
-        self.species = Population::speciate(&organisms, p);
+        self.speciate(&organisms, p);
 
-        self.species.iter_mut().for_each(|specie| specie.calculate_champion_fitness());
 
-        // Find champion, check if there is any improvement
-        self.update_champion();
+        // Give each species a number of offsprings related to that species'
+        // average fitness
 
-        if self.generations_without_improvements > p.prune_after_n_generations {
-            // After a certain generations with no improvement, we prune all species except the two
-            // best ones
-            self.prune_species();
-            let n_species = self.species.len();
-            for specie in &mut self.species {
-                specie.generate_offspring(organisms.len() / n_species, &organisms, &mut self.innovation_id, p);
+        // Gather the average shared fitness, and the calculated number of offsprings, per species
+        let species_fitness = self.species.iter()
+            .map(|species| species.average_fitness())
+            .collect::<Vec<_>>();
+
+        // let sum_of_species_fitness: f64 = species_fitness.iter().sum();
+
+        let elite_species = (0..self.species.len()).fold((0.0, 0), |(best_f, best_i), i| {
+            if self.species[i].champion_fitness() > best_f {
+                (self.species[i].champion_fitness(), i)
+            } else {
+                (best_f, best_i)
             }
-            self.generations_without_improvements = 0;
-        } else {
-            // Normal case: Give each species a number of offsprings related to that species'
-            // average fitness
+        });
+        let elite_species = elite_species.1;
 
-            // Gather the average shared fitness, and the calculated number of offsprings, per species
-            let species_fitness = self.species.iter()
-                .map(|species| species.average_fitness())
-                .collect::<Vec<_>>();
+        let max_fitness = species_fitness.iter().cloned().fold(f64::NAN, f64::max);
+        let min_fitness = species_fitness.iter().cloned().fold(f64::NAN, f64::min);
+        let fitness_range = f64::max(1.0, max_fitness - min_fitness);
+        let adjusted_fitness = species_fitness.iter()
+            .map(|fitness| fitness - min_fitness + fitness_range*0.2).collect::<Vec<_>>();
+        let total_adjusted_fitness = adjusted_fitness.iter().sum::<f64>();
 
-            // let sum_of_species_fitness: f64 = species_fitness.iter().sum();
+        let n_offspring: Vec<_> = 
+            Self::partition(
+                organisms.len(),
+                &adjusted_fitness.iter().map(|x| x/total_adjusted_fitness).collect::<Vec<_>>(),
+                elite_species);
 
-            let elite_species = (0..self.species.len()).fold((0.0, 0), |(best_f, best_i), i| {
-                if self.species[i].champion_fitness() > best_f {
-                    (self.species[i].champion_fitness(), i)
-                } else {
-                    (best_f, best_i)
-                }
-            });
-            let elite_species = elite_species.1;
-
-            let max_fitness = species_fitness.iter().cloned().fold(f64::NAN, f64::max);
-            let min_fitness = species_fitness.iter().cloned().fold(f64::NAN, f64::min);
-            let fitness_range = f64::max(1.0, max_fitness - min_fitness);
-            let adjusted_fitness = species_fitness.iter()
-                .map(|fitness| fitness - min_fitness + fitness_range*0.2).collect::<Vec<_>>();
-            let total_adjusted_fitness = adjusted_fitness.iter().sum::<f64>();
-
-            let n_offspring: Vec<_> = 
-                Self::partition(
-                    organisms.len(),
-                    &adjusted_fitness.iter().map(|x| x/total_adjusted_fitness).collect::<Vec<_>>(),
-                    elite_species);
-
-            for (species, n_offspring) in self.species.iter_mut().zip(n_offspring) {
-                species.generate_offspring(n_offspring, &organisms, &mut self.innovation_id, p);
-            }
+        for (species, n_offspring) in self.species.iter_mut().zip(n_offspring) {
+            species.generate_offspring(n_offspring, &organisms, &mut self.innovation_id, p);
         }
 
         // Evaluate the fitness of all organisms, in parallel
@@ -166,6 +149,7 @@ impl<G: Genome> Population<G> {
     // We need this logic to ensure that the total stays the same after partitioning.
     // `elite` is the index of a partition that will be ensured one spot
     fn partition(total: usize, fractions: &[f64], elite: usize) -> Vec<usize> {
+        assert!(fractions.len() > 0);
         let mut rng = rand::thread_rng();
         let mut partitions: Vec<usize> = fractions.iter().map(|x| ((total as f64 * x) as usize)).collect();
         let mut sum: usize = partitions.iter().sum();
@@ -193,50 +177,37 @@ impl<G: Genome> Population<G> {
         partitions
     }
 
-    /// Leaves only the best 2 species
-    fn prune_species(&mut self) {
-        const N: usize = 2;
-        if self.species.len() < N {
-            return;
-        }
-        self.species.sort_by(|a, b| {
-            b.champion_fitness().partial_cmp(&a.champion_fitness()).unwrap()
-        });
-        self.species.truncate(N);
-    }
 
     /// Helper of `evolve`
-    fn speciate(organisms: &[Organism<G>], p: &Params) -> Vec<Specie<G>> {
-        let mut species = Vec::<Specie<G>>::new();
+    fn speciate(&mut self, organisms: &[Organism<G>], p: &Params) {
+        for s in &mut self.species {
+            if s.organisms.len() > 0 {
+                // Pick random representative from the previous generation
+                s.representative = s.organisms[rand::random::<usize>() % s.organisms.len()].clone();
+                s.organisms = Vec::new();
+            }
+        }
         for organism in organisms {
-            match species.iter_mut().find(|specie| specie.match_genome(&organism.genome, p)) {
+            match self.species.iter_mut().find(|specie| specie.match_genome(&organism.genome, p)) {
                 Some(specie) => {
                     specie.organisms.push(organism.clone());
                 }
                 None => {
-                    species.push(Specie::new(organism.clone()));
+                    self.species.push(Specie::new(organism.clone()));
                 }
             }
         }
-        species
-    }
-    /// Helper of `evolve`. Find champion, and check if there is any improvement
-    fn update_champion(&mut self) {
-        let champion_fitness = self.get_champion().fitness;
-        if self.champion_fitness >= champion_fitness {
-            self.generations_without_improvements += 1;
-        } else {
-            self.champion_fitness = champion_fitness;
-            #[cfg(feature = "telemetry")]
-            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
-            #[cfg(feature = "telemetry")]
-            telemetry!(
-                "network1",
-                1.0,
-                serde_json::to_string(&champion.genome.get_genes()).unwrap()
-            );
-            self.generations_without_improvements = 0;
-        }
+        self.species.retain(|s| s.organisms.len() > 0);
+
+        // Update champion
+        self.species.iter_mut().for_each(|specie| specie.update_champion());
+        // Sort by descending fitness
+        self.species.sort_by(|a, b| b.champion_fitness().partial_cmp(&a.champion_fitness()).unwrap());
+        // Fitness above which a species will not be removed.
+        let safe_fitness = self.species[usize::min(p.species_elite-1, self.species.len()-1)].champion_fitness();
+        // Kill species that haven't improved in a awhile
+        self.species.retain(|s| (s.age - s.age_last_improvement < p.remove_after_n_generations
+                                || s.champion_fitness() >= safe_fitness));
     }
 }
 

@@ -5,8 +5,14 @@ use rand::{self, distributions::{Distribution, Uniform}};
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
 pub struct Specie<G> {
-    representative: Organism<G>,
-    champion_fitness: Option<f64>,
+    /// A representative organism from the previous generation
+    pub representative: Organism<G>,
+    champion: Option<Organism<G>>,
+    /// Number of generations this species has existed
+    pub age: usize,
+    /// The age of the species at the last improvement
+    pub age_last_improvement: usize,
+    
     /// All orgnamisms in this species
     pub organisms: Vec<Organism<G>>,
 }
@@ -18,7 +24,9 @@ impl<G: Genome> Specie<G> {
         Specie {
             organisms: vec![genome.clone()],
             representative: genome,
-            champion_fitness: None,
+            champion: None,
+            age: 0,
+            age_last_improvement: 0,
         }
     }
     /// Check if another organism is of the same species as this one.
@@ -38,19 +46,26 @@ impl<G: Genome> Specie<G> {
     /// Get the best fitness of this species. Stores the value internally, and uses it in
     /// subsequent calls to the function
     pub fn champion_fitness(&self) -> f64 {
-        match self.champion_fitness {
-            Some(fitness) => fitness,
+        match self.champion {
+            Some(ref champion) => champion.fitness,
             None => panic!("Calling Specie::champion_fitness requires that you first call calculate_champion_fitness!"),
         }
     }
     /// Calculate fitness of champion and store it internally, to be retrieved by `champion_fitness`
-    pub fn calculate_champion_fitness(&mut self) {
-        self.champion_fitness = Some(self.organisms.iter().fold(std::f64::NEG_INFINITY, |max, organism| {
-                    if organism.fitness > max {
-                        organism.fitness
+    pub fn update_champion(&mut self) {
+        assert!(self.organisms.len() > 0);
+        let old_fitness = self.champion.as_ref().map(|x| x.fitness);
+        self.champion = Some(self.organisms.iter().fold((std::f64::NEG_INFINITY, None), |state, organism| {
+                    if organism.fitness > state.0 {
+                        (organism.fitness, Some(organism.clone()))
                     } else {
-                        max
-                    }}));
+                        state
+                    }}).1.unwrap());
+        if let Some(old_fitness) = old_fitness {
+            if self.champion.as_ref().unwrap().fitness > old_fitness {
+                self.age_last_improvement = self.age;
+            }
+        }
     }
     /// Get the average fitness of the organisms in the species.
     pub fn average_fitness(&self) -> f64 {
@@ -64,6 +79,7 @@ impl<G: Genome> Specie<G> {
         avg_fitness
     }
 
+
     /// Generate the next generation of genomes, which will replace the old within this species.
     /// `champion_fitness`: the fitness of the population-wide champion. The reason for this
     /// parameter is that the species should see if it is the best-performing one.
@@ -71,6 +87,7 @@ impl<G: Genome> Specie<G> {
                                          population_offspring: &[Organism<G>],
                                          innovation_id: &mut usize,
                                          p: &Params) {
+        self.age += 1;
         if n_offspring == 0 {
             self.organisms = Vec::new();
             return;

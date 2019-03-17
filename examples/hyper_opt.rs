@@ -50,63 +50,67 @@ fn run(p: &Params, n_gen: usize) -> f64 {
 
 make_optimizer! {
     Configuration {
-        prune_after_n_generations: usize = 10 .. 40,
-        n_to_prune: usize = 2 .. 4,
+        // prune_after_n_generations: usize = 10 .. 40,
+        // n_to_prune: usize = 2 .. 4,
 
-        mutation_pr: f64 = 0.2 .. 1.0,
-        interspecie_mate_pr: f64 = 0.0 .. 0.002,
-        cull_fraction: f64 = 0.05 .. 0.3,
+        // mutation_pr: f64 = 0.2 .. 1.0,
+        // interspecie_mate_pr: f64 = 0.0 .. 0.002,
+        // cull_fraction: f64 = 0.05 .. 0.3,
 
-        // n_conn_to_mutate: 0,
-        mutate_add_conn_pr: f64 = 0.01..0.04,
-        mutate_add_neuron_pr: f64 = 0.01..0.04,
-        mutate_toggle_expr_pr: f64 = 0.001 .. 0.02,
+        // // n_conn_to_mutate: 0,
+        // mutate_add_conn_pr: f64 = 0.01..0.04,
+        // mutate_add_neuron_pr: f64 = 0.01..0.04,
+        // mutate_toggle_expr_pr: f64 = 0.001 .. 0.02,
 
-        // weight_init_mean: 0.0, 
-        weight_init_var: f64 = 0.5 .. 2.0, 
-        weight_mutate_var: f64 = 0.2 .. 2.0,
-        weight_mutate_pr: f64 = 0.2 .. 0.8,
-        weight_replace_pr: f64 = 0.01 .. 0.2,
+        // // weight_init_mean: 0.0, 
+        // weight_init_var: f64 = 0.5 .. 2.0, 
+        // weight_mutate_var: f64 = 0.2 .. 2.0,
+        // weight_mutate_pr: f64 = 0.2 .. 0.8,
+        // weight_replace_pr: f64 = 0.01 .. 0.2,
 
-        // bias_init_mean: 0.0, 
-        bias_init_var: f64 = 0.5 .. 2.0, 
-        bias_mutate_var: f64 = 0.2 .. 2.0,
-        bias_mutate_pr: f64 = 0.2 .. 0.8,
-        bias_replace_pr: f64 = 0.01 .. 0.2,
+        // // bias_init_mean: 0.0, 
+        // bias_init_var: f64 = 0.5 .. 2.0, 
+        // bias_mutate_var: f64 = 0.2 .. 2.0,
+        // bias_mutate_pr: f64 = 0.2 .. 0.8,
+        // bias_replace_pr: f64 = 0.01 .. 0.2,
 
-        include_weak_disjoint_gene: f64 = 0.1 .. 0.3,
+        // include_weak_disjoint_gene: f64 = 0.1 .. 0.3,
 
+        mutate_neuron_pr: f64 = 0.01 .. 0.1,
         compatibility_threshold: f64 = 2.0 .. 4.0,
         distance_weight_coef: f64 = 0.0 .. 0.5,
         distance_disjoint_coef: f64 = 0.5 .. 1.0,
     }
 
     const N_GEN: usize = 100; // generations per round
-    const N_POPULATIONS: usize = 30; // populations per iteration
+    const N_POPULATIONS: usize = 26; // populations per iteration
     let p = Params {
-        prune_after_n_generations,
-        n_to_prune,
+        n_inputs: 2,
+        n_outputs: 1,
+        remove_after_n_generations: 16,
+        species_elite: 2,
 
-        mutation_pr,
-        interspecie_mate_pr,
-        cull_fraction,
+        mutation_pr: 1.0,
+        interspecie_mate_pr: 0.001,
+        cull_fraction: 0.2,
 
-        mutate_add_conn_pr,
-        mutate_add_neuron_pr,
-        mutate_toggle_expr_pr,
-        include_weak_disjoint_gene,
+        mutate_add_conn_pr: 0.5,
+        mutate_del_conn_pr: 0.5,
+        mutate_add_neuron_pr: mutate_neuron_pr,
+        mutate_del_neuron_pr: mutate_neuron_pr,
+        include_weak_disjoint_gene: 0.0,
 
         weight_init_mean: 0.0,
-        weight_init_var, 
-        weight_mutate_var,
-        weight_mutate_pr,
-        weight_replace_pr,
+        weight_init_var: 1.0, 
+        weight_mutate_var: 0.5,
+        weight_mutate_pr: 0.8,
+        weight_replace_pr: 0.1,
 
         bias_init_mean: 0.0,
-        bias_init_var, 
-        bias_mutate_var,
-        bias_mutate_pr,
-        bias_replace_pr,
+        bias_init_var: 1.0, 
+        bias_mutate_var: 0.5,
+        bias_mutate_pr: 0.7,
+        bias_replace_pr: 0.1,
 
         compatibility_threshold,
         distance_weight_coef,
@@ -120,6 +124,7 @@ make_optimizer! {
     score
     
 }
+
 fn main() {
     let now = Utc::now();
     println!("Start: {:02}:{:02}:{:02}", now.hour(), now.minute(), now.second());

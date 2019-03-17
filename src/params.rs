@@ -9,11 +9,11 @@ pub struct Params {
     /// Number of outputs to the neural network
     pub n_outputs: usize,
     // In `Population`
-    /// Maximum nuumber of generations without improvement before proceed with only the `n_to_prune` best
-    /// species.
-    pub prune_after_n_generations: usize,
-    /// Maximum amount of species that survive a 'pruning'
-    pub n_to_prune: usize,
+    /// Maximum number of generations without improvement in a species, before that species is
+    /// removed.
+    pub remove_after_n_generations: usize,
+    /// Number of best species that cannot be removed due to stagnation
+    pub species_elite: usize,
 
     // In `Specie`
     /// The probability of just mutating (as opposed to mating), during selection
@@ -84,18 +84,17 @@ impl Params {
             n_inputs,
             n_outputs,
             // population
-            prune_after_n_generations: 100,
-            /// Maximum amount of species that survive a 'pruning'
-            n_to_prune: 3,
+            remove_after_n_generations: 20,
+            species_elite: 2,
 
             mutation_pr: 0.5,
             interspecie_mate_pr: 0.001,
-            cull_fraction: 0.1,
+            cull_fraction: 0.2,
 
             mutate_add_conn_pr: 0.5,
             mutate_del_conn_pr: 0.5,
             mutate_add_neuron_pr: 0.1,
-            mutate_del_neuron_pr: 0.08,
+            mutate_del_neuron_pr: 0.1,
 
             weight_init_mean: 0.0, 
             weight_init_var: 1.0, 
@@ -129,8 +128,8 @@ impl Params {
         Params {
             n_inputs,
             n_outputs,
-            prune_after_n_generations: 24,
-            n_to_prune: 3,
+            remove_after_n_generations: 24,
+            species_elite: 2,
             mutation_pr: 0.7789911380525976,
             interspecie_mate_pr: 0.00011142344146628424,
             cull_fraction: 0.08461952672427815,
@@ -159,8 +158,8 @@ impl Params {
         Params {
             n_inputs,
             n_outputs,
-            prune_after_n_generations: 18,
-            n_to_prune: 2,
+            remove_after_n_generations: 18,
+            species_elite: 2,
             mutation_pr: 0.42511383143306747,
             interspecie_mate_pr: 0.0011253527448187332,
             cull_fraction: 0.26378491719510166,

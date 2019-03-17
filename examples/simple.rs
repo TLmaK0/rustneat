@@ -56,9 +56,7 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
     let p = Params {
-        prune_after_n_generations: 100,
-        /// Maximum amount of species that survive a 'pruning'
-        n_to_prune: 3,
+        remove_after_n_generations: 16,
 
         mutation_pr: 1.0,
         interspecie_mate_pr: 0.01,
@@ -85,7 +83,7 @@ fn main() {
         include_weak_disjoint_gene: 0.0,
 
         // other
-        compatibility_threshold: 3.0,
+        compatibility_threshold: 3.5,
         distance_weight_coef: 0.5,
         distance_disjoint_coef: 1.0,
 
@@ -120,8 +118,9 @@ fn main() {
             // println!("= Gen {}: {} =", i, best_fitness);
             for species in population.species.iter() {
                 let champ = species.get_champion();
-                println!(" - Species({}), peak {}, {} neurons, {} connections",
-                         species.organisms.len(), champ.fitness, champ.genome.n_neurons(),
+                println!(" - Species({}, {}gen, {}without), peak {}, {} neurons, {} connections",
+                         species.organisms.len(), species.age, species.age - species.age_last_improvement,
+                         champ.fitness, champ.genome.n_neurons(),
                          champ.genome.n_connections());
 
             }
