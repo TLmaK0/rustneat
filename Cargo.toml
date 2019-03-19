@@ -17,7 +17,7 @@ num_cpus = "1.0"
 rand = "0.6"
 rulinalg = "0.3.4"
 rayon = "1.0.3"
-indexmap = "1.0.2"
+indexmap = { version = "1.0.2", features = ["serde-1"] }
 
 rusty_dashed = { version = "0.2.1", optional = true }
 open = { version = "1.2.1", optional = true }

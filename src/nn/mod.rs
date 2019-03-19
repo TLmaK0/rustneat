@@ -1,6 +1,7 @@
 use crate::{Genome, Params};
 use std::cmp;
 use indexmap::map::IndexMap;
+use serde_derive::{Serialize, Deserialize};
 
 mod ctrnn;
 mod gene;
@@ -12,7 +13,7 @@ pub use self::gene::*;
 // NOTE: With regard to the "competing conventions" problem in the orginal paper:
 // Connections are identified by their (in_neuron_id, out_neuron_id) pair, which serves as their 'innovration number'.
 // Neurons are identified just by their position in the Vec (implicit id).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NeuralNetwork {
     /// Connections between neurons. Sorted at all times. Use `add_connection()` to add a
     /// connection!

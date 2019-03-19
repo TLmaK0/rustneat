@@ -1,4 +1,5 @@
 use std::hash::Hash;
+use serde_derive::{Serialize, Deserialize};
 
 
 // TODO make private - only needed internally I think
@@ -18,7 +19,7 @@ pub trait Gene: Copy {
 pub type NeuronId = usize;
 
 /// Gene for a neuron in the `NeuralNetwork`.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct NeuronGene {
     /// Bias of the neuron.
     pub bias: f64,
@@ -50,7 +51,7 @@ impl Gene for NeuronGene {
 pub type ConnectionId = (usize, usize);
 
 /// Gene for a synapse/connection in the `NeuralNetwork`.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "telemetry", derive(Serialize))]
 pub struct ConnectionGene {
     in_neuron_id: usize,
