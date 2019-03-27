@@ -56,7 +56,7 @@ fn distance<T: Gene>(genome1: &IndexMap<T::Id, T>, genome2: &IndexMap<T::Id, T>,
         0.0
     } else {
         (disjoint_genes * p.distance_disjoint_coef
-            + genes_distance * p.distance_weight_coef) / max_genes
+            + genes_distance * p.distance_weight_coef) // / max_genes
     }
 }
 

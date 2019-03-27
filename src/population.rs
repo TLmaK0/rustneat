@@ -21,6 +21,9 @@ pub struct Population<G = NeuralNetwork> {
 
     /// The latest innovation id
     innovation_id: usize,
+    /// To give each species a unique id. Useful for for example visualizing or processing the
+    /// species.
+    species_id: usize,
 }
 
 impl<G: Genome> Population<G> {
@@ -37,7 +40,7 @@ impl<G: Genome> Population<G> {
             organisms.push(Organism::new(genome.clone()));
         }
 
-        let mut specie = Specie::new(organisms.first().unwrap().clone());
+        let mut specie = Specie::new(organisms.first().unwrap().clone(), 0);
         specie.organisms = organisms;
 
         Population {
@@ -45,6 +48,7 @@ impl<G: Genome> Population<G> {
             target_size: population_size,
             generations_without_improvements: 0,
             innovation_id: 0,
+            species_id: 1,
         }
     }
 
@@ -193,7 +197,8 @@ impl<G: Genome> Population<G> {
                     specie.organisms.push(organism.clone());
                 }
                 None => {
-                    self.species.push(Specie::new(organism.clone()));
+                    self.species.push(Specie::new(organism.clone(), self.species_id));
+                    self.species_id += 1;
                 }
             }
         }

@@ -5,6 +5,8 @@ use rand::{self, distributions::{Distribution, Uniform}};
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
 pub struct Specie<G> {
+    ///
+    pub id: usize,
     /// A representative organism from the previous generation
     pub representative: Organism<G>,
     champion: Option<Organism<G>>,
@@ -20,8 +22,9 @@ pub struct Specie<G> {
 
 impl<G: Genome> Specie<G> {
     /// Create a new species from a representative Organism. Adds this organism as the only member.
-    pub fn new(genome: Organism<G>) -> Specie<G> {
+    pub fn new(genome: Organism<G>, id: usize) -> Specie<G> {
         Specie {
+            id,
             organisms: vec![genome.clone()],
             representative: genome,
             champion: None,
