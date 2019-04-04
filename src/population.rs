@@ -1,4 +1,4 @@
-use crate::{Genome, Organism, Environment, Specie, NeuralNetwork, Params};
+use crate::{Genome, Organism, Environment, Specie, NeuralNetwork, NeatParams};
 use rayon::prelude::*;
 // use std::cmp::Ordering::*;
 use rand::distributions::{Uniform, Distribution};
@@ -91,7 +91,7 @@ impl<G: Genome> Population<G> {
     /// * Evaluating the fitness of all organisms
     ///
     /// Because of the last step, organisms will always have an up-to-date fitness value.
-    pub fn evolve(&mut self, env: &mut Environment<G>, p: &Params) {
+    pub fn evolve(&mut self, env: &mut Environment<G>, p: &NeatParams) {
         // Collect all organisms
         let organisms = self.get_organisms().cloned().collect::<Vec<_>>();
 
@@ -183,7 +183,7 @@ impl<G: Genome> Population<G> {
 
 
     /// Helper of `evolve`
-    fn speciate(&mut self, organisms: &[Organism<G>], p: &Params) {
+    fn speciate(&mut self, organisms: &[Organism<G>], p: &NeatParams) {
         for s in &mut self.species {
             if s.organisms.len() > 0 {
                 // Pick random representative from the previous generation
@@ -218,11 +218,11 @@ impl<G: Genome> Population<G> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Organism, Specie, NeuralNetwork, Population, Environment, Params};
+    use crate::{Organism, Specie, NeuralNetwork, Population, Environment, NeatParams};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
-        let p = Params {
+        let p = NeatParams {
             compatibility_threshold: 0.0,
             ..Default::default()
         };
@@ -252,7 +252,7 @@ mod tests {
             fn test(&self, _organism: &mut NeuralNetwork) -> f64 { 0.0 }
         }
 
-        let p = Params::default();
+        let p = NeatParams::default();
         let mut population = Population::create_population(150);
         for _ in 0..150 {
             population.evolve(&mut X, &p);

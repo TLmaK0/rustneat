@@ -1,9 +1,9 @@
 use serde_derive::{Deserialize, Serialize};
 
-/// Contains all parameters for the NEAT algorithm. A reference to `Params` will be passed around
+/// Contains all parameters for the NEAT algorithm. A reference to `NeatParams` will be passed around
 /// internally. Usually you only need to give it to `Population::evolve`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Params {
+pub struct NeatParams {
     /// Number of inputs to the neural network
     pub n_inputs: usize,
     /// Number of outputs to the neural network
@@ -77,10 +77,10 @@ pub struct Params {
     pub distance_disjoint_coef: f64,
 }
 
-impl Params {
+impl NeatParams {
     /// Sane default parameters
-    pub fn default(n_inputs: usize, n_outputs: usize) -> Params {
-        Params {
+    pub fn default(n_inputs: usize, n_outputs: usize) -> NeatParams {
+        NeatParams {
             n_inputs,
             n_outputs,
             // population
@@ -121,11 +121,11 @@ impl Params {
 
 
 
-impl Params {
+impl NeatParams {
     /// temporary
     /// 30gen, 30pop, 300iter
-    pub fn optimized_for_xor(n_inputs: usize, n_outputs: usize) -> Params {
-        Params {
+    pub fn optimized_for_xor(n_inputs: usize, n_outputs: usize) -> NeatParams {
+        NeatParams {
             n_inputs,
             n_outputs,
             remove_after_n_generations: 24,
@@ -154,8 +154,8 @@ impl Params {
         }
     }
     ///
-    pub fn optimized_for_xor2(n_inputs: usize, n_outputs: usize) -> Params {
-        Params {
+    pub fn optimized_for_xor2(n_inputs: usize, n_outputs: usize) -> NeatParams {
+        NeatParams {
             n_inputs,
             n_outputs,
             remove_after_n_generations: 18,

@@ -1,4 +1,4 @@
-use crate::{Genome, Params};
+use crate::{Genome, NeatParams};
 use std::cmp;
 use indexmap::map::IndexMap;
 use serde_derive::{Serialize, Deserialize};
@@ -33,7 +33,7 @@ impl Default for NeuralNetwork {
     }
 }
 
-fn distance<T: Gene>(genome1: &IndexMap<T::Id, T>, genome2: &IndexMap<T::Id, T>, p: &Params) -> f64 {
+fn distance<T: Gene>(genome1: &IndexMap<T::Id, T>, genome2: &IndexMap<T::Id, T>, p: &NeatParams) -> f64 {
     let common_genes = genome1.values()
         .filter_map(|gene| {
             genome2.get(&gene.id())
@@ -62,14 +62,14 @@ fn distance<T: Gene>(genome1: &IndexMap<T::Id, T>, genome2: &IndexMap<T::Id, T>,
 
 impl Genome for NeuralNetwork {
     // Inspired by python-neat
-    fn distance(&self, other: &NeuralNetwork, p: &Params) -> f64 {
+    fn distance(&self, other: &NeuralNetwork, p: &NeatParams) -> f64 {
         distance(&self.connections, &other.connections, p)
             + distance(&self.neurons, &other.neurons, p)
 
     }
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
-    fn mutate(&mut self, innovation_id: &mut usize, p: &Params) {
+    fn mutate(&mut self, innovation_id: &mut usize, p: &NeatParams) {
         use rand::distributions::{Normal, Distribution};
         let mut rng = rand::thread_rng();
 
@@ -111,7 +111,7 @@ impl Genome for NeuralNetwork {
     }
 
     /// Mate two genes. `fittest` is true if `self` is the fittest one
-    fn mate(&self, other: &NeuralNetwork, fittest: bool, _: &Params) -> NeuralNetwork {
+    fn mate(&self, other: &NeuralNetwork, fittest: bool, _: &NeatParams) -> NeuralNetwork {
         let (best, worst) = if fittest {(self, other)}
                                 else   {(other, self)};
         let mut genome = NeuralNetwork::default();
@@ -199,7 +199,7 @@ impl NeuralNetwork {
         self.connections.len()
     }
 
-    fn mutate_add_connection(&mut self, p: &Params) {
+    fn mutate_add_connection(&mut self, p: &NeatParams) {
         use rand::distributions::{Normal, Distribution};
         let mut rng = rand::thread_rng();
         if self.neurons.len() == 0 {
@@ -238,7 +238,7 @@ impl NeuralNetwork {
                                 old_connection.weight);
         }
     }
-    fn mutate_del_neuron(&mut self, p: &Params) {
+    fn mutate_del_neuron(&mut self, p: &NeatParams) {
         let sacred_neurons = p.n_inputs + p.n_outputs;
         if self.neurons.len() <= sacred_neurons {
             return;
@@ -250,7 +250,7 @@ impl NeuralNetwork {
         self.neurons.remove(&id);
         // Delete incoming and outgoing connections
         let mut to_remove = Vec::new();
-        for (conn_id, conn) in self.connections.iter() {
+        for (conn_id, _conn) in self.connections.iter() {
             if conn_id.0 == id || conn_id.1 == id {
                 to_remove.push(*conn_id);
             }
@@ -304,11 +304,6 @@ impl NeuralNetwork {
     }
 }
 
-/// Convenience function for selecting a random element in an IndexMap
-fn get_random_mut<K, V>(map: &mut IndexMap<K, V>) -> &mut V {
-    let idx = rand::random::<usize>() % map.len();
-    map.get_index_mut(idx).unwrap().1
-}
 fn get_random_key<K: Clone, V>(map: &IndexMap<K, V>) -> K {
     let idx = rand::random::<usize>() % map.len();
     map.get_index(idx).unwrap().0.clone()
@@ -317,11 +312,11 @@ fn get_random_key<K: Clone, V>(map: &IndexMap<K, V>) -> K {
 #[cfg(test)]
 mod tests {
     use std::f64::EPSILON;
-    use crate::{nn::NeuralNetwork, nn::ConnectionGene, Genome, Params};
+    use crate::{nn::NeuralNetwork, nn::ConnectionGene, Genome, NeatParams};
 
     #[test]
     fn mutation_connection_weight() {
-        let p = Params {
+        let p = NeatParams {
             weight_mutate_pr: 1.0,
             ..Default::default()
         };
@@ -344,7 +339,7 @@ mod tests {
 
     #[test]
     fn mutation_add_neuron() {
-        let p = Params::default();
+        let p = NeatParams::default();
         let mut genome = NeuralNetwork::with_neurons(1);
         genome.mutate_add_connection(&p);
         genome.mutate_add_neuron(1);
@@ -372,12 +367,12 @@ mod tests {
         genome2.add_connection(0, 0, 0.0);
         genome2.add_connection(0, 1, 0.0);
         genome2.add_connection(0, 2, 0.0);
-        assert!(genome1.is_same_specie(&genome2, &Params::default()));
+        assert!(genome1.is_same_specie(&genome2, &NeatParams::default()));
     }
 
     #[test]
     fn two_genomes_with_big_difference_should_be_in_different_species() {
-        let p = Params {
+        let p = NeatParams {
             compatibility_threshold: 3.0,
             distance_weight_coef: 1.0,
             distance_disjoint_coef: 1.0,
@@ -416,12 +411,12 @@ mod tests {
         genome1.add_connection(0, 0, 16.0);
         let mut genome2 = NeuralNetwork::with_neurons(1);
         genome2.add_connection(0, 0, 16.1);
-        assert!(genome1.is_same_specie(&genome2, &Params::default()));
+        assert!(genome1.is_same_specie(&genome2, &NeatParams::default()));
     }
 
     #[test]
     fn genomes_with_big_weight_difference_should_be_in_other_specie() {
-        let p = Params {
+        let p = NeatParams {
             ..Default::default()
         };
         let mut genome1 = NeuralNetwork::with_neurons(1);

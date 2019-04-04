@@ -1,7 +1,7 @@
 extern crate rand;
 extern crate rustneat;
 
-use rustneat::{Environment, Organism, Population, NeuralNetwork, Params};
+use rustneat::{Environment, Organism, Population, NeuralNetwork, NeatParams};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
@@ -55,7 +55,7 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let p = Params {
+    let p = NeatParams {
         remove_after_n_generations: 16,
 
         mutation_pr: 1.0,
@@ -88,7 +88,7 @@ fn main() {
         distance_disjoint_coef: 1.0,
 
         
-        ..Params::default(2, 1)
+        ..NeatParams::default(2, 1)
     };
 
     const MAX_ITERATIONS: usize = 100;

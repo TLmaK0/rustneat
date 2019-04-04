@@ -1,7 +1,7 @@
 
 #[cfg(test)]
 mod test {
-    use rustneat::{Environment, Organism, Population, NeuralNetwork, Params};
+    use rustneat::{Environment, Organism, Population, NeuralNetwork, NeatParams};
 
     struct X;
 
@@ -36,7 +36,7 @@ mod test {
 
     #[test]
     fn population_can_evolve() {
-        let p = Params {
+        let p = NeatParams {
             mutation_pr: 1.0, // because mutation ensures we have connections
             ..Default::default()
         };
@@ -50,14 +50,14 @@ mod test {
     #[test]
     fn population_can_be_tested_on_environment() {
         let mut population = Population::create_population(10);
-        population.evolve(&mut X, &Params::default());
+        population.evolve(&mut X, &NeatParams::default());
         assert_eq!(population.get_organisms().next().unwrap().fitness, 0.1234);
     }
 
     #[test]
     fn can_solve_xor() {
         const MAX_GENERATIONS: usize = 800;
-        let p = Params::default();
+        let p = NeatParams::default();
         let start_genome = NeuralNetwork::with_neurons(3);
         let mut population = Population::create_population_from(start_genome, 150);
         let mut environment = XORClassification;
@@ -90,7 +90,7 @@ mod test {
     #[test]
     fn xor_can_only_improve() {
         const MAX_GENERATIONS: usize = 200;
-        let p = Params::default();
+        let p = NeatParams::default();
         let mut population = Population::create_population(150);
         let mut environment = XORClassification;
         let mut best_fitness = std::f64::MIN;

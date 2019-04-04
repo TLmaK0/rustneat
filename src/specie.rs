@@ -1,4 +1,4 @@
-use crate::{Genome, Organism, Params};
+use crate::{Genome, Organism, NeatParams};
 use conv::prelude::*;
 use rand::{self, distributions::{Distribution, Uniform}};
 
@@ -33,7 +33,7 @@ impl<G: Genome> Specie<G> {
         }
     }
     /// Check if another organism is of the same species as this one.
-    pub fn match_genome(&self, organism: &G, p: &Params) -> bool {
+    pub fn match_genome(&self, organism: &G, p: &NeatParams) -> bool {
         self.representative.genome.is_same_specie(&organism, p)
     }
     ///
@@ -89,7 +89,7 @@ impl<G: Genome> Specie<G> {
     pub fn generate_offspring(&mut self, n_offspring: usize,
                                          population_offspring: &[Organism<G>],
                                          innovation_id: &mut usize,
-                                         p: &Params) {
+                                         p: &NeatParams) {
         self.age += 1;
         if n_offspring == 0 {
             self.organisms = Vec::new();
@@ -145,7 +145,7 @@ impl<G: Genome> Specie<G> {
 
     /// Create a new child by mutating and existing one or mating two genomes.
     fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>],
-                    innovation_id: &mut usize, p: &Params) -> Organism<G> {
+                    innovation_id: &mut usize, p: &NeatParams) -> Organism<G> {
         let mut child = self.create_child_by_mate(organism, population_organisms, p);
 
         if rand::random::<f64>() < p.mutation_pr {
@@ -154,7 +154,7 @@ impl<G: Genome> Specie<G> {
         child
     }
 
-    fn create_child_by_mate(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &Params) -> Organism<G> {
+    fn create_child_by_mate(&self, organism: &Organism<G>, population_organisms: &[Organism<G>], p: &NeatParams) -> Organism<G> {
         let mut rng = rand::thread_rng();
         if rand::random::<f64>() > p.interspecie_mate_pr {
             let selected_mate = Uniform::from(0..self.organisms.len()).sample(&mut rng);
