@@ -182,7 +182,7 @@ mod tests {
         let mut organism3 = Organism::new(NeuralNetwork::default());
         organism3.fitness = 20.0;
         
-        let mut specie = Specie::new(Organism::default());
+        let mut specie = Specie::new(Organism::default(), 0);
         specie.organisms = vec![organism1, organism2, organism3];
 
         assert!((specie.average_fitness() - 15.0).abs() < EPSILON);

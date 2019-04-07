@@ -8,7 +8,7 @@ extern crate rusty_dashed;
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
 
-use rustneat::{Environment, Organism, Population, NeuralNetwork, Params};
+use rustneat::{Environment, Organism, Population, NeuralNetwork, NeatParams};
 
 static mut BEST_FITNESS: f64 = 0.0;
 struct FunctionApproximation;
@@ -39,7 +39,7 @@ impl Environment for FunctionApproximation {
 }
 
 fn main() {
-    let p = Params::default();
+    let p = NeatParams::default(1,1);
     let mut population = Population::create_population(150);
     let mut environment = FunctionApproximation;
     let mut champion: Option<Organism> = None;

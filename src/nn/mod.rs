@@ -317,8 +317,12 @@ mod tests {
     #[test]
     fn mutation_connection_weight() {
         let p = NeatParams {
+            mutate_add_conn_pr: 0.0,
+            mutate_add_neuron_pr: 0.0,
+            mutate_del_neuron_pr: 0.0,
+            mutate_del_conn_pr: 0.0,
             weight_mutate_pr: 1.0,
-            ..Default::default()
+            ..NeatParams::default(1,1)
         };
         let mut genome = NeuralNetwork::with_neurons(1);
         genome.add_connection(0, 0, 0.0);
@@ -339,16 +343,16 @@ mod tests {
 
     #[test]
     fn mutation_add_neuron() {
-        let p = NeatParams::default();
-        let mut genome = NeuralNetwork::with_neurons(1);
-        genome.mutate_add_connection(&p);
-        genome.mutate_add_neuron(1);
+        let p = NeatParams::default(1,1);
+        let mut genome = NeuralNetwork::with_neurons(2);
+        genome.add_connection(0,1, 1.0);
+        genome.mutate_add_neuron(2);
         let connections = genome.connections.values().collect::<Vec<_>>();
-        assert!(!connections[0].enabled);
-        assert!(connections[1].in_neuron_id() == connections[0].in_neuron_id());
+        assert_eq!(connections.len(), 2);
+        assert!(connections[0].in_neuron_id() == 0);
+        assert!(connections[0].out_neuron_id() == 2);
+        assert!(connections[1].in_neuron_id() == 2);
         assert!(connections[1].out_neuron_id() == 1);
-        assert!(connections[2].in_neuron_id() == 1);
-        assert!(connections[2].out_neuron_id() == connections[0].out_neuron_id());
     }
 
     #[test]
@@ -367,7 +371,7 @@ mod tests {
         genome2.add_connection(0, 0, 0.0);
         genome2.add_connection(0, 1, 0.0);
         genome2.add_connection(0, 2, 0.0);
-        assert!(genome1.is_same_specie(&genome2, &NeatParams::default()));
+        assert!(genome1.is_same_specie(&genome2, &NeatParams::default(1,1)));
     }
 
     #[test]
@@ -376,7 +380,7 @@ mod tests {
             compatibility_threshold: 3.0,
             distance_weight_coef: 1.0,
             distance_disjoint_coef: 1.0,
-            ..Default::default()
+            ..NeatParams::default(1,1)
         };
         let mut genome1 = NeuralNetwork::with_neurons(2);
         genome1.add_connection(0, 0, 1.0);
@@ -389,35 +393,19 @@ mod tests {
         assert!(!genome1.is_same_specie(&genome2, &p));
     }
 
-
-    #[test]
-    fn adding_an_existing_gene_disabled_should_enable_original() {
-        let mut genome = NeuralNetwork::with_neurons(2);
-        genome.add_connection(0, 1, 0.0);
-        genome.mutate_add_neuron(2);
-        let orig_conn = genome.connections[&(0,1)];
-        assert!(!orig_conn.enabled);
-        assert!(genome.connections.len() == 3);
-        genome.add_connection(0, 1, 1.0);
-        let orig_conn = *genome.connections.get_index(0).unwrap().1;
-        assert!(orig_conn.enabled);
-        assert_eq!(orig_conn.weight, 1.0);
-        assert_eq!(genome.connections.len(), 3);
-    }
-
     #[test]
     fn genomes_with_same_genes_with_little_differences_on_weight_should_be_in_same_specie() {
         let mut genome1 = NeuralNetwork::with_neurons(1);
         genome1.add_connection(0, 0, 16.0);
         let mut genome2 = NeuralNetwork::with_neurons(1);
         genome2.add_connection(0, 0, 16.1);
-        assert!(genome1.is_same_specie(&genome2, &NeatParams::default()));
+        assert!(genome1.is_same_specie(&genome2, &NeatParams::default(1,1)));
     }
 
     #[test]
     fn genomes_with_big_weight_difference_should_be_in_other_specie() {
         let p = NeatParams {
-            ..Default::default()
+            ..NeatParams::default(1,1)
         };
         let mut genome1 = NeuralNetwork::with_neurons(1);
         genome1.add_connection(0, 0, 0.0);
@@ -528,9 +516,24 @@ mod tests {
     fn should_not_raise_exception_if_less_neurons_than_required() {
         let mut organism = NeuralNetwork::with_neurons(2);
         organism.add_connection(0, 1, 1.0);
-        let sensors = vec![0.0, 0.0, 0.0];
-        let mut output = vec![0.0, 0.0, 0.0];
-        organism.activate(sensors, &mut output);
+        let input = vec![0.0; 3];
+        let mut output = vec![0.0; 3];
+        organism.activate(input, &mut output);
+    }
+    #[test]
+    fn mutate_add_neuron_should_not_change_output() {
+        const INPUT: f64 = 5.5;
+        let mut organism = NeuralNetwork::with_neurons(4);
+        organism.add_connection(0,1, 0.5);
+        organism.add_connection(0,2, 0.2);
+        organism.add_connection(1,3, 1.5);
+        organism.add_connection(2,3, -0.5);
+        let mut output1 = vec![0.0; 1];
+        organism.activate(vec![INPUT], &mut output1);
+        organism.mutate_add_neuron(5);
+        let mut output2 = vec![0.0; 1];
+        organism.activate(vec![INPUT], &mut output2);
+        assert_eq!(output1[0], output2[0]);
     }
 }
 

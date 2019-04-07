@@ -224,7 +224,7 @@ mod tests {
     fn population_should_be_able_to_speciate_genomes() {
         let p = NeatParams {
             compatibility_threshold: 0.0,
-            ..Default::default()
+            ..NeatParams::default(1,1)
         };
         let mut genome1 = NeuralNetwork::with_neurons(2);
         genome1.add_connection(0, 0, 1.0);
@@ -236,13 +236,14 @@ mod tests {
         genome2.add_connection(1, 0, 1.0);
 
         let mut population = Population::create_population(2);
-        let mut specie = Specie::new(Organism::new(genome1));
+        let mut specie = Specie::new(Organism::new(genome1), 0);
         specie.organisms.push(Organism::new(genome2));
         population.species = vec![specie];
         // (note: there is only one species)
-        let new_species = Population::speciate(&population.species[0].organisms, &p);
+        let organisms = population.get_organisms().cloned().collect::<Vec<_>>();
+        population.speciate(&organisms, &p);
 
-        assert_eq!(new_species.len(), 2);
+        assert_eq!(population.species.len(), 2);
     }
 
     #[test]
@@ -252,7 +253,7 @@ mod tests {
             fn test(&self, _organism: &mut NeuralNetwork) -> f64 { 0.0 }
         }
 
-        let p = NeatParams::default();
+        let p = NeatParams::default(0,0);
         let mut population = Population::create_population(150);
         for _ in 0..150 {
             population.evolve(&mut X, &p);

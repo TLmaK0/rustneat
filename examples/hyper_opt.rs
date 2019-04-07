@@ -3,7 +3,7 @@ extern crate rustneat;
 #[macro_use]
 extern crate blackbox;
 
-use rustneat::{Environment, Organism, Population, NeuralNetwork, Params};
+use rustneat::{Environment, Organism, Population, NeuralNetwork, NeatParams};
 use chrono::{Timelike, Utc};
 
 struct XORClassification;
@@ -27,7 +27,7 @@ impl Environment for XORClassification {
     }
 }
 
-fn run(p: &Params, n_gen: usize) -> f64 {
+fn run(p: &NeatParams, n_gen: usize) -> f64 {
 
     let mut start_genome = NeuralNetwork::with_neurons(3);
     start_genome.add_connection(0, 2, 0.0);
@@ -84,7 +84,7 @@ make_optimizer! {
 
     const N_GEN: usize = 100; // generations per round
     const N_POPULATIONS: usize = 26; // populations per iteration
-    let p = Params {
+    let p = NeatParams {
         n_inputs: 2,
         n_outputs: 1,
         remove_after_n_generations: 16,

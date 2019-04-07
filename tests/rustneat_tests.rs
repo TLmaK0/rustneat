@@ -38,26 +38,25 @@ mod test {
     fn population_can_evolve() {
         let p = NeatParams {
             mutation_pr: 1.0, // because mutation ensures we have connections
-            ..Default::default()
+            ..NeatParams::default(1,1)
         };
         let mut population = Population::create_population(2);
         population.evolve(&mut X, &p);
         let genome = &population.get_organisms().next().unwrap().genome;
         assert_eq!(genome.connections.len(), 1);
-        assert_ne!(genome.total_weights(), 0.0);
     }
 
     #[test]
     fn population_can_be_tested_on_environment() {
         let mut population = Population::create_population(10);
-        population.evolve(&mut X, &NeatParams::default());
+        population.evolve(&mut X, &NeatParams::default(0,0));
         assert_eq!(population.get_organisms().next().unwrap().fitness, 0.1234);
     }
 
     #[test]
     fn can_solve_xor() {
-        const MAX_GENERATIONS: usize = 800;
-        let p = NeatParams::default();
+        const MAX_GENERATIONS: usize = 600;
+        let p = NeatParams::default(2,1);
         let start_genome = NeuralNetwork::with_neurons(3);
         let mut population = Population::create_population_from(start_genome, 150);
         let mut environment = XORClassification;
@@ -66,7 +65,7 @@ mod test {
         while champion.is_none() && i < MAX_GENERATIONS {
             population.evolve(&mut environment, &p);
             for organism in population.get_organisms() {
-                if organism.fitness > 15.8 {
+                if organism.fitness > 15.5 {
                     champion = Some(organism.clone());
                 }
             }
@@ -90,7 +89,7 @@ mod test {
     #[test]
     fn xor_can_only_improve() {
         const MAX_GENERATIONS: usize = 200;
-        let p = NeatParams::default();
+        let p = NeatParams::default(2,1);
         let mut population = Population::create_population(150);
         let mut environment = XORClassification;
         let mut best_fitness = std::f64::MIN;

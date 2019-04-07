@@ -1,7 +1,7 @@
 extern crate rand;
 extern crate rustneat;
 
-use rustneat::{Environment, Population, NeuralNetwork, Params, Organism};
+use rustneat::{Environment, Population, NeuralNetwork, NeatParams, Organism};
 use std::io::Write;
 
 // This example measure average XOR performance, and should be useful to check that changes in the
@@ -29,7 +29,7 @@ impl Environment for XORClassification {
 }
 
 fn main() {
-    let p = Params {
+    let p = NeatParams {
         n_inputs: 2,
         n_outputs: 1,
 
@@ -64,9 +64,9 @@ fn main() {
         compatibility_threshold: 3.3,
         distance_weight_coef: 0.13,
         distance_disjoint_coef: 0.6,
-        // ..Params::default(2, 1)
+        // ..NeatParams::default(2, 1)
     };
-    // let p = Params {
+    // let p = NeatParams {
         // compatibility_threshold: 1.5,
         // mutation_pr: 1.0,
         // mutate_add_conn_pr: 0.07,
@@ -79,7 +79,7 @@ fn main() {
         // bias_replace_pr: 0.01,
 
         
-        // ..Params::optimized_for_xor2()
+        // ..NeatParams::optimized_for_xor2()
     // };
 
 
@@ -89,7 +89,7 @@ fn main() {
 }
 
 /// See how fast, on average, rustneat can solve XOR
-fn solve_time_perf(p: &Params) {
+fn solve_time_perf(p: &NeatParams) {
     const N_EXP: usize = 40;
     const MAX_GEN: usize = 800;
     let mut solve_gens = Vec::new();
@@ -142,7 +142,7 @@ fn solve_time_perf(p: &Params) {
 }
 
 /// See the best fitness, on average, after a fixed amount of generations
-fn fixed_generations_perf(p: &Params) {
+fn fixed_generations_perf(p: &NeatParams) {
     const N_EXP: usize = 40;
     const N_GEN: usize = 100;
     let mut scores = Vec::new();

@@ -4,9 +4,9 @@ use serde_derive::{Deserialize, Serialize};
 /// internally. Usually you only need to give it to `Population::evolve`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NeatParams {
-    /// Number of inputs to the neural network
+    /// Number of inputs to the neural network. Only used to ensure a certain amount of neurons.
     pub n_inputs: usize,
-    /// Number of outputs to the neural network
+    /// Number of outputs to the neural network. Only used to ensure a certain amount of neurons.
     pub n_outputs: usize,
     // In `Population`
     /// Maximum number of generations without improvement in a species, before that species is
