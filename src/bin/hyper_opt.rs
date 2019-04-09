@@ -1,7 +1,11 @@
-extern crate rand;
-extern crate rustneat;
 #[macro_use]
-extern crate blackbox;
+extern crate blackbox_derive;
+#[macro_use]
+extern crate slog;
+
+use blackbox_derive::make_optimizer;
+use blackbox::BlackboxInput;
+use slog::Logger;
 
 use rustneat::{Environment, Organism, Population, NeuralNetwork, NeatParams};
 use chrono::{Timelike, Utc};
@@ -30,8 +34,8 @@ impl Environment for XORClassification {
 fn run(p: &NeatParams, n_gen: usize) -> f64 {
 
     let mut start_genome = NeuralNetwork::with_neurons(3);
-    start_genome.add_connection(0, 2, 0.0);
-    start_genome.add_connection(1, 2, 0.0);
+    // start_genome.add_connection(0, 2, 0.0);
+    // start_genome.add_connection(1, 2, 0.0);
     let mut population = Population::create_population_from(start_genome, 150);
     let mut environment = XORClassification;
     let mut champion: Option<Organism> = None;
@@ -126,12 +130,13 @@ make_optimizer! {
 }
 
 fn main() {
+    let log = slog::Logger::root(slog::Discard, o!());
     let now = Utc::now();
     println!("Start: {:02}:{:02}:{:02}", now.hour(), now.minute(), now.second());
 
-    const N_ITER: usize = 300;
-    let config = Configuration::random_search(N_ITER);
-    println!("Score: {}", config.evaluate());
+    const N_ITER: usize = 7;
+    let config = Configuration::bayesian_search(2, N_ITER, log.clone());
+    println!("Score: {}", config.evaluate(log));
     println!("Config: {:?}", config);
 
     println!("\nExecution time: {}", (Utc::now() - now).num_seconds());

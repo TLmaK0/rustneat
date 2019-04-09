@@ -57,7 +57,6 @@ fn main() {
         bias_mutate_pr: 0.7,
         bias_replace_pr: 0.1,
 
-
         include_weak_disjoint_gene: 0.0,
 
         // other
@@ -83,8 +82,8 @@ fn main() {
     // };
 
 
-    // solve_time_perf(&p);
-    fixed_generations_perf(&p);
+    solve_time_perf(&p);
+    // fixed_generations_perf(&p);
 
 }
 
