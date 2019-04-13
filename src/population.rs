@@ -21,7 +21,7 @@ pub struct Population {
     epochs_without_improvements: usize,
 }
 
-const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
+const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 10;
 
 impl Population {
     /// Create a new population of size X.

@@ -53,7 +53,7 @@ impl Organism {
         let activations = Ctrnn::default().activate_nn(
             10,
             &CtrnnNeuralNetwork {
-                y: &i,  //initial state is the sensors
+                y: &vec![0.0; neurons_len],
                 delta_t: 1.0,
                 tau: &tau,
                 wij: &wij,
@@ -105,8 +105,8 @@ mod tests {
     #[test]
     fn should_propagate_signal_without_hidden_layers() {
         let mut organism = Organism::new(Genome::default());
-        organism.genome.add_gene(Gene::new(0, 1, 5f64, true, false));
-        let sensors = vec![7.5];
+        organism.genome.add_gene(Gene::new(0, 1, 1f64, true, false));
+        let sensors = vec![1.0];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
         assert!(
@@ -147,7 +147,7 @@ mod tests {
         organism.genome.add_gene(Gene::new(1, 2, 2f64, true, false));
         organism.genome.add_gene(Gene::new(2, 1, 2f64, true, false));
         let mut output = vec![0f64];
-        organism.activate(vec![1f64], &mut output);
+        organism.activate(vec![10f64], &mut output);
         assert!(
             output[0] > 0.9,
             format!("{:?} is not bigger than 0.9", output[0])
