@@ -19,14 +19,17 @@ mod test {
             let mut output = vec![0f64];
             let mut distance: f64;
             organism.activate(vec![0f64, 0f64], &mut output);
-            distance = (0f64 - output[0]).abs();
+            distance = (0f64 - output[0]).powi(2);
             organism.activate(vec![0f64, 1f64], &mut output);
-            distance += (1f64 - output[0]).abs();
+            distance += (1f64 - output[0]).powi(2);
             organism.activate(vec![1f64, 0f64], &mut output);
-            distance += (1f64 - output[0]).abs();
+            distance += (1f64 - output[0]).powi(2);
             organism.activate(vec![1f64, 1f64], &mut output);
-            distance += (0f64 - output[0]).abs();
-            (4f64 - distance).powi(2)
+            distance += (0f64 - output[0]).powi(2);
+
+            let fitness = 16f64 / (1f64 + distance);
+
+            fitness
         }
     }
 

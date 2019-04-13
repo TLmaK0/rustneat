@@ -65,6 +65,40 @@ mod tests {
     }
 
     #[test]
+    fn simple_connection_should_return_sigmoid_values(){
+        let gamma = vec![0.0, 0.0];
+        let delta_t = 1.0;
+        let tau = vec![1.0, 1.0];
+        let wij = vec![
+                0.0, 1.0,
+                0.0, 0.0,
+            ];
+
+        let theta = vec![0.0, 0.0];
+        let i = vec![1.0, 0.0];
+
+        let nn = CtrnnNeuralNetwork {
+            y: &gamma,
+            delta_t: delta_t,
+            tau: &tau,
+            wij: &wij,
+            theta: &theta,
+            i: &i
+        };
+
+        let ctrnn = Ctrnn::default();
+
+        assert_delta_vector!(
+            ctrnn.activate_nn(1, &nn),
+            vec![
+                1.5,
+                0.5
+            ],
+            0.00000000000000000001
+        );
+    }
+
+    #[test]
     fn neural_network_activation_should_return_correct_values() {
         let gamma = vec![0.0, 0.0, 0.0];
         let delta_t = 13.436;
