@@ -31,6 +31,7 @@ python3-sys = { version = "0.1", optional = true }
 default = []
 telemetry = ["rusty_dashed", "open", "serde", "serde_derive", "serde_json"]
 openai = ["cpython", "python3-sys"]
+ctrnn_telemetry = []
 
 [[example]]
 name = "openai"
@@ -41,3 +42,6 @@ name = "simple_sample"
 
 [[example]]
 name = "function_approximation"
+
+[[example]]
+name = "ctrnn"

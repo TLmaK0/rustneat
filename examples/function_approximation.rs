@@ -31,8 +31,8 @@ impl Environment for FunctionApproximation {
       unsafe {
             if organism.fitness > BEST_FITNESS {
                 BEST_FITNESS = organism.fitness;
-      #[cfg(feature = "telemetry")]
-      telemetry!("approximation1", 1.0, format!("{:?}", outputs));
+                #[cfg(feature = "telemetry")]
+                telemetry!("approximation1", 1.0, format!("{:?}", outputs));
             }
       }
 

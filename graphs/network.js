@@ -1,5 +1,4 @@
 var ioNeurons = (getParameterByName('ioNeurons') || '0,0').split(',');
-console.log(ioNeurons);
 
 var simulation;
 var color;

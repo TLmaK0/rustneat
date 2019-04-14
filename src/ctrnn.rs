@@ -1,5 +1,11 @@
 use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
 
+#[cfg(feature = "ctrnn_telemetry")]
+use rusty_dashed;
+
+#[cfg(feature = "ctrnn_telemetry")]
+use serde_json;
+
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub struct CtrnnNeuralNetwork<'a> {
@@ -29,6 +35,9 @@ impl Ctrnn {
             y = delta_t_tau.elemul(
                 &((&wij * current_weights) - &y + &i)
             );
+
+            #[cfg(feature = "ctrnn_telemetry")]
+            self.telemetry(&y);
         };
         y.into_vec()
     }
@@ -44,6 +53,12 @@ impl Ctrnn {
     fn vector_to_matrix(vector: &[f64]) -> Matrix<f64> {
         let width = (vector.len() as f64).sqrt() as usize;
         Matrix::new(width, width, vector)
+    }
+
+    #[cfg(feature = "ctrnn_telemetry")]
+    fn telemetry(&self, y: &Matrix<f64>) {
+        let y2 = y.clone();
+        telemetry!("ctrnn1", 1.0, serde_json::to_string(&y2.into_vec()).unwrap());
     }
 }
 
