@@ -209,8 +209,7 @@ impl NeuralNetwork {
         let in_neuron_id = get_random_key(&self.neurons);
         let out_neuron_id = get_random_key(&self.neurons);
 
-        let weight = Normal::new(0.0, p.weight_init_var).sample(&mut rng);
-        self.add_connection(in_neuron_id, out_neuron_id, weight);
+        self.add_connection(in_neuron_id, out_neuron_id, 0.0);
     }
 
     fn mutate_del_conn(&mut self) {
