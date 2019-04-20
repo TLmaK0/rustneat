@@ -25,7 +25,7 @@ fn main() {
     Ctrnn::default().activate_nn(
         100,
         &CtrnnNeuralNetwork {
-            y: &vec![0.0; neurons_len],
+            y: &vec![1.0, 0.0],
             delta_t: 1.0,
             tau: &tau,
             wij: &wij,
