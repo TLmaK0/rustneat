@@ -17,6 +17,9 @@ function ctrnn_init(id){
   lineChart = d3.line()
                     .x(function(d){ return scaleX(d[0]); })
                     .y(function(d){ return height - scaleY(d[1]); });
+
+  var yAxis = d3.axisLeft(scaleY);
+  svg.append("g").attr("transform", "translate(30,0)").call(yAxis);
 }
 
 function ctrnn(id, value){
