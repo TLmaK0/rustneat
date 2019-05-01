@@ -183,4 +183,34 @@ impl NeatParams {
             distance_disjoint_coef: 0.7320224906467249
         }
     }
+    /// 100gen, 26pop, 250iter
+    pub fn optimized_for_xor3(n_inputs: usize, n_outputs: usize) -> NeatParams {
+        NeatParams {
+            n_inputs,
+            n_outputs,
+            remove_after_n_generations: 25,
+            species_elite: 4,
+            mutation_pr: 0.8179486080006981,
+            interspecie_mate_pr: 0.0007867479639166893,
+            cull_fraction: 0.17096549480223466,
+            mutate_add_conn_pr: 0.44753952977295475,
+            mutate_del_conn_pr: 0.12487973179523451,
+            mutate_add_neuron_pr: 0.018564851821478344,
+            mutate_del_neuron_pr: 0.03263771379940423,
+            weight_init_mean: 0.0,
+            weight_init_var: 0.9413042884798473,
+            weight_mutate_var: 0.8539035934199557,
+            weight_mutate_pr: 0.2938496323249987,
+            weight_replace_pr: 0.020513723672854978,
+            bias_init_mean: 0.0,
+            bias_init_var: 0.9346940047929453,
+            bias_mutate_var: 0.25153760530420227,
+            bias_mutate_pr: 0.2568246658042563,
+            bias_replace_pr: 0.13720985010407194,
+            include_weak_disjoint_gene: 0.2922982738026929,
+            compatibility_threshold: 3.0772944943236347,
+            distance_weight_coef: 0.32272770736662426,
+            distance_disjoint_coef: 0.7457289806719729
+        }
+    }
 }
