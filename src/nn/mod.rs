@@ -120,6 +120,17 @@ impl Genome for NeuralNetwork {
 }
 
 impl NeuralNetwork {
+    /// Create an activatable neural network from this genome.
+    pub fn make_network(&self) -> Ctrnn {
+        let mut neurons = self.neurons.clone();
+        neurons.sort_keys();
+        let theta = neurons.values().map(|x| x.bias).collect();
+        let tau = vec![1.0; self.n_neurons()];
+        let wij = self.get_weights();
+        let delta_t = 1.0;
+        
+        Ctrnn::new(theta, tau, wij, delta_t, 10)
+    }
     /// Creates a network that with no connections, but enough neurons to cover all inputs and
     /// outputs.
     pub fn with_neurons(n: usize) -> NeuralNetwork {
@@ -130,43 +141,6 @@ impl NeuralNetwork {
         NeuralNetwork {
             neurons,
             connections: IndexMap::new(),
-        }
-    }
-
-    /// Activate the neural network by sending input `inputs` into its first `inputs.len()`
-    /// neurons
-    pub fn activate(&self, mut inputs: Vec<f64>, outputs: &mut [f64]) {
-        let n_neurons = self.n_neurons();
-        let n_inputs = inputs.len();
-
-        let tau = vec![1.0; n_neurons];
-        let theta = self.get_bias(); 
-
-
-        if n_neurons < n_inputs {
-            inputs.truncate(n_neurons);
-        } else {
-            inputs = [inputs, vec![0.0; n_neurons - n_inputs]].concat();
-        }
-
-        let wij = self.get_weights();
-
-        let activations =
-            Ctrnn {
-                y: &inputs,  //initial state is the sensors
-                delta_t: 1.0,
-                tau: &tau,
-                wij: &wij,
-                theta: &theta,
-                i: &inputs
-            }.activate_nn(10);
-
-        if n_inputs < n_neurons {
-            let outputs_activations = activations.split_at(n_inputs).1.to_vec();
-
-            for n in 0..cmp::min(outputs_activations.len(), outputs.len()) {
-                outputs[n] = outputs_activations[n];
-            }
         }
     }
 
