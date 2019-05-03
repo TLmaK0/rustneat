@@ -213,4 +213,64 @@ impl NeatParams {
             distance_disjoint_coef: 0.7457289806719729
         }
     }
+    ///
+    pub fn optimized_for_xor4(n_inputs: usize, n_outputs: usize) -> NeatParams {
+        NeatParams {
+            n_inputs,
+            n_outputs,
+            remove_after_n_generations: 24,
+            species_elite: 4,
+            mutation_pr: 0.7377448588347766,
+            interspecie_mate_pr: 0.00035009502538494,
+            cull_fraction: 0.23275864645590494,
+            mutate_add_conn_pr: 0.4265089877216002,
+            mutate_del_conn_pr: 0.10236231655587034,
+            mutate_add_neuron_pr: 0.01646785755288386,
+            mutate_del_neuron_pr: 0.026939146200355306,
+            weight_init_mean: 0.0,
+            weight_init_var: 1.13057738327287,
+            weight_mutate_var: 0.7654186135703698,
+            weight_mutate_pr: 0.5121623674085568,
+            weight_replace_pr: 0.035396420187588075,
+            bias_init_mean: 0.0,
+            bias_init_var: 0.9190528106125618,
+            bias_mutate_var: 0.3354386887591801,
+            bias_mutate_pr: 0.25787915314264925,
+            bias_replace_pr: 0.12951042590409398,
+            include_weak_disjoint_gene: 0.14737065873007102,
+            compatibility_threshold: 2.89666508232241,
+            distance_weight_coef: 0.1973310444507289,
+            distance_disjoint_coef: 0.6121188685737646
+        }
+    }
+    ///
+    pub fn optimized_for_xor3_200pop(n_inputs: usize, n_outputs: usize) -> NeatParams {
+        NeatParams {
+            n_inputs,
+            n_outputs,
+            remove_after_n_generations: 32,
+            species_elite: 1,
+            mutation_pr: 0.5327950655843168,
+            interspecie_mate_pr: 0.00007966830274460968,
+            cull_fraction: 0.22026134738323333,
+            mutate_add_conn_pr: 0.4503863062666368,
+            mutate_del_conn_pr: 0.10673123924170867,
+            mutate_add_neuron_pr: 0.011488878905223616,
+            mutate_del_neuron_pr: 0.03517207664947583,
+            weight_init_mean: 0.0,
+            weight_init_var: 1.7662735379957946,
+            weight_mutate_var: 1.6383118400258092,
+            weight_mutate_pr: 0.6752697941225041,
+            weight_replace_pr: 0.12828394343804145,
+            bias_init_mean: 0.0,
+            bias_init_var: 1.3050124837892862,
+            bias_mutate_var: 0.22056449217883092,
+            bias_mutate_pr: 0.4522477279407073,
+            bias_replace_pr: 0.09809841413336916,
+            include_weak_disjoint_gene: 0.2662004228007475,
+            compatibility_threshold: 2.7137103625511902,
+            distance_weight_coef: 0.06185651136671744,
+            distance_disjoint_coef: 0.7670793572284181
+        }
+    }
 }

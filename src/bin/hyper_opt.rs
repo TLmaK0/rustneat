@@ -33,13 +33,10 @@ impl Environment for XORClassification {
 
 fn run(p: &NeatParams, n_gen: usize) -> f64 {
 
-    let mut start_genome = NeuralNetwork::with_neurons(3);
-    // start_genome.add_connection(0, 2, 0.0);
-    // start_genome.add_connection(1, 2, 0.0);
-    let mut population = Population::create_population_from(start_genome, 150);
+    let start_genome = NeuralNetwork::with_neurons(3);
+    let mut population = Population::create_population_from(start_genome, 200);
     let mut environment = XORClassification;
-    let mut champion: Option<Organism> = None;
-    for i in 0..n_gen {
+    for _ in 0..n_gen {
         population.evolve(&mut environment, p);
     }
 
@@ -134,7 +131,7 @@ fn main() {
     let now = Utc::now();
     println!("Start: {:02}:{:02}:{:02}", now.hour(), now.minute(), now.second());
 
-    const N_ITER: usize = 250;
+    const N_ITER: usize = 2000;
     let config = Configuration::bayesian_search(12, N_ITER, log.clone());
     println!("Score: {}", config.evaluate(log));
     println!("Config: {:?}", config);

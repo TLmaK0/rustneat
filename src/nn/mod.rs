@@ -8,11 +8,8 @@ mod gene;
 pub use self::ctrnn::*;
 pub use self::gene::*;
 
-/// Vector of Genes
-/// Holds a count of last neuron added, similar to Innovation number
-// NOTE: With regard to the "competing conventions" problem in the orginal paper:
-// Connections are identified by their (in_neuron_id, out_neuron_id) pair, which serves as their 'innovration number'.
-// Neurons are identified just by their position in the Vec (implicit id).
+/// Genome representing a neural network.
+/// There is one gene for every connection and one gene for every neuron.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NeuralNetwork {
     /// Connections between neurons. Sorted at all times. Use `add_connection()` to add a
@@ -138,7 +135,7 @@ impl NeuralNetwork {
 
     /// Activate the neural network by sending input `inputs` into its first `inputs.len()`
     /// neurons
-    pub fn activate(&self, mut inputs: Vec<f64>, outputs: &mut Vec<f64>) {
+    pub fn activate(&self, mut inputs: Vec<f64>, outputs: &mut [f64]) {
         let n_neurons = self.n_neurons();
         let n_inputs = inputs.len();
 
@@ -527,11 +524,13 @@ mod tests {
         organism.add_connection(0,2, 0.2);
         organism.add_connection(1,3, 1.5);
         organism.add_connection(2,3, -0.5);
+        println!("{:?}", organism);
         let mut output1 = vec![0.0; 1];
         organism.activate(vec![INPUT], &mut output1);
-        organism.mutate_add_neuron(5);
+        organism.mutate_add_neuron(4);
         let mut output2 = vec![0.0; 1];
         organism.activate(vec![INPUT], &mut output2);
+        println!("{:?}", organism);
         assert_eq!(output1[0], output2[0]);
     }
 }

@@ -67,29 +67,27 @@ fn main() {
     let p = NeatParams::optimized_for_xor3(2, 1);
 
 
-    solve_time_perf(&p);
+    solve_time_perf(&p, 40, 1500, 150);
     // fixed_generations_perf(&p);
 
 }
 
 /// See how fast, on average, rustneat can solve XOR
-fn solve_time_perf(p: &NeatParams) {
-    const N_EXP: usize = 40;
-    const MAX_GEN: usize = 800;
+fn solve_time_perf(p: &NeatParams, n_exp: usize, n_gen: usize, population_size: usize) {
     let mut solve_gens = Vec::new();
     let mut neurons = Vec::new();
     let mut connections = Vec::new();
     let mut could_not_solve = 0;
-    for exp in 0..N_EXP {
-        print!("Experiment {}/{}\r", exp+1, N_EXP);
+    for exp in 0..n_exp {
+        print!("Experiment {}/{}\r", exp+1, n_exp);
         std::io::stdout().flush().unwrap();
         let start_genome = NeuralNetwork::with_neurons(3);
-        let mut population = Population::create_population_from(start_genome, 150);
+        let mut population = Population::create_population_from(start_genome, population_size);
         let mut environment = XORClassification;
 
         let mut champion: Option<Organism> = None;
         let mut i = 0;
-        while champion.is_none() && i < MAX_GEN {
+        while champion.is_none() && i < n_gen {
             population.evolve(&mut environment, &p);
             for organism in population.get_organisms() {
                 if organism.fitness > 15.7 {
