@@ -15,13 +15,14 @@ struct FunctionApproximation;
 
 impl Environment for FunctionApproximation {
   fn test(&self, organism: &mut NeuralNetwork) -> f64 {
+      let nn = organism.make_network();
       let mut output = vec![0f64];
       let mut distance = 0f64;
 
       let mut outputs = Vec::new();
 
       for x in -10..11 {
-          organism.activate(vec![x as f64 / 10f64], &mut output);
+          nn.activate(vec![x as f64 / 10f64], &mut output);
           distance += ((x as f64).powf(2f64) - (output[0] * 100f64)).abs();
           outputs.push([x, (output[0] * 100f64) as i64]);
       }
@@ -39,7 +40,7 @@ impl Environment for FunctionApproximation {
 }
 
 fn main() {
-    let p = NeatParams::default(1,1);
+    let p = NeatParams::optimized_for_xor3(1,1);
     let mut population = Population::create_population(150);
     let mut environment = FunctionApproximation;
     let mut champion: Option<Organism> = None;

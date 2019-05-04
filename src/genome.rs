@@ -2,7 +2,7 @@ use crate::{NeuralNetwork, NeatParams};
 
 /// Implementing `Genome` conceptually means that the implementor "has a genome", and the
 /// implementor can be called an "organism".
-pub trait Genome: Clone + Default + Send {
+pub trait Genome: Clone + Default + Send + std::fmt::Debug {
     /// Returns a new organism which is a clone of `&self` apart from possible mutations
     fn mutate(&mut self, innovation_id: &mut usize, p: &NeatParams);
 

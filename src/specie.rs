@@ -4,7 +4,7 @@ use rand::{self, distributions::{Distribution, Uniform}};
 
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
-pub struct Specie<G> {
+pub struct Specie<G: Genome> {
     ///
     pub id: usize,
     /// A representative organism from the previous generation
@@ -149,7 +149,7 @@ impl<G: Genome> Specie<G> {
         let mut child = self.create_child_by_mate(organism, population_organisms, p);
 
         if rand::random::<f64>() < p.mutation_pr {
-            child.mutate(innovation_id, p)
+            child.mutate(innovation_id, p);
         }
         child
     }

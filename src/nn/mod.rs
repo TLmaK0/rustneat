@@ -74,12 +74,10 @@ impl Genome for NeuralNetwork {
         if rand::random::<f64>() < p.mutate_add_conn_pr || self.connections.is_empty() {
             self.mutate_add_connection(p);
         }
-
         if rand::random::<f64>() < p.mutate_add_neuron_pr {
             self.mutate_add_neuron(*innovation_id);
             *innovation_id += 1;
         }
-
         if rand::random::<f64>() < p.mutate_del_neuron_pr {
             self.mutate_del_neuron(p);
         }
@@ -171,8 +169,6 @@ impl NeuralNetwork {
     }
 
     fn mutate_add_connection(&mut self, p: &NeatParams) {
-        use rand::distributions::{Normal, Distribution};
-        let mut rng = rand::thread_rng();
         if self.neurons.len() == 0 {
             return
         }
@@ -391,9 +387,10 @@ mod tests {
     fn should_propagate_signal_without_hidden_layers() {
         let mut organism = NeuralNetwork::with_neurons(2);
         organism.add_connection(0, 1, 5.0);
+        let nn = organism.make_network();
         let sensors = vec![7.5];
         let mut output = vec![0.0];
-        organism.activate(sensors, &mut output);
+        nn.activate(sensors, &mut output);
         assert!(
             output[0] > 0.9,
             format!("{:?} is not bigger than 0.9", output[0])
@@ -401,9 +398,10 @@ mod tests {
 
         let mut organism = NeuralNetwork::with_neurons(2);
         organism.add_connection(0, 1, -2.0);
+        let nn = organism.make_network();
         let sensors = vec![1.0];
         let mut output = vec![0.0];
-        organism.activate(sensors, &mut output);
+        nn.activate(sensors, &mut output);
         assert!(
             output[0] < 0.1,
             format!("{:?} is not smaller than 0.1", output[0])
@@ -416,9 +414,10 @@ mod tests {
         organism.add_connection(0, 1, 0.0);
         organism.add_connection(0, 2, 5.0);
         organism.add_connection(2, 1, 5.0);
+        let nn = organism.make_network();
         let sensors = vec![0.0];
         let mut output = vec![0.0];
-        organism.activate(sensors, &mut output);
+        nn.activate(sensors, &mut output);
         assert!(
             output[0] > 0.9,
             format!("{:?} is not bigger than 0.9", output[0])
@@ -431,8 +430,9 @@ mod tests {
         organism.add_connection(0, 1, 2.0);
         organism.add_connection(1, 2, 2.0);
         organism.add_connection(2, 1, 2.0);
+        let nn = organism.make_network();
         let mut output = vec![0.0];
-        organism.activate(vec![1.0], &mut output);
+        nn.activate(vec![1.0], &mut output);
         assert!(
             output[0] > 0.9,
             format!("{:?} is not bigger than 0.9", output[0])
@@ -442,8 +442,9 @@ mod tests {
         organism.add_connection(0, 1, -2.0);
         organism.add_connection(1, 2, -2.0);
         organism.add_connection(2, 1, -2.0);
+        let nn = organism.make_network();
         let mut output = vec![0.0];
-        organism.activate(vec![1.0], &mut output);
+        nn.activate(vec![1.0], &mut output);
         assert!(
             output[0] < 0.1,
             format!("{:?} is not smaller than 0.1", output[0])
@@ -454,18 +455,20 @@ mod tests {
     fn activate_organims_sensor_without_enough_neurons_should_ignore_it() {
         let mut organism = NeuralNetwork::with_neurons(2);
         organism.add_connection(0, 1, 1.0);
+        let nn = organism.make_network();
         let sensors = vec![0.0, 0.0, 0.0];
         let mut output = vec![0.0];
-        organism.activate(sensors, &mut output);
+        nn.activate(sensors, &mut output);
     }
 
     #[test]
     fn should_allow_multiple_output() {
         let mut organism = NeuralNetwork::with_neurons(2);
         organism.add_connection(0, 1, 1.0);
+        let nn = organism.make_network();
         let sensors = vec![0.0];
         let mut output = vec![0.0, 0.0];
-        organism.activate(sensors, &mut output);
+        nn.activate(sensors, &mut output);
     }
 
     #[test]
@@ -476,6 +479,7 @@ mod tests {
         organism.add_connection(2, 1, 0.5);
         organism.add_connection(2, 2, 0.75);
         organism.add_connection(1, 0, 1.0);
+        let nn = organism.make_network();
         assert_eq!(
             organism.get_weights(),
             vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]
@@ -486,9 +490,10 @@ mod tests {
     fn should_not_raise_exception_if_less_neurons_than_required() {
         let mut organism = NeuralNetwork::with_neurons(2);
         organism.add_connection(0, 1, 1.0);
+        let nn = organism.make_network();
         let input = vec![0.0; 3];
         let mut output = vec![0.0; 3];
-        organism.activate(input, &mut output);
+        nn.activate(input, &mut output);
     }
     #[test]
     fn mutate_add_neuron_should_not_change_output() {
@@ -498,14 +503,14 @@ mod tests {
         organism.add_connection(0,2, 0.2);
         organism.add_connection(1,3, 1.5);
         organism.add_connection(2,3, -0.5);
-        println!("{:?}", organism);
         let mut output1 = vec![0.0; 1];
-        organism.activate(vec![INPUT], &mut output1);
+        organism.make_network().activate(vec![INPUT], &mut output1);
         organism.mutate_add_neuron(4);
         let mut output2 = vec![0.0; 1];
-        organism.activate(vec![INPUT], &mut output2);
-        println!("{:?}", organism);
-        assert_eq!(output1[0], output2[0]);
+        organism.make_network().activate(vec![INPUT], &mut output2);
+        assert!((output1[0] - output2[0]).abs() < 0.01);
+        // ^ due to the ctrnn implementation only approximating a DE, the output is not always
+        // exactly the same
     }
 }
 

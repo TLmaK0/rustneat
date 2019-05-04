@@ -11,15 +11,16 @@ struct XORClassification;
 
 impl Environment for XORClassification {
     fn test(&self, organism: &mut NeuralNetwork) -> f64 {
+        let nn = organism.make_network();
         let mut output = vec![0f64];
         let mut distance: f64;
-        organism.activate(vec![0f64, 0f64], &mut output);
+        nn.activate(vec![0f64, 0f64], &mut output);
         distance = (0f64 - output[0]).powi(2);
-        organism.activate(vec![0f64, 1f64], &mut output);
+        nn.activate(vec![0f64, 1f64], &mut output);
         distance += (1f64 - output[0]).powi(2);
-        organism.activate(vec![1f64, 0f64], &mut output);
+        nn.activate(vec![1f64, 0f64], &mut output);
         distance += (1f64 - output[0]).powi(2);
-        organism.activate(vec![1f64, 1f64], &mut output);
+        nn.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
         let fitness = 16.0 / (1.0 + distance);
@@ -67,8 +68,14 @@ fn main() {
     let p = NeatParams::optimized_for_xor3(2, 1);
 
 
-    solve_time_perf(&p, 40, 1500, 150);
+    use chrono::{Timelike, Utc};
+    let now = Utc::now();
+    println!("Start: {:02}:{:02}:{:02}", now.hour(), now.minute(), now.second());
+
+    solve_time_perf(&p, 40, 1000, 150);
     // fixed_generations_perf(&p);
+    
+    println!("\nExecution time: {}", (Utc::now() - now).num_seconds());
 
 }
 

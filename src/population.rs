@@ -13,7 +13,7 @@ use serde_json;
 
 /// Contains several species, and a way to evolve these to the next generation.
 #[derive(Debug)]
-pub struct Population<G = NeuralNetwork> {
+pub struct Population<G: Genome = NeuralNetwork> {
     /// container of species
     pub species: Vec<Specie<G>>,
     target_size: usize,
@@ -97,7 +97,6 @@ impl<G: Genome> Population<G> {
 
         // Divide into species
         self.speciate(&organisms, p);
-
 
         // Give each species a number of offsprings related to that species'
         // average fitness

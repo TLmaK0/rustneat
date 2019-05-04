@@ -1,4 +1,3 @@
-
 #[cfg(test)]
 mod test {
     use rustneat::{Environment, Organism, Population, NeuralNetwork, NeatParams};
@@ -15,12 +14,13 @@ mod test {
 
     impl Environment for XORClassification {
         fn test(&self, organism: &mut NeuralNetwork) -> f64 {
+            let nn = organism.make_network();
             let target_inputs = vec![vec![0.0, 0.0], vec![0.0, 1.0], vec![1.0, 0.0], vec![1.0, 1.0]];
             let target_outputs = vec![0.0, 1.0, 1.0, 0.0];
             let mut output = vec![0.0];
             let mut distance: f64 = 0.0;
             for (i, o) in target_inputs.iter().zip(target_outputs) {
-                organism.activate(i.clone(), &mut output);
+                nn.activate(i.clone(), &mut output);
                 distance += (o - output[0]).powi(2);
 
             }
@@ -38,6 +38,7 @@ mod test {
     fn population_can_evolve() {
         let p = NeatParams {
             mutation_pr: 1.0, // because mutation ensures we have connections
+            mutate_del_conn_pr: 0.0,
             ..NeatParams::default(1,1)
         };
         let mut population = Population::create_population(2);
@@ -67,10 +68,11 @@ mod test {
             for organism in population.get_organisms() {
                 // Test whether there is any organism that solves the problem
                 let mut output = vec![0.0; 4];
-                organism.genome.activate(vec![0.0, 0.0], &mut output[0..1]);
-                organism.genome.activate(vec![0.0, 1.0], &mut output[1..2]);
-                organism.genome.activate(vec![1.0, 0.0], &mut output[2..3]);
-                organism.genome.activate(vec![1.0, 1.0], &mut output[3..]);
+                let nn = organism.genome.make_network();
+                nn.activate(vec![0.0, 0.0], &mut output[0..1]);
+                nn.activate(vec![0.0, 1.0], &mut output[1..2]);
+                nn.activate(vec![1.0, 0.0], &mut output[2..3]);
+                nn.activate(vec![1.0, 1.0], &mut output[3..]);
                 if output[0].abs() < 0.1 && (1.0 - output[1]).abs() < 0.1 && (1.0 - output[2]).abs() < 0.1 && output[3].abs() < 0.1 {
                     champion = Some(organism.clone());
                 }
