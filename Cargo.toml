@@ -34,8 +34,8 @@ slog-term = "2.4.0"
 slog-async = "2.3.0"
 
 # [dev-dependencies] # Only used for src/bin/*
-blackbox = {path = "../blackbox"}
-blackbox_derive = {path = "../blackbox_derive"}
+blackbox = {git = "https://github.com/Ploppz/blackbox.git"}
+blackbox_derive = {git = "https://github.com/Ploppz/blackbox_derive.git"}
 chrono = "0.4.6"
 
 [features]
