@@ -52,7 +52,6 @@ pub type ConnectionId = (usize, usize);
 
 /// Gene for a synapse/connection in the `NeuralNetwork`.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "telemetry", derive(Serialize))]
 pub struct ConnectionGene {
     in_neuron_id: usize,
     out_neuron_id: usize,
