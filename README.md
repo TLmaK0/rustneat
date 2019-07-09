@@ -1,3 +1,5 @@
+Working-in-progress
+
 ### Rust NEAT
 [![travis-ci](https://img.shields.io/travis/TLmaK0/rustneat/master.svg)](https://travis-ci.org/TLmaK0/rustneat)
 [![Gitter](https://img.shields.io/gitter/room/nwjs/nw.js.svg)](https://gitter.im/rustneat/rustneat)
