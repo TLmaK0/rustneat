@@ -300,7 +300,7 @@ mod tests {
         let p = NeatParams::default(0, 0);
         let mut population = Population::create_population(150);
         for _ in 0..150 {
-            population.evolve(&mut X, &p);
+            population.evolve(&mut X, &p,true);
         }
         assert!(population.size() == 150);
     }

@@ -37,7 +37,7 @@ fn run(p: &NeatParams, n_gen: usize) -> f64 {
     let mut population = Population::create_population_from(start_genome, 200);
     let mut environment = XORClassification;
     for _ in 0..n_gen {
-        population.evolve(&mut environment, p);
+        population.evolve(&mut environment, p,true);
     }
 
     let mut best_fitness = 0.0;

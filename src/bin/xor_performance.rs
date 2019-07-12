@@ -98,7 +98,7 @@ fn solve_time_perf(p: &NeatParams, n_exp: usize, n_gen: usize, population_size: 
         let mut champion: Option<Organism> = None;
         let mut i = 0;
         while champion.is_none() && i < n_gen {
-            population.evolve(&mut environment, &p);
+            population.evolve(&mut environment, &p,true);
             for organism in population.get_organisms() {
                 if organism.fitness > 15.7 {
                     champion = Some(organism.clone());
@@ -148,7 +148,7 @@ fn fixed_generations_perf(p: &NeatParams) {
         let mut environment = XORClassification;
 
         for i in 0..N_GEN {
-            population.evolve(&mut environment, &p);
+            population.evolve(&mut environment, &p,true);
 
             let best_organism = population.get_champion();
 
