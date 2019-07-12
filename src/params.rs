@@ -1,26 +1,32 @@
 use serde_derive::{Deserialize, Serialize};
 
-/// Contains all parameters for the NEAT algorithm. A reference to `NeatParams` will be passed around
-/// internally. Usually you only need to give it to `Population::evolve`.
+/// Contains all parameters for the NEAT algorithm. A reference to `NeatParams`
+/// will be passed around internally. Usually you only need to give it to
+/// `Population::evolve`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NeatParams {
-    /// Number of inputs to the neural network. Only used to ensure a certain amount of neurons.
+    /// Number of inputs to the neural network. Only used to ensure a certain
+    /// amount of neurons.
     pub n_inputs: usize,
-    /// Number of outputs to the neural network. Only used to ensure a certain amount of neurons.
+    /// Number of outputs to the neural network. Only used to ensure a certain
+    /// amount of neurons.
     pub n_outputs: usize,
     // In `Population`
-    /// Maximum number of generations without improvement in a species, before that species is
-    /// removed.
+    /// Maximum number of generations without improvement in a species, before
+    /// that species is removed.
     pub remove_after_n_generations: usize,
     /// Number of best species that cannot be removed due to stagnation
     pub species_elite: usize,
 
     // In `Specie`
-    /// The probability of just mutating (as opposed to mating), during selection
+    /// The probability of just mutating (as opposed to mating), during
+    /// selection
     pub mutation_pr: f64,
-    /// The probability that an organism mates with an organism outside of their species
+    /// The probability that an organism mates with an organism outside of their
+    /// species
     pub interspecie_mate_pr: f64,
-    /// The fraction of organisms to cull from a species before selection (worst-performing ones)
+    /// The fraction of organisms to cull from a species before selection
+    /// (worst-performing ones)
     pub cull_fraction: f64,
     // TODO: n_elites or elite_fraction
 
@@ -34,46 +40,49 @@ pub struct NeatParams {
     /// The probability of deleting a neuron during mutation
     pub mutate_del_neuron_pr: f64,
 
-
     /// The mean (normal distribution) of the weight of a new connection
-    pub weight_init_mean: f64, 
+    pub weight_init_mean: f64,
     /// The variance (normal distribution) of the weight of a new connection
-    pub weight_init_var: f64, 
-    /// The variance (normal distribution) of a mutation of the weight of an existing connection
+    pub weight_init_var: f64,
+    /// The variance (normal distribution) of a mutation of the weight of an
+    /// existing connection
     pub weight_mutate_var: f64,
-    /// The probability to perturb the weights of a connection (simulated for each connection
-    /// individually) when mutating
+    /// The probability to perturb the weights of a connection (simulated for
+    /// each connection individually) when mutating
     pub weight_mutate_pr: f64,
-    /// The probability to replace the weights of a connection (simulated for each connection
-    /// individually) when mutating
+    /// The probability to replace the weights of a connection (simulated for
+    /// each connection individually) when mutating
     pub weight_replace_pr: f64,
 
     /// The mean (normal distribution) of the bias of a new connection
-    pub bias_init_mean: f64, 
+    pub bias_init_mean: f64,
     /// The variance (normal distribution) of the bias of a new connection
-    pub bias_init_var: f64, 
-    /// The variance (normal distribution) of a mutation of the bias of an existing connection
+    pub bias_init_var: f64,
+    /// The variance (normal distribution) of a mutation of the bias of an
+    /// existing connection
     pub bias_mutate_var: f64,
-    /// The probability to perturb the biases of a connection (simulated for each connection
-    /// individually) when mutating
+    /// The probability to perturb the biases of a connection (simulated for
+    /// each connection individually) when mutating
     pub bias_mutate_pr: f64,
-    /// The probability to replace the biases of a connection (simulated for each connection
-    /// individually) when mutating
+    /// The probability to replace the biases of a connection (simulated for
+    /// each connection individually) when mutating
     pub bias_replace_pr: f64,
 
-    /// The probability, during mating, of including a gene that is disjoint or excess,
-    /// from the organisms that is least fit
+    /// The probability, during mating, of including a gene that is disjoint or
+    /// excess, from the organisms that is least fit
     pub include_weak_disjoint_gene: f64,
 
     // (TODO: tau and n_steps in `activate()`
 
     // Other
     /// Threshold for distance (compatibility) between organisms,
-    /// under which the organisms are considered 'compatible', i.e. belonging to the same species.
+    /// under which the organisms are considered 'compatible', i.e. belonging to
+    /// the same species.
     pub compatibility_threshold: f64,
     /// How much connection weights and node biases contribute to the distance.
     pub distance_weight_coef: f64,
-    /// How much disjoint/excess (not in common) connections and neurons contribute to the distance
+    /// How much disjoint/excess (not in common) connections and neurons
+    /// contribute to the distance
     pub distance_disjoint_coef: f64,
 }
 
@@ -96,18 +105,17 @@ impl NeatParams {
             mutate_add_neuron_pr: 0.1,
             mutate_del_neuron_pr: 0.1,
 
-            weight_init_mean: 0.0, 
-            weight_init_var: 1.0, 
+            weight_init_mean: 0.0,
+            weight_init_var: 1.0,
             weight_mutate_var: 0.5,
             weight_mutate_pr: 0.8,
             weight_replace_pr: 0.1,
 
-            bias_init_mean: 0.0, 
-            bias_init_var: 1.0, 
+            bias_init_mean: 0.0,
+            bias_init_var: 1.0,
             bias_mutate_var: 0.5,
             bias_mutate_pr: 0.7,
             bias_replace_pr: 0.1,
-
 
             include_weak_disjoint_gene: 0.2,
 
@@ -118,8 +126,6 @@ impl NeatParams {
         }
     }
 }
-
-
 
 impl NeatParams {
     // temporary
@@ -150,7 +156,7 @@ impl NeatParams {
             include_weak_disjoint_gene: 0.2922982738026929,
             compatibility_threshold: 3.0772944943236347,
             distance_weight_coef: 0.32272770736662426,
-            distance_disjoint_coef: 0.7457289806719729
+            distance_disjoint_coef: 0.7457289806719729,
         }
     }
 }

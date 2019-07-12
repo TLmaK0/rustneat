@@ -1,6 +1,5 @@
+use serde_derive::{Deserialize, Serialize};
 use std::hash::Hash;
-use serde_derive::{Serialize, Deserialize};
-
 
 // TODO make private - only needed internally I think
 ///
@@ -9,8 +8,8 @@ pub trait Gene: Copy {
     type Id: Hash + Eq + Clone + Copy;
     ///
     fn id(&self) -> Self::Id;
-    /// Some way to get the (compatibility) distance between two genes, used in calculating the
-    /// distance between genomes
+    /// Some way to get the (compatibility) distance between two genes, used in
+    /// calculating the distance between genomes
     fn distance(&self, other: &Self) -> f64;
     // TODO maybe add `fn mutate(&mut self, p: &Params)` here :o
 }
@@ -45,7 +44,6 @@ impl Gene for NeuronGene {
         (self.bias - other.bias).abs()
     }
 }
-
 
 /// Innovation id of a connection gene = (input neuron id, output neuron id)
 pub type ConnectionId = (usize, usize);

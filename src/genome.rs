@@ -1,9 +1,10 @@
-use crate::{NeuralNetwork, NeatParams};
+use crate::{NeatParams, NeuralNetwork};
 
-/// Implementing `Genome` conceptually means that the implementor "has a genome", and the
-/// implementor can be called an "organism".
+/// Implementing `Genome` conceptually means that the implementor "has a
+/// genome", and the implementor can be called an "organism".
 pub trait Genome: Clone + Default + Send + std::fmt::Debug {
-    /// Returns a new organism which is a clone of `&self` apart from possible mutations
+    /// Returns a new organism which is a clone of `&self` apart from possible
+    /// mutations
     fn mutate(&mut self, innovation_id: &mut usize, p: &NeatParams);
 
     /// `fittest` is true if `other` is more fit.
@@ -12,7 +13,6 @@ pub trait Genome: Clone + Default + Send + std::fmt::Debug {
     /// TODO: how should it be implemented for e.g. a composed organism?
     fn distance(&self, other: &Self, p: &NeatParams) -> f64;
 
-
     /// Compare another Genome for species equality
     // TODO This should be impl Eq
     fn is_same_specie(&self, other: &Self, p: &NeatParams) -> bool {
@@ -20,8 +20,8 @@ pub trait Genome: Clone + Default + Send + std::fmt::Debug {
     }
 }
 
-/// Used in algorithm just to group an organism (genome) with its fitness, and also in the
-/// interface to get the fitness of organisms
+/// Used in algorithm just to group an organism (genome) with its fitness, and
+/// also in the interface to get the fitness of organisms
 #[derive(Default, Clone, Debug)]
 pub struct Organism<G = NeuralNetwork> {
     /// The genome of this organism
@@ -45,10 +45,11 @@ impl<G: Genome> Organism<G> {
     pub fn mate(&self, other: &Self, p: &NeatParams) -> Organism<G> {
         Organism::new(
             self.genome
-                .mate(&other.genome, self.fitness > other.fitness, p))
+                .mate(&other.genome, self.fitness > other.fitness, p),
+        )
     }
-    /// 
+    ///
     pub fn distance(&self, other: &Self, p: &NeatParams) -> f64 {
-        self.genome.distance(&other.genome,p )
+        self.genome.distance(&other.genome, p)
     }
 }
