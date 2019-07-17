@@ -3,12 +3,12 @@ extern crate blackbox_derive;
 #[macro_use]
 extern crate slog;
 
-use blackbox_derive::make_optimizer;
 use blackbox::BlackboxInput;
+use blackbox_derive::make_optimizer;
 use slog::Logger;
 
-use rustneat::{Environment, Organism, Population, NeuralNetwork, NeatParams};
 use chrono::{Timelike, Utc};
+use rustneat::{Environment, NeatParams, NeuralNetwork, Organism, Population};
 
 struct XORClassification;
 
@@ -33,12 +33,11 @@ impl Environment for XORClassification {
 }
 
 fn run(p: &NeatParams, n_gen: usize) -> f64 {
-
     let start_genome = NeuralNetwork::with_neurons(3);
     let mut population = Population::create_population_from(start_genome, 200);
     let mut environment = XORClassification;
     for _ in 0..n_gen {
-        population.evolve(&mut environment, p);
+        population.evolve(&mut environment, p,true);
     }
 
     let mut best_fitness = 0.0;
@@ -65,14 +64,14 @@ make_optimizer! {
         mutate_add_neuron_pr: f64 = 0.01..0.04,
         mutate_del_neuron_pr: f64 = 0.01..0.04,
 
-        // weight_init_mean: 0.0, 
-        weight_init_var: f64 = 0.5 .. 2.0, 
+        // weight_init_mean: 0.0,
+        weight_init_var: f64 = 0.5 .. 2.0,
         weight_mutate_var: f64 = 0.2 .. 2.0,
         weight_mutate_pr: f64 = 0.2 .. 0.8,
         weight_replace_pr: f64 = 0.01 .. 0.2,
 
-        // bias_init_mean: 0.0, 
-        bias_init_var: f64 = 0.5 .. 2.0, 
+        // bias_init_mean: 0.0,
+        bias_init_var: f64 = 0.5 .. 2.0,
         bias_mutate_var: f64 = 0.2 .. 2.0,
         bias_mutate_pr: f64 = 0.2 .. 0.8,
         bias_replace_pr: f64 = 0.01 .. 0.2,
@@ -103,13 +102,13 @@ make_optimizer! {
         include_weak_disjoint_gene,
 
         weight_init_mean: 0.0,
-        weight_init_var, 
+        weight_init_var,
         weight_mutate_var,
         weight_mutate_pr,
         weight_replace_pr,
 
         bias_init_mean: 0.0,
-        bias_init_var, 
+        bias_init_var,
         bias_mutate_var,
         bias_mutate_pr,
         bias_replace_pr,
@@ -124,13 +123,18 @@ make_optimizer! {
         .sum::<f64>() / N_POPULATIONS as f64;
     println!("Iteration... Score = {}", score);
     score
-    
+
 }
 
 fn main() {
     let log = slog::Logger::root(slog::Discard, o!());
     let now = Utc::now();
-    println!("Start: {:02}:{:02}:{:02}", now.hour(), now.minute(), now.second());
+    println!(
+        "Start: {:02}:{:02}:{:02}",
+        now.hour(),
+        now.minute(),
+        now.second()
+    );
 
     const N_ITER: usize = 2000;
     let config = Configuration::bayesian_search(12, N_ITER, log.clone());

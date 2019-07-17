@@ -1,12 +1,13 @@
 use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
 
-/// Continuous Time Recurrent Neural Network implementation, which the `NeuralNetwork` genome encodes for.
+/// Continuous Time Recurrent Neural Network implementation, which the
+/// `NeuralNetwork` genome encodes for.
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct Ctrnn {
-    theta: Matrix<f64>, //bias
+    theta: Matrix<f64>, // bias
     delta_t_tau: Matrix<f64>,
-    wij: Matrix<f64>, //weights
+    wij: Matrix<f64>, // weights
     steps: usize,
 }
 
@@ -18,11 +19,11 @@ impl Ctrnn {
             theta: Ctrnn::vector_to_column_matrix(theta),
             wij: Ctrnn::vector_to_matrix(wij),
             delta_t_tau: tau.apply(&(|x| 1.0 / x)) * delta_t,
-            steps
+            steps,
         }
     }
-    /// Activate the neural network. The output is written to `output`, the amount depending on the
-    /// length of `output`.
+    /// Activate the neural network. The output is written to `output`, the
+    /// amount depending on the length of `output`.
     pub fn activate(&self, mut input: Vec<f64>, output: &mut [f64]) {
         let n_inputs = input.len();
         let n_neurons = self.theta.rows();
@@ -36,10 +37,11 @@ impl Ctrnn {
         let mut y = input.clone(); // TODO: correct? Or zero-vector?
         for _ in 0..self.steps {
             let activations = (&y + &self.theta).apply(&Ctrnn::sigmoid);
-            y = &y + self.delta_t_tau.elemul(
-                &((&self.wij * activations) - &y + &input)
-            );
-        };
+            y = &y
+                + self
+                    .delta_t_tau
+                    .elemul(&((&self.wij * activations) - &y + &input));
+        }
         let y = y.into_vec();
 
         if n_inputs < n_neurons {
@@ -94,6 +96,7 @@ mod tests {
     #[test]
     fn neural_network_activation_stability() {
         // TODO
-        // This test should just ensure that a stable neural network implementation doesn't change
+        // This test should just ensure that a stable neural network implementation
+        // doesn't change
     }
 }
