@@ -1,7 +1,7 @@
 use crate::{Genome, NeatParams};
-use std::cmp;
 use indexmap::map::IndexMap;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
+use std::cmp;
 
 mod ctrnn;
 mod gene;
@@ -12,8 +12,8 @@ pub use self::gene::*;
 /// There is one gene for every connection and one gene for every neuron.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NeuralNetwork {
-    /// Connections between neurons. Sorted at all times. Use `add_connection()` to add a
-    /// connection!
+    /// Connections between neurons. Sorted at all times. Use `add_connection()`
+    /// to add a connection!
     // TODO :should it be private with a getter?
     pub connections: IndexMap<ConnectionId, ConnectionGene>,
     /// Neurons with bias. Can simple be pushed to.
@@ -30,20 +30,26 @@ impl Default for NeuralNetwork {
     }
 }
 
-fn distance<T: Gene>(genome1: &IndexMap<T::Id, T>, genome2: &IndexMap<T::Id, T>, p: &NeatParams) -> f64 {
-    let common_genes = genome1.values()
+fn distance<T: Gene>(
+    genome1: &IndexMap<T::Id, T>,
+    genome2: &IndexMap<T::Id, T>,
+    p: &NeatParams,
+) -> f64 {
+    let common_genes = genome1
+        .values()
         .filter_map(|gene| {
-            genome2.get(&gene.id())
+            genome2
+                .get(&gene.id())
                 .map(|other_gene| (*gene, *other_gene))
         })
-        .collect::<Vec<(T,T)>>();
+        .collect::<Vec<(T, T)>>();
 
     // Disjoint / excess genes
-    let disjoint_genes = (genome1.len() + genome2.len()
-        - (2 * common_genes.len())) as f64;
+    let disjoint_genes = (genome1.len() + genome2.len() - (2 * common_genes.len())) as f64;
 
     // Get the distance between common genes and neurons
-    let genes_distance = common_genes.iter()
+    let genes_distance = common_genes
+        .iter()
         .map(|(gene1, gene2)| gene1.distance(gene2))
         .sum::<f64>();
 
@@ -52,8 +58,8 @@ fn distance<T: Gene>(genome1: &IndexMap<T::Id, T>, genome2: &IndexMap<T::Id, T>,
     if max_genes == 0.0 {
         0.0
     } else {
-        (disjoint_genes * p.distance_disjoint_coef
-            + genes_distance * p.distance_weight_coef) / max_genes
+        (disjoint_genes * p.distance_disjoint_coef + genes_distance * p.distance_weight_coef)
+            / max_genes
     }
 }
 
@@ -62,12 +68,11 @@ impl Genome for NeuralNetwork {
     fn distance(&self, other: &NeuralNetwork, p: &NeatParams) -> f64 {
         distance(&self.connections, &other.connections, p)
             + distance(&self.neurons, &other.neurons, p)
-
     }
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
     fn mutate(&mut self, innovation_id: &mut usize, p: &NeatParams) {
-        use rand::distributions::{Normal, Distribution};
+        use rand::distributions::{Distribution, Normal};
         let mut rng = rand::thread_rng();
 
         // Topological mutations
@@ -107,14 +112,16 @@ impl Genome for NeuralNetwork {
 
     /// Mate two genes. `fittest` is true if `self` is the fittest one
     fn mate(&self, other: &NeuralNetwork, fittest: bool, _: &NeatParams) -> NeuralNetwork {
-        let (best, worst) = if fittest {(self, other)}
-                                else   {(other, self)};
+        let (best, worst) = if fittest {
+            (self, other)
+        } else {
+            (other, self)
+        };
         let mut genome = NeuralNetwork::default();
         genome.neurons = NeuralNetwork::reproduce(&best.neurons, &worst.neurons);
         genome.connections = NeuralNetwork::reproduce(&best.connections, &worst.connections);
         genome
     }
-
 }
 
 impl NeuralNetwork {
@@ -126,11 +133,11 @@ impl NeuralNetwork {
         let tau = vec![1.0; self.n_neurons()];
         let wij = self.get_weights();
         let delta_t = 1.0;
-        
+
         Ctrnn::new(theta, tau, wij, delta_t, 10)
     }
-    /// Creates a network that with no connections, but enough neurons to cover all inputs and
-    /// outputs.
+    /// Creates a network that with no connections, but enough neurons to cover
+    /// all inputs and outputs.
     pub fn with_neurons(n: usize) -> NeuralNetwork {
         let mut neurons = IndexMap::new();
         for i in 0..n {
@@ -142,14 +149,14 @@ impl NeuralNetwork {
         }
     }
 
-    /// Helper function for `activate()`. Get weights of connections (as a matrix represented
-    /// linearly)
+    /// Helper function for `activate()`. Get weights of connections (as a
+    /// matrix represented linearly)
     pub fn get_weights(&self) -> Vec<f64> {
         let n_neurons = self.neurons.len();
         let mut matrix = vec![0.0; n_neurons * n_neurons];
         for gene in self.connections.values() {
-            let (out_neuron_idx,_,_) = self.neurons.get_full(&gene.out_neuron_id()).unwrap();
-            let (in_neuron_idx,_,_) = self.neurons.get_full(&gene.in_neuron_id()).unwrap();
+            let (out_neuron_idx, _, _) = self.neurons.get_full(&gene.out_neuron_id()).unwrap();
+            let (in_neuron_idx, _, _) = self.neurons.get_full(&gene.in_neuron_id()).unwrap();
             matrix[(out_neuron_idx * n_neurons) + in_neuron_idx] = gene.weight;
         }
         matrix
@@ -170,7 +177,7 @@ impl NeuralNetwork {
 
     fn mutate_add_connection(&mut self, p: &NeatParams) {
         if self.neurons.len() == 0 {
-            return
+            return;
         }
         // TODO: function to pick multiple random unique values from a range?
         let in_neuron_id = get_random_key(&self.neurons);
@@ -200,8 +207,11 @@ impl NeuralNetwork {
             self.neurons.insert(new_neuron.id(), new_neuron);
             // ... and make two new connections that go through the new neuron
             self.add_connection(old_connection.in_neuron_id(), new_neuron.id(), 1.0);
-            self.add_connection(new_neuron.id(), old_connection.out_neuron_id(),
-                                old_connection.weight);
+            self.add_connection(
+                new_neuron.id(),
+                old_connection.out_neuron_id(),
+                old_connection.weight,
+            );
         }
     }
     fn mutate_del_neuron(&mut self, p: &NeatParams) {
@@ -210,7 +220,8 @@ impl NeuralNetwork {
             return;
         }
 
-        let idx = (rand::random::<usize>() % (self.neurons.len() - sacred_neurons)) + sacred_neurons;
+        let idx =
+            (rand::random::<usize>() % (self.neurons.len() - sacred_neurons)) + sacred_neurons;
         let id = *self.neurons.get_index(idx).unwrap().0;
         // Delete it
         self.neurons.remove(&id);
@@ -226,12 +237,16 @@ impl NeuralNetwork {
         }
     }
 
-    fn reproduce<T: Gene + Copy>(best: &IndexMap<T::Id, T>, worst: &IndexMap<T::Id, T>) -> IndexMap<T::Id, T> {
+    fn reproduce<T: Gene + Copy>(
+        best: &IndexMap<T::Id, T>,
+        worst: &IndexMap<T::Id, T>,
+    ) -> IndexMap<T::Id, T> {
         // Copy all disjoint/excess genes from the `best` parent, and randomly
         // cross-over the homologous genes
         let mut genes = IndexMap::new();
         for (id, best) in best.iter() {
-            genes.insert(*id,
+            genes.insert(
+                *id,
                 if let Some(worst) = worst.get(id) {
                     if rand::random::<f64>() < 0.5 {
                         *best
@@ -240,14 +255,19 @@ impl NeuralNetwork {
                     }
                 } else {
                     *best
-                });
+                },
+            );
         }
         genes
     }
 
-    /// Add a new connection. Panics if in_neuron or out_neuron are invalid neuron IDs.
+    /// Add a new connection. Panics if in_neuron or out_neuron are invalid
+    /// neuron IDs.
     pub fn add_connection(&mut self, in_neuron: NeuronId, out_neuron: NeuronId, weight: f64) {
-        assert!(self.neurons.len() > 0, "add_connection: Tried to add a connection to network with no neurons");
+        assert!(
+            self.neurons.len() > 0,
+            "add_connection: Tried to add a connection to network with no neurons"
+        );
         let new_gene = ConnectionGene::new(in_neuron, out_neuron, weight);
 
         assert!(self.neurons.contains_key(&in_neuron));
@@ -277,8 +297,8 @@ fn get_random_key<K: Clone, V>(map: &IndexMap<K, V>) -> K {
 
 #[cfg(test)]
 mod tests {
+    use crate::{nn::ConnectionGene, nn::NeuralNetwork, Genome, NeatParams};
     use std::f64::EPSILON;
-    use crate::{nn::NeuralNetwork, nn::ConnectionGene, Genome, NeatParams};
 
     #[test]
     fn mutation_connection_weight() {
@@ -288,12 +308,12 @@ mod tests {
             mutate_del_neuron_pr: 0.0,
             mutate_del_conn_pr: 0.0,
             weight_mutate_pr: 1.0,
-            ..NeatParams::default(1,1)
+            ..NeatParams::default(1, 1)
         };
         let mut genome = NeuralNetwork::with_neurons(1);
         genome.add_connection(0, 0, 0.0);
         genome.mutate(&mut 0, &p);
-        let gene = genome.connections[&(0,0)];
+        let gene = genome.connections[&(0, 0)];
         // These should not be same size
         assert!(gene.weight.abs() > EPSILON);
     }
@@ -303,15 +323,15 @@ mod tests {
         let mut genome = NeuralNetwork::with_neurons(3);
         genome.add_connection(1, 2, 0.0);
 
-        assert!(genome.connections[&(1,2)].in_neuron_id() == 1);
-        assert!(genome.connections[&(1,2)].out_neuron_id() == 2);
+        assert!(genome.connections[&(1, 2)].in_neuron_id() == 1);
+        assert!(genome.connections[&(1, 2)].out_neuron_id() == 2);
     }
 
     #[test]
     fn mutation_add_neuron() {
-        let p = NeatParams::default(1,1);
+        let p = NeatParams::default(1, 1);
         let mut genome = NeuralNetwork::with_neurons(2);
-        genome.add_connection(0,1, 1.0);
+        genome.add_connection(0, 1, 1.0);
         genome.mutate_add_neuron(2);
         let connections = genome.connections.values().collect::<Vec<_>>();
         assert_eq!(connections.len(), 2);
@@ -337,7 +357,7 @@ mod tests {
         genome2.add_connection(0, 0, 0.0);
         genome2.add_connection(0, 1, 0.0);
         genome2.add_connection(0, 2, 0.0);
-        assert!(genome1.is_same_specie(&genome2, &NeatParams::default(1,1)));
+        assert!(genome1.is_same_specie(&genome2, &NeatParams::default(1, 1)));
     }
 
     #[test]
@@ -346,7 +366,7 @@ mod tests {
             compatibility_threshold: 3.0,
             distance_weight_coef: 1.0,
             distance_disjoint_coef: 1.0,
-            ..NeatParams::default(1,1)
+            ..NeatParams::default(1, 1)
         };
         let mut genome1 = NeuralNetwork::with_neurons(2);
         genome1.add_connection(0, 0, 1.0);
@@ -365,13 +385,13 @@ mod tests {
         genome1.add_connection(0, 0, 16.0);
         let mut genome2 = NeuralNetwork::with_neurons(1);
         genome2.add_connection(0, 0, 16.1);
-        assert!(genome1.is_same_specie(&genome2, &NeatParams::default(1,1)));
+        assert!(genome1.is_same_specie(&genome2, &NeatParams::default(1, 1)));
     }
 
     #[test]
     fn genomes_with_big_weight_difference_should_be_in_other_specie() {
         let p = NeatParams {
-            ..NeatParams::default(1,1)
+            ..NeatParams::default(1, 1)
         };
         let mut genome1 = NeuralNetwork::with_neurons(1);
         genome1.add_connection(0, 0, 0.0);
@@ -379,7 +399,6 @@ mod tests {
         genome2.add_connection(0, 0, 30.0);
         assert!(!genome1.is_same_specie(&genome2, &p));
     }
-
 
     // From former genome.rs:
 
@@ -499,18 +518,17 @@ mod tests {
     fn mutate_add_neuron_should_not_change_output() {
         const INPUT: f64 = 5.5;
         let mut organism = NeuralNetwork::with_neurons(4);
-        organism.add_connection(0,1, 0.5);
-        organism.add_connection(0,2, 0.2);
-        organism.add_connection(1,3, 1.5);
-        organism.add_connection(2,3, -0.5);
+        organism.add_connection(0, 1, 0.5);
+        organism.add_connection(0, 2, 0.2);
+        organism.add_connection(1, 3, 1.5);
+        organism.add_connection(2, 3, -0.5);
         let mut output1 = vec![0.0; 1];
         organism.make_network().activate(vec![INPUT], &mut output1);
         organism.mutate_add_neuron(4);
         let mut output2 = vec![0.0; 1];
         organism.make_network().activate(vec![INPUT], &mut output2);
         assert!((output1[0] - output2[0]).abs() < 0.01);
-        // ^ due to the ctrnn implementation only approximating a DE, the output is not always
-        // exactly the same
+        // ^ due to the ctrnn implementation only approximating a DE, the output is not
+        // always exactly the same
     }
 }
-

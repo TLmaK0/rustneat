@@ -1,7 +1,7 @@
 extern crate rand;
 extern crate rustneat;
 
-use rustneat::{Environment, Organism, Population, NeuralNetwork, NeatParams};
+use rustneat::{Environment, NeatParams, NeuralNetwork, Organism, Population};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
@@ -49,7 +49,7 @@ fn main() {
     let mut i = 0;
     while champion.is_none() && i < MAX_ITERATIONS {
         i += 1;
-        population.evolve(&mut environment, &p);
+        population.evolve(&mut environment, &p,true);
         for organism in population.get_organisms() {
             if organism.fitness > best_fitness {
                 best_fitness = organism.fitness;
@@ -62,7 +62,9 @@ fn main() {
     }
     let best_organism = best_organism.unwrap();
     println!("Result: {}", best_fitness);
-    println!(" - {} neurons, {} connections",
-             best_organism.genome.n_neurons(),
-             best_organism.genome.n_connections());
+    println!(
+        " - {} neurons, {} connections",
+        best_organism.genome.n_neurons(),
+        best_organism.genome.n_connections()
+    );
 }

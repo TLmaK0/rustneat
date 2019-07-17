@@ -1,7 +1,7 @@
-use crate::{Genome, Organism, Environment, Specie, NeuralNetwork, NeatParams};
+use crate::{Environment, Genome, NeatParams, NeuralNetwork, Organism, Specie};
 use rayon::prelude::*;
 // use std::cmp::Ordering::*;
-use rand::distributions::{Uniform, Distribution};
+use rand::distributions::{Distribution, Uniform};
 use std::f64;
 
 #[cfg(feature = "telemetry")]
@@ -9,7 +9,6 @@ use rusty_dashed;
 
 #[cfg(feature = "telemetry")]
 use serde_json;
-
 
 /// Contains several species, and a way to evolve these to the next generation.
 #[derive(Debug)]
@@ -21,14 +20,14 @@ pub struct Population<G: Genome = NeuralNetwork> {
 
     /// The latest innovation id
     innovation_id: usize,
-    /// To give each species a unique id. Useful for for example visualizing or processing the
-    /// species.
+    /// To give each species a unique id. Useful for for example visualizing or
+    /// processing the species.
     species_id: usize,
 }
 
 impl<G: Genome> Population<G> {
-    /// Create a new population with `population_size` organisms. Each organism will have only a single unconnected
-    /// neuron.
+    /// Create a new population with `population_size` organisms. Each organism
+    /// will have only a single unconnected neuron.
     pub fn create_population(population_size: usize) -> Population<G> {
         Self::create_population_from(G::default(), population_size)
     }
@@ -67,17 +66,21 @@ impl<G: Genome> Population<G> {
     /// Get the best-performing organism of the entire population.
     /// Fitness is already calculated during the last call to `evolve()`
     pub fn get_champion(&self) -> Organism<G> {
-        self.get_organisms().fold(None,
-            |state: Option<&Organism<G>>, organism|
+        self.get_organisms()
+            .fold(None, |state: Option<&Organism<G>>, organism| {
                 Some(match state {
                     None => organism,
-                    Some(state) => if organism.fitness > state.fitness {
-                        organism
-                    } else {
-                        state
+                    Some(state) => {
+                        if organism.fitness > state.fitness {
+                            organism
+                        } else {
+                            state
+                        }
                     }
                 })
-        ).unwrap().clone()
+            })
+            .unwrap()
+            .clone()
     }
     /// How many generations have passed without improvement in peak fitness
     pub fn generations_without_improvements(&self) -> usize {
@@ -86,12 +89,14 @@ impl<G: Genome> Population<G> {
 
     /// Evolve to the next generation. This includes, in order:
     /// * Collecting all organisms and dividing them into (new) species
-    /// * Creating a number of offsprings in each species depending on that species' average
+    /// * Creating a number of offsprings in each species depending on that
+    ///   species' average
     /// fitness
     /// * Evaluating the fitness of all organisms
     ///
-    /// Because of the last step, organisms will always have an up-to-date fitness value.
-    pub fn evolve(&mut self, env: &mut Environment<G>, p: &NeatParams) {
+    /// Because of the last step, organisms will always have an up-to-date
+    /// fitness value.
+    pub fn evolve(&mut self, env: &mut Environment<G>, p: &NeatParams, in_parallel: bool) {
         // Collect all organisms
         let organisms = self.get_organisms().cloned().collect::<Vec<_>>();
 
@@ -101,8 +106,11 @@ impl<G: Genome> Population<G> {
         // Give each species a number of offsprings related to that species'
         // average fitness
 
-        // Gather the average shared fitness, and the calculated number of offsprings, per species
-        let species_fitness = self.species.iter()
+        // Gather the average shared fitness, and the calculated number of offsprings,
+        // per species
+        let species_fitness = self
+            .species
+            .iter()
             .map(|species| species.average_fitness())
             .collect::<Vec<_>>();
 
@@ -120,41 +128,63 @@ impl<G: Genome> Population<G> {
         let max_fitness = species_fitness.iter().cloned().fold(f64::NAN, f64::max);
         let min_fitness = species_fitness.iter().cloned().fold(f64::NAN, f64::min);
         let fitness_range = f64::max(1.0, max_fitness - min_fitness);
-        let adjusted_fitness = species_fitness.iter()
-            .map(|fitness| fitness - min_fitness + fitness_range*0.2).collect::<Vec<_>>();
+        let adjusted_fitness = species_fitness
+            .iter()
+            .map(|fitness| fitness - min_fitness + fitness_range * 0.2)
+            .collect::<Vec<_>>();
         let total_adjusted_fitness = adjusted_fitness.iter().sum::<f64>();
 
-        let n_offspring: Vec<_> = 
-            Self::partition(
-                organisms.len(),
-                &adjusted_fitness.iter().map(|x| x/total_adjusted_fitness).collect::<Vec<_>>(),
-                elite_species);
+        let n_offspring: Vec<_> = Self::partition(
+            organisms.len(),
+            &adjusted_fitness
+                .iter()
+                .map(|x| x / total_adjusted_fitness)
+                .collect::<Vec<_>>(),
+            elite_species,
+        );
 
         for (species, n_offspring) in self.species.iter_mut().zip(n_offspring) {
             species.generate_offspring(n_offspring, &organisms, &mut self.innovation_id, p);
         }
 
-        // Evaluate the fitness of all organisms, in parallel
-        self.species.par_iter_mut()
-            .for_each(|species| species.organisms.par_iter_mut()
-                .for_each(|organism| {
+        if in_parallel {
+            // Evaluate the fitness of all organisms, in parallel
+            self.species.par_iter_mut().for_each(|species| {
+                species.organisms.par_iter_mut().for_each(|organism| {
                     organism.fitness = env.test(&mut organism.genome);
                     if organism.fitness < 0.0 {
                         eprintln!("Fitness {} < 0.0", organism.fitness);
                         std::process::exit(1);
                     }
-                }))
+                })
+            })
+        } else {
+            // Evaluate the fitness of all organisms
+            self.species.iter_mut().for_each(|species| {
+                species.organisms.iter_mut().for_each(|organism| {
+                    organism.fitness = env.test(&mut organism.genome);
+                    if organism.fitness < 0.0 {
+                        eprintln!("Fitness {} < 0.0", organism.fitness);
+                        std::process::exit(1);
+                    }
+                })
+            })
+        }
     }
-    
+
     // fn determine_new_species_sizes()
 
-    // Helper of `evolve`. Partition `total` into partitions with size given by `fractions`.
-    // We need this logic to ensure that the total stays the same after partitioning.
-    // `elite` is the index of a partition that will be ensured one spot
+    // Helper of `evolve`. Partition `total` into partitions with size given by
+    // `fractions`. We need this logic to ensure that the total stays the same
+    // after partitioning. `elite` is the index of a partition that will be
+    // ensured one spot
     fn partition(total: usize, fractions: &[f64], elite: usize) -> Vec<usize> {
         assert!(fractions.len() > 0);
         let mut rng = rand::thread_rng();
-        let mut partitions: Vec<usize> = fractions.iter().map(|x| ((total as f64 * x) as usize)).collect();
+        let mut partitions: Vec<usize> = fractions
+            .iter()
+            .map(|x| ((total as f64 * x) as usize))
+            .collect();
         let mut sum: usize = partitions.iter().sum();
         let range = Uniform::from(0..partitions.len());
         // println!("Fraction: {:?}", fractions);
@@ -180,7 +210,6 @@ impl<G: Genome> Population<G> {
         partitions
     }
 
-
     /// Helper of `evolve`
     fn speciate(&mut self, organisms: &[Organism<G>], p: &NeatParams) {
         for s in &mut self.species {
@@ -191,12 +220,17 @@ impl<G: Genome> Population<G> {
             }
         }
         for organism in organisms {
-            match self.species.iter_mut().find(|specie| specie.match_genome(&organism.genome, p)) {
+            match self
+                .species
+                .iter_mut()
+                .find(|specie| specie.match_genome(&organism.genome, p))
+            {
                 Some(specie) => {
                     specie.organisms.push(organism.clone());
                 }
                 None => {
-                    self.species.push(Specie::new(organism.clone(), self.species_id));
+                    self.species
+                        .push(Specie::new(organism.clone(), self.species_id));
                     self.species_id += 1;
                 }
             }
@@ -204,26 +238,35 @@ impl<G: Genome> Population<G> {
         self.species.retain(|s| s.organisms.len() > 0);
 
         // Update champion
-        self.species.iter_mut().for_each(|specie| specie.update_champion());
+        self.species
+            .iter_mut()
+            .for_each(|specie| specie.update_champion());
         // Sort by descending fitness
-        self.species.sort_by(|a, b| b.champion_fitness().partial_cmp(&a.champion_fitness()).unwrap());
+        self.species.sort_by(|a, b| {
+            b.champion_fitness()
+                .partial_cmp(&a.champion_fitness())
+                .unwrap()
+        });
         // Fitness above which a species will not be removed.
-        let safe_fitness = self.species[usize::min(p.species_elite-1, self.species.len()-1)].champion_fitness();
+        let safe_fitness = self.species[usize::min(p.species_elite - 1, self.species.len() - 1)]
+            .champion_fitness();
         // Kill species that haven't improved in a awhile
-        self.species.retain(|s| (s.age - s.age_last_improvement < p.remove_after_n_generations
-                                || s.champion_fitness() >= safe_fitness));
+        self.species.retain(|s| {
+            (s.age - s.age_last_improvement < p.remove_after_n_generations
+                || s.champion_fitness() >= safe_fitness)
+        });
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Organism, Specie, NeuralNetwork, Population, Environment, NeatParams};
+    use crate::{Environment, NeatParams, NeuralNetwork, Organism, Population, Specie};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
         let p = NeatParams {
             compatibility_threshold: 0.0,
-            ..NeatParams::default(1,1)
+            ..NeatParams::default(1, 1)
         };
         let mut genome1 = NeuralNetwork::with_neurons(2);
         genome1.add_connection(0, 0, 1.0);
@@ -249,13 +292,15 @@ mod tests {
     fn after_population_evolve_population_should_be_the_same() {
         struct X;
         impl Environment<NeuralNetwork> for X {
-            fn test(&self, _organism: &mut NeuralNetwork) -> f64 { 0.0 }
+            fn test(&self, _organism: &mut NeuralNetwork) -> f64 {
+                0.0
+            }
         }
 
-        let p = NeatParams::default(0,0);
+        let p = NeatParams::default(0, 0);
         let mut population = Population::create_population(150);
         for _ in 0..150 {
-            population.evolve(&mut X, &p);
+            population.evolve(&mut X, &p,true);
         }
         assert!(population.size() == 150);
     }
