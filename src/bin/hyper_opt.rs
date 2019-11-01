@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate blackbox_derive;
 #[macro_use]
 extern crate slog;
@@ -8,7 +7,7 @@ use blackbox_derive::make_optimizer;
 use slog::Logger;
 
 use chrono::{Timelike, Utc};
-use rustneat::{Environment, NeatParams, NeuralNetwork, Organism, Population};
+use rustneat::{Environment, NeatParams, NeuralNetwork, Population};
 
 struct XORClassification;
 
@@ -26,9 +25,7 @@ impl Environment for XORClassification {
         nn.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
-        let fitness = 16.0 / (1.0 + distance);
-
-        fitness
+        16.0 / (1.0 + distance)
     }
 }
 
@@ -37,7 +34,7 @@ fn run(p: &NeatParams, n_gen: usize) -> f64 {
     let mut population = Population::create_population_from(start_genome, 200);
     let mut environment = XORClassification;
     for _ in 0..n_gen {
-        population.evolve(&mut environment, p,true);
+        population.evolve(&mut environment, p, true);
     }
 
     let mut best_fitness = 0.0;

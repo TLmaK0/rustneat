@@ -23,9 +23,7 @@ impl Environment for XORClassification {
         nn.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
-        let fitness = 16.0 / (1.0 + distance);
-
-        fitness
+         16.0 / (1.0 + distance)
     }
 }
 
@@ -77,7 +75,7 @@ fn main() {
     );
 
     solve_time_perf(&p, 40, 1000, 150);
-    // fixed_generations_perf(&p);
+    fixed_generations_perf(&p);
 
     println!("\nExecution time: {}", (Utc::now() - now).num_seconds());
 }
@@ -98,7 +96,7 @@ fn solve_time_perf(p: &NeatParams, n_exp: usize, n_gen: usize, population_size: 
         let mut champion: Option<Organism> = None;
         let mut i = 0;
         while champion.is_none() && i < n_gen {
-            population.evolve(&mut environment, &p,true);
+            population.evolve(&mut environment, &p, true);
             for organism in population.get_organisms() {
                 if organism.fitness > 15.7 {
                     champion = Some(organism.clone());
@@ -114,7 +112,7 @@ fn solve_time_perf(p: &NeatParams, n_exp: usize, n_gen: usize, population_size: 
             could_not_solve += 1;
         }
     }
-    println!("");
+    println!();
     println!("Could not solve {} times", could_not_solve);
     {
         let mean = solve_gens.iter().sum::<usize>() as f64 / solve_gens.len() as f64;
@@ -148,7 +146,7 @@ fn fixed_generations_perf(p: &NeatParams) {
         let mut environment = XORClassification;
 
         for i in 0..N_GEN {
-            population.evolve(&mut environment, &p,true);
+            population.evolve(&mut environment, &p, true);
 
             let best_organism = population.get_champion();
 
@@ -160,7 +158,7 @@ fn fixed_generations_perf(p: &NeatParams) {
         }
     }
 
-    println!("");
+    println!();
     {
         let mean = scores.iter().sum::<f64>() / scores.len() as f64;
         println!("{:?}", scores);

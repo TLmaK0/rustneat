@@ -22,9 +22,7 @@ impl Environment for XORClassification {
         nn.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
-        let fitness = 16.0 / (1.0 + distance);
-
-        fitness
+        16.0 / (1.0 + distance)
     }
 }
 
@@ -49,7 +47,7 @@ fn main() {
     let mut i = 0;
     while champion.is_none() && i < MAX_ITERATIONS {
         i += 1;
-        population.evolve(&mut environment, &p,true);
+        population.evolve(&mut environment, &p, true);
         for organism in population.get_organisms() {
             if organism.fitness > best_fitness {
                 best_fitness = organism.fitness;
