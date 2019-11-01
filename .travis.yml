@@ -30,10 +30,9 @@ script:
         cargo fmt
       );
     fi
-#  - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
-#    (
-#      cargo clippy -- -D warnings;
-#      cargo clippy --all-targets --all-features -- -D warnings
-#    )
-#  fi
+  - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
+      (
+        cargo clippy -- -D warnings;
+      );
+    fi
   - cargo test  --verbose --release
