@@ -75,7 +75,7 @@ fn main() {
     );
 
     solve_time_perf(&p, 40, 1000, 150);
-    // fixed_generations_perf(&p);
+    fixed_generations_perf(&p);
 
     println!("\nExecution time: {}", (Utc::now() - now).num_seconds());
 }
