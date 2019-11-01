@@ -119,7 +119,7 @@ impl<G: Genome> Specie<G> {
 
         // Organisms are split into 3 parts: Those that are culled, those that are
         // guaranteed offspring through elitism, and the rest which are amenable
-        // to random selection. NOTE: For now, we always have n_elite = 2 or 0.
+        // to random selection.
 
         // let n_elite = std::cmp::min(n_offspring, (self.organisms.len() as f64 *
         // ELITE_FRACTION) as usize); let n_elite = std::cmp::max(1, n_elite);
