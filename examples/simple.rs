@@ -49,7 +49,7 @@ fn main() {
     let mut i = 0;
     while champion.is_none() && i < MAX_ITERATIONS {
         i += 1;
-        population.evolve(&mut environment, &p,true);
+        population.evolve(&mut environment, &p, true);
         for organism in population.get_organisms() {
             if organism.fitness > best_fitness {
                 best_fitness = organism.fitness;

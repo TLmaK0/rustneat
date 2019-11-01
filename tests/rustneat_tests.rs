@@ -46,7 +46,7 @@ mod test {
             ..NeatParams::default(1, 1)
         };
         let mut population = Population::create_population(2);
-        population.evolve(&mut X, &p,true);
+        population.evolve(&mut X, &p, true);
         let genome = &population.get_organisms().next().unwrap().genome;
         assert_eq!(genome.connections.len(), 1);
     }
@@ -54,7 +54,7 @@ mod test {
     #[test]
     fn population_can_be_tested_on_environment() {
         let mut population = Population::create_population(10);
-        population.evolve(&mut X, &NeatParams::default(0, 0),true);
+        population.evolve(&mut X, &NeatParams::default(0, 0), true);
         assert_eq!(population.get_organisms().next().unwrap().fitness, 0.1234);
     }
 
@@ -68,7 +68,7 @@ mod test {
         let mut champion: Option<Organism> = None;
         let mut i = 0;
         while champion.is_none() && i < MAX_GENERATIONS {
-            population.evolve(&mut environment, &p,true);
+            population.evolve(&mut environment, &p, true);
             for organism in population.get_organisms() {
                 // Test whether there is any organism that solves the problem
                 let mut output = vec![0.0; 4];
@@ -98,7 +98,7 @@ mod test {
         let mut environment = XORClassification;
         let mut best_fitness = std::f64::MIN;
         for _ in 0..MAX_GENERATIONS {
-            population.evolve(&mut environment, &p,true);
+            population.evolve(&mut environment, &p, true);
 
             let mut best_fitness_in_gen = std::f64::MIN;
             for organism in population.get_organisms() {

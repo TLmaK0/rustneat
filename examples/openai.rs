@@ -6,7 +6,7 @@ extern crate python3_sys as ffi;
 
 use cpython::{NoArgs, ObjectProtocol, PyModule, PyObject, Python};
 use ffi::PySys_SetArgv;
-use rustneat::{Environment, Organism, Population, NeatParams};
+use rustneat::{Environment, NeatParams, Organism, Population};
 use std::ffi::CString;
 
 #[cfg(feature = "telemetry")]
@@ -72,7 +72,6 @@ impl CartPole {
 }
 
 fn main() {
-
     let p = NeatParams::default(1, 1);
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry("?max_fitness=200");
