@@ -6,7 +6,7 @@ extern crate python3_sys as ffi;
 
 use cpython::{NoArgs, ObjectProtocol, PyModule, PyObject, Python};
 use ffi::PySys_SetArgv;
-use rustneat::{Environment, Organism, Population};
+use rustneat::{Environment, Organism, Population, NeatParams};
 use std::ffi::CString;
 
 #[cfg(feature = "telemetry")]
@@ -72,6 +72,8 @@ impl CartPole {
 }
 
 fn main() {
+
+    let p = NeatParams::default(1, 1);
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry("?max_fitness=200");
 
@@ -79,7 +81,7 @@ fn main() {
     let mut environment = CartPole::new();
     let mut champion: Option<Organism> = None;
     while champion.is_none() {
-        population.evolve();
+        population.evolve(&mut environment, &p, true);
         population.evaluate_in(&mut environment);
         for organism in &population.get_organisms() {
             if organism.fitness > 195f64 {
