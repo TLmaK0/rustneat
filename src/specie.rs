@@ -123,7 +123,7 @@ impl<G: Genome> Specie<G> {
 
         // let n_elite = std::cmp::min(n_offspring, (self.organisms.len() as f64 *
         // ELITE_FRACTION) as usize); let n_elite = std::cmp::max(1, n_elite);
-        let n_elite = if self.organisms.len() > 5 { 2 } else { 0 };
+        let n_elite = if self.organisms.len() > 5 { 2 } else { 1 };
         let first_elite = self.organisms.len() - n_elite;
 
         let n_random = n_offspring - n_elite;
