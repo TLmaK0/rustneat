@@ -40,7 +40,7 @@ impl Environment for FunctionApproximation {
 }
 
 fn main() {
-    let p = NeatParams::optimized_for_xor3(1, 1);
+    let p = NeatParams::optimized_for_xor3(4, 1);
     let mut population = Population::create_population(150);
     let mut environment = FunctionApproximation;
     let mut champion: Option<Organism> = None;
@@ -62,7 +62,7 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
     while champion.is_none() {
-        population.evolve(&mut environment, &p);
+        population.evolve(&mut environment, &p, true);
         for organism in population.get_organisms() {
             if organism.fitness >= 96f64 {
                 champion = Some(organism.clone());

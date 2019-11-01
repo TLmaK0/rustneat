@@ -65,7 +65,7 @@ impl<G: Genome> Specie<G> {
     /// Calculate fitness of champion and store it internally, to be retrieved
     /// by `champion_fitness`
     pub fn update_champion(&mut self) {
-        assert!(self.organisms.len() > 0);
+        assert!(!self.organisms.is_empty());
         let old_fitness = self.champion.as_ref().map(|x| x.fitness);
         self.champion = Some(
             self.organisms
@@ -93,8 +93,7 @@ impl<G: Genome> Specie<G> {
             return 0.0;
         }
 
-        let avg_fitness = self.organisms.iter().map(|o| o.fitness).sum::<f64>() / n_organisms;
-        avg_fitness
+        self.organisms.iter().map(|o| o.fitness).sum::<f64>() / n_organisms
     }
 
     /// Generate the next generation of genomes, which will replace the old
@@ -120,11 +119,11 @@ impl<G: Genome> Specie<G> {
 
         // Organisms are split into 3 parts: Those that are culled, those that are
         // guaranteed offspring through elitism, and the rest which are amenable
-        // to random selection. NOTE: For now, we always have n_elite = 2 or 0.
+        // to random selection.
 
         // let n_elite = std::cmp::min(n_offspring, (self.organisms.len() as f64 *
         // ELITE_FRACTION) as usize); let n_elite = std::cmp::max(1, n_elite);
-        let n_elite = if self.organisms.len() > 5 { 1 } else { 1 };
+        let n_elite = if self.organisms.len() > 5 { 2 } else { 1 };
         let first_elite = self.organisms.len() - n_elite;
 
         let n_random = n_offspring - n_elite;

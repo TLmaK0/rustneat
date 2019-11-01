@@ -1,7 +1,6 @@
 use crate::{Genome, NeatParams};
 use indexmap::map::IndexMap;
 use serde_derive::{Deserialize, Serialize};
-use std::cmp;
 
 mod ctrnn;
 mod gene;
@@ -175,8 +174,8 @@ impl NeuralNetwork {
         self.connections.len()
     }
 
-    fn mutate_add_connection(&mut self, p: &NeatParams) {
-        if self.neurons.len() == 0 {
+    fn mutate_add_connection(&mut self, _p: &NeatParams) {
+        if self.neurons.is_empty() {
             return;
         }
         // TODO: function to pick multiple random unique values from a range?
@@ -187,19 +186,19 @@ impl NeuralNetwork {
     }
 
     fn mutate_del_conn(&mut self) {
-        if self.connections.len() > 0 {
+        if !self.connections.is_empty() {
             let selected_gene = get_random_key(&self.connections);
             self.connections.remove(&selected_gene);
         }
     }
 
     fn mutate_add_neuron(&mut self, innovation_id: usize) {
-        if self.connections.len() == 0 {
+        if self.connections.is_empty() {
             let gene = NeuronGene::new(0.0, innovation_id);
             self.neurons.insert(gene.id(), gene);
         } else {
             // Select a random connections along which to add neuron.. and remove it
-            let old_connection_id = get_random_key(&mut self.connections);
+            let old_connection_id = get_random_key(&self.connections);
             let old_connection = *self.connections.get_mut(&old_connection_id).unwrap();
             self.connections.remove(&old_connection_id);
             // Create new neuron
@@ -265,7 +264,7 @@ impl NeuralNetwork {
     /// neuron IDs.
     pub fn add_connection(&mut self, in_neuron: NeuronId, out_neuron: NeuronId, weight: f64) {
         assert!(
-            self.neurons.len() > 0,
+            !self.neurons.is_empty(),
             "add_connection: Tried to add a connection to network with no neurons"
         );
         let new_gene = ConnectionGene::new(in_neuron, out_neuron, weight);
@@ -297,7 +296,7 @@ fn get_random_key<K: Clone, V>(map: &IndexMap<K, V>) -> K {
 
 #[cfg(test)]
 mod tests {
-    use crate::{nn::ConnectionGene, nn::NeuralNetwork, Genome, NeatParams};
+    use crate::{nn::NeuralNetwork, Genome, NeatParams};
     use std::f64::EPSILON;
 
     #[test]
@@ -329,7 +328,7 @@ mod tests {
 
     #[test]
     fn mutation_add_neuron() {
-        let p = NeatParams::default(1, 1);
+        let _p = NeatParams::default(1, 1);
         let mut genome = NeuralNetwork::with_neurons(2);
         genome.add_connection(0, 1, 1.0);
         genome.mutate_add_neuron(2);
@@ -498,7 +497,7 @@ mod tests {
         organism.add_connection(2, 1, 0.5);
         organism.add_connection(2, 2, 0.75);
         organism.add_connection(1, 0, 1.0);
-        let nn = organism.make_network();
+        let _nn = organism.make_network();
         assert_eq!(
             organism.get_weights(),
             vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]

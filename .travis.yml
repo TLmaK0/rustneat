@@ -3,6 +3,7 @@ language: rust
 rust:
   - stable
   - beta
+  - nightly
 os:
   - linux
   - osx
@@ -17,15 +18,21 @@ before_script:
   - |
     (which cargo-install-update   && cargo install-update cargo-update) || cargo install cargo-update &&
     (which cargo-prune && cargo install-update cargo-prune) || cargo install cargo-prune
-  - rustup component add rustfmt-preview
+  - rustup component add rustfmt
+  - rustup component add clippy
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];   then export OPENSSL_INCLUDE_DIR=`brew --prefix openssl`/include; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];   then export OPENSSL_LIB_DIR=`brew --prefix openssl`/lib; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];   then export DEP_OPENSSL_INCLUDE=`brew --prefix openssl`/include; fi
 script:
-  - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
+  - if [ "${TRAVIS_RUST_VERSION}" = nightly ]; then
       (
         set -x;
-        cargo fmt -- --write-mode=diff
+        cargo fmt
+      );
+    fi
+  - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
+      (
+        cargo clippy -- -D warnings;
       );
     fi
   - cargo test  --verbose --release
