@@ -1,7 +1,6 @@
 use crate::{Genome, NeatParams};
 use indexmap::map::IndexMap;
 use serde_derive::{Deserialize, Serialize};
-use std::cmp;
 
 mod ctrnn;
 mod gene;
@@ -175,7 +174,7 @@ impl NeuralNetwork {
         self.connections.len()
     }
 
-    fn mutate_add_connection(&mut self, p: &NeatParams) {
+    fn mutate_add_connection(&mut self, _p: &NeatParams) {
         if self.neurons.len() == 0 {
             return;
         }

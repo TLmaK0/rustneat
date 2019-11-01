@@ -96,7 +96,7 @@ impl<G: Genome> Population<G> {
     ///
     /// Because of the last step, organisms will always have an up-to-date
     /// fitness value.
-    pub fn evolve(&mut self, env: &mut Environment<G>, p: &NeatParams, in_parallel: bool) {
+    pub fn evolve(&mut self, env: &mut dyn Environment<G>, p: &NeatParams, in_parallel: bool) {
         // Collect all organisms
         let organisms = self.get_organisms().cloned().collect::<Vec<_>>();
 

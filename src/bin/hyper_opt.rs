@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate blackbox_derive;
 #[macro_use]
 extern crate slog;
@@ -8,7 +7,7 @@ use blackbox_derive::make_optimizer;
 use slog::Logger;
 
 use chrono::{Timelike, Utc};
-use rustneat::{Environment, NeatParams, NeuralNetwork, Organism, Population};
+use rustneat::{Environment, NeatParams, NeuralNetwork, Population};
 
 struct XORClassification;
 

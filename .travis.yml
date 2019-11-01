@@ -2,10 +2,10 @@ sudo: false
 language: rust
 rust:
   - stable
-  - beta
+#  - beta
 os:
   - linux
-  - osx
+#  - osx
 cache: cargo
 before_cache:
   - cargo prune
