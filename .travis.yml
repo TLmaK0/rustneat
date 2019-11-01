@@ -3,6 +3,7 @@ language: rust
 rust:
   - stable
 #  - beta
+#  - nightly
 os:
   - linux
 #  - osx
@@ -22,10 +23,10 @@ before_script:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];   then export OPENSSL_LIB_DIR=`brew --prefix openssl`/lib; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];   then export DEP_OPENSSL_INCLUDE=`brew --prefix openssl`/include; fi
 script:
-  - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
+  - if [ "${TRAVIS_RUST_VERSION}" = nightly ]; then
       (
         set -x;
-        cargo +nightly fmt
+        cargo fmt
       );
     fi
   - cargo test  --verbose --release
