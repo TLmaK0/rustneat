@@ -58,7 +58,7 @@ impl<G: Genome> Population<G> {
             .fold(0, |total, specie| total + specie.organisms.len())
     }
     /// Collect all organisms of the population
-    pub fn get_organisms<'a>(&'a self) -> impl Iterator<Item = &'a Organism<G>> {
+    pub fn get_organisms(& self) -> impl Iterator<Item = & Organism<G>> {
         self.species
             .iter()
             .flat_map(|specie| specie.organisms.iter())
@@ -179,7 +179,7 @@ impl<G: Genome> Population<G> {
     // after partitioning. `elite` is the index of a partition that will be
     // ensured one spot
     fn partition(total: usize, fractions: &[f64], elite: usize) -> Vec<usize> {
-        assert!(fractions.len() > 0);
+        assert!(!fractions.is_empty());
         let mut rng = rand::thread_rng();
         let mut partitions: Vec<usize> = fractions
             .iter()
@@ -213,7 +213,7 @@ impl<G: Genome> Population<G> {
     /// Helper of `evolve`
     fn speciate(&mut self, organisms: &[Organism<G>], p: &NeatParams) {
         for s in &mut self.species {
-            if s.organisms.len() > 0 {
+            if !s.organisms.is_empty() {
                 // Pick random representative from the previous generation
                 s.representative = s.organisms[rand::random::<usize>() % s.organisms.len()].clone();
                 s.organisms = Vec::new();
@@ -235,7 +235,7 @@ impl<G: Genome> Population<G> {
                 }
             }
         }
-        self.species.retain(|s| s.organisms.len() > 0);
+        self.species.retain(|s| !s.organisms.is_empty());
 
         // Update champion
         self.species

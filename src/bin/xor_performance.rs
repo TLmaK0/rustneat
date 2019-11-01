@@ -23,9 +23,7 @@ impl Environment for XORClassification {
         nn.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
-        let fitness = 16.0 / (1.0 + distance);
-
-        fitness
+         16.0 / (1.0 + distance)
     }
 }
 
@@ -114,7 +112,7 @@ fn solve_time_perf(p: &NeatParams, n_exp: usize, n_gen: usize, population_size: 
             could_not_solve += 1;
         }
     }
-    println!("");
+    println!();
     println!("Could not solve {} times", could_not_solve);
     {
         let mean = solve_gens.iter().sum::<usize>() as f64 / solve_gens.len() as f64;
@@ -160,7 +158,7 @@ fn fixed_generations_perf(p: &NeatParams) {
         }
     }
 
-    println!("");
+    println!();
     {
         let mean = scores.iter().sum::<f64>() / scores.len() as f64;
         println!("{:?}", scores);

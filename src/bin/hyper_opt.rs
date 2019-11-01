@@ -25,9 +25,7 @@ impl Environment for XORClassification {
         nn.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
-        let fitness = 16.0 / (1.0 + distance);
-
-        fitness
+        16.0 / (1.0 + distance)
     }
 }
 

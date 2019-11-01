@@ -61,9 +61,9 @@ impl ConnectionGene {
     /// Create a new connection
     pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64) -> ConnectionGene {
         ConnectionGene {
-            in_neuron_id: in_neuron_id,
-            out_neuron_id: out_neuron_id,
-            weight: weight,
+            in_neuron_id,
+            out_neuron_id,
+            weight,
         }
     }
     /// The neuron that acts as the input of this connection
