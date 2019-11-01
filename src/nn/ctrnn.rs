@@ -47,9 +47,7 @@ impl Ctrnn {
         if n_inputs < n_neurons {
             let outputs_activations = y.split_at(n_inputs).1.to_vec();
 
-            for n in 0..std::cmp::min(outputs_activations.len(), output.len()) {
-                output[n] = outputs_activations[n];
-            }
+            output[..std::cmp::min(outputs_activations.len(), output.len())].clone_from_slice(&outputs_activations[..std::cmp::min(outputs_activations.len(), output.len())])
         }
     }
 
