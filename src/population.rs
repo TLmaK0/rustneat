@@ -54,7 +54,7 @@ impl<G: Genome> Population<G> {
         self.generate_offspring();
     }
     /// TODO
-    pub fn evaluate_in(&mut self, environment: &mut Environment<G>) {
+    pub fn evaluate_in(&mut self, environment: &mut dyn Environment<G>) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
         if self.champion_fitness >= champion.fitness {
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn after_population_evolve_population_should_be_the_same() {
-        let mut population = Population::create_population(150);
+        let mut population = Population::<NeuralNetwork>::create_population(150);
         for _ in 0..150 {
             population.evolve();
         }

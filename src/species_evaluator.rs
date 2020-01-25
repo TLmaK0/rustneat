@@ -8,12 +8,12 @@ use std::sync::mpsc::{Receiver, Sender};
 /// Calculate fitness and champions for a species
 pub struct SpeciesEvaluator<'a, G> {
     threads: usize,
-    environment: &'a mut Environment<G>,
+    environment: &'a mut dyn Environment<G>,
 }
 
 impl<'a, G: Genome + Send> SpeciesEvaluator<'a, G> {
     /// Take an environment that will test organisms.
-    pub fn new(environment: &mut Environment<G>) -> SpeciesEvaluator<G> {
+    pub fn new(environment: &mut dyn Environment<G>) -> SpeciesEvaluator<G> {
         SpeciesEvaluator {
             threads: num_cpus::get(),
             environment: environment,
