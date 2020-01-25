@@ -1,17 +1,18 @@
-extern crate rand;
-
-use rand::Closed01;
+use rand;
 use std::cmp::Ordering;
 
-/// A connection Gene
+/// Gene for a connection in the `NeuralNetwork`
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(feature = "telemetry", derive(Serialize))]
 pub struct Gene {
     in_neuron_id: usize,
     out_neuron_id: usize,
-    weight: f64,
-    enabled: bool,
-    is_bias: bool
+    /// Weight of the connection
+    pub weight: f64,
+    /// Whether the expression of a gene is enabled.
+    pub enabled: bool,
+    /// Whether this gene functions as a bias in the neural network.
+    pub is_bias: bool
 }
 
 impl Eq for Gene {}
@@ -59,7 +60,7 @@ impl Gene {
     }
     /// Generate a weight
     pub fn generate_weight() -> f64 {
-        rand::random::<Closed01<f64>>().0 * 2f64 - 1f64
+        rand::random::<f64>() * 2.0 - 1.0
     }
     /// Connection in ->
     pub fn in_neuron_id(&self) -> usize {
@@ -68,34 +69,6 @@ impl Gene {
     /// connection out <->
     pub fn out_neuron_id(&self) -> usize {
         self.out_neuron_id
-    }
-    /// getter for the wight of the gene
-    pub fn weight(&self) -> f64 {
-        self.weight
-    }
-    /// Setter
-    pub fn set_weight(&mut self, weight: f64) {
-        self.weight = weight;
-    }
-    /// Is gene enabled
-    pub fn enabled(&self) -> bool {
-        self.enabled
-    }
-    /// Set gene enabled
-    pub fn set_enabled(&mut self) {
-        self.enabled = true;
-    }
-    /// Set gene disabled
-    pub fn set_disabled(&mut self) {
-        self.enabled = false;
-    }
-    /// Get if gene is bias
-    pub fn is_bias(&self) -> bool {
-        self.is_bias
-    }
-    /// Set or disable bias
-    pub fn set_bias(&mut self, is_bias: bool) {
-        self.is_bias = is_bias
     }
 }
 

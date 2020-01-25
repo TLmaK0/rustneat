@@ -1,7 +1,5 @@
 use conv::prelude::*;
-use environment::Environment;
-use genome::Genome;
-use organism::Organism;
+use crate::{Genome, Organism, Environment, Specie, SpeciesEvaluator, NeuralNetwork};
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -9,44 +7,54 @@ use rusty_dashed;
 #[cfg(feature = "telemetry")]
 use serde_json;
 
-use specie::Specie;
-use species_evaluator::SpeciesEvaluator;
 
-/// All species in the network
+/// Contains several species, and a way to evolve these to the next generation.
 #[derive(Debug)]
-pub struct Population {
+pub struct Population<G = NeuralNetwork> {
     /// container of species
-    pub species: Vec<Specie>,
+    pub species: Vec<Specie<G>>,
     champion_fitness: f64,
     epochs_without_improvements: usize,
 }
 
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
 
-impl Population {
-    /// Create a new population of size X.
-    pub fn create_population(population_size: usize) -> Population {
-        let mut population = Population {
-            species: vec![],
+impl<G: Genome> Population<G> {
+    /// Create a new population with `population_size` organisms. Each organism will have only a single unconnected
+    /// neuron.
+    pub fn create_population(population_size: usize) -> Population<G> {
+        Self::create_population_from(G::default(), population_size)
+    }
+    /// Create a new population with `population_size` organisms,
+    /// where each organism has the same genome given in `genome`.
+    pub fn create_population_from(genome: G, population_size: usize) -> Population<G> {
+        let mut organisms = Vec::new();
+        while organisms.len() < population_size {
+            organisms.push(Organism::new(genome.clone()));
+        }
+
+        let mut specie = Specie::new(organisms.first().unwrap().clone());
+        specie.organisms = organisms;
+
+        Population {
+            species: vec![specie],
             champion_fitness: 0f64,
             epochs_without_improvements: 0usize,
-        };
-
-        population.create_organisms(population_size);
-        population
+        }
     }
-    /// Find total of all orgnaisms in the population
+
+    /// Counts the number of organisms in the population
     pub fn size(&self) -> usize {
         self.species
             .iter()
-            .fold(0usize, |total, specie| total + specie.organisms.len())
+            .fold(0, |total, specie| total + specie.organisms.len())
     }
     /// Create offspring by mutation and mating. May create new species.
     pub fn evolve(&mut self) {
         self.generate_offspring();
     }
     /// TODO
-    pub fn evaluate_in(&mut self, environment: &mut Environment) {
+    pub fn evaluate_in(&mut self, environment: &mut Environment<G>) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
         if self.champion_fitness >= champion.fitness {
@@ -66,12 +74,12 @@ impl Population {
             self.epochs_without_improvements = 0usize;
         }
     }
-    /// Return all organisms of the population
-    pub fn get_organisms(&self) -> Vec<Organism> {
+    /// Collect all organisms of the population
+    pub fn get_organisms(&self) -> Vec<Organism<G>> {
         self.species
             .iter()
             .flat_map(|specie| specie.organisms.clone())
-            .collect::<Vec<Organism>>()
+            .collect::<Vec<_>>()
     }
     /// How many iterations without improvement
     pub fn epochs_without_improvements(&self) -> usize {
@@ -120,7 +128,7 @@ impl Population {
         }
     }
 
-    fn get_best_species(&self) -> Vec<Specie> {
+    fn get_best_species(&self) -> Vec<Specie<G>> {
         let mut result = vec![];
 
         if self.species.len() < 2 {
@@ -154,16 +162,16 @@ impl Population {
         }
 
         for organism in organisms {
-            let mut new_specie: Option<Specie> = None;
+            let mut new_specie: Option<Specie<G>> = None;
             match self.species
                 .iter_mut()
-                .find(|specie| specie.match_genome(organism))
+                .find(|specie| specie.match_genome(&organism.genome))
             {
                 Some(specie) => {
                     specie.add(organism.clone());
                 }
                 None => {
-                    let mut specie = Specie::new(organism.genome.clone());
+                    let mut specie = Specie::new(organism.clone());
                     specie.add(organism.clone());
                     new_specie = Some(specie);
                 }
@@ -173,37 +181,18 @@ impl Population {
             }
         }
     }
-
-    fn create_organisms(&mut self, population_size: usize) {
-        self.species = vec![];
-        let mut organisms = vec![];
-
-        while organisms.len() < population_size {
-            organisms.push(Organism::new(Genome::default()));
-        }
-
-        let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
-        specie.organisms = organisms;
-        self.species.push(specie);
-    }
 }
 
 #[cfg(test)]
-use gene::Gene;
-
-#[cfg(test)]
 mod tests {
-    use super::*;
-    use genome::Genome;
-    use organism::Organism;
-    use specie::Specie;
+    use crate::{nn::Gene, Organism, Specie, nn::NeuralNetwork, Population};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
-        let mut genome1 = Genome::default();
+        let mut genome1 = NeuralNetwork::default();
         genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
         genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
-        let mut genome2 = Genome::default();
+        let mut genome2 = NeuralNetwork::default();
         genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
         genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         genome2.add_gene(Gene::new(1, 1, 1f64, true, false));
@@ -211,7 +200,7 @@ mod tests {
 
         let mut population = Population::create_population(2);
         let organisms = vec![Organism::new(genome1), Organism::new(genome2)];
-        let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
+        let mut specie = Specie::new(organisms.first().unwrap().clone());
         specie.organisms = organisms;
         population.species = vec![specie];
         population.speciate();

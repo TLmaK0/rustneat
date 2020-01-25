@@ -8,15 +8,13 @@ extern crate rusty_dashed;
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
 
-use rustneat::Environment;
-use rustneat::Organism;
-use rustneat::Population;
+use rustneat::{Environment, Organism, Population, NeuralNetwork};
 
 static mut BEST_FITNESS: f64 = 0.0;
 struct FunctionApproximation;
 
 impl Environment for FunctionApproximation {
-  fn test(&self, organism: &mut Organism) -> f64 {
+  fn test(&self, organism: &mut NeuralNetwork) -> f64 {
       let mut output = vec![0f64];
       let mut distance = 0f64;
 
@@ -28,15 +26,15 @@ impl Environment for FunctionApproximation {
           outputs.push([x, (output[0] * 100f64) as i64]);
       }
 
+      let fitness = 100f64 / (1f64 + (distance / 1000.0));
       unsafe {
-            if organism.fitness > BEST_FITNESS {
-                BEST_FITNESS = organism.fitness;
+            if fitness > BEST_FITNESS {
+                BEST_FITNESS = fitness;
       #[cfg(feature = "telemetry")]
       telemetry!("approximation1", 1.0, format!("{:?}", outputs));
             }
       }
-
-      100f64 / (1f64 + (distance / 1000.0))
+      fitness
   }
 }
 
