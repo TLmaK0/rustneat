@@ -21,8 +21,9 @@ impl<'a> Ctrnn<'a> {
         let i = Ctrnn::vector_to_column_matrix(self.i);
         let tau = Ctrnn::vector_to_column_matrix(self.tau);
         let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * self.delta_t;
+
         for _ in 0..steps {
-            let activations = (&y - &theta).apply(&Ctrnn::sigmoid);
+            let activations = (&y + &theta).apply(&Ctrnn::sigmoid);
             y = &y + delta_t_tau.elemul(
                 &((&wij * activations) - &y + &i)
             );
@@ -41,5 +42,29 @@ impl<'a> Ctrnn<'a> {
     fn vector_to_matrix(vector: &[f64]) -> Matrix<f64> {
         let width = (vector.len() as f64).sqrt() as usize;
         Matrix::new(width, width, vector)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    macro_rules! assert_delta_vector {
+        ($x:expr, $y:expr, $d:expr) => {
+            for pos in 0..$x.len() {
+                if !(($x[pos] - $y[pos]).abs() <= $d) {
+                    panic!(
+                        "Element at position {:?} -> {:?} \
+                         is not equal to {:?}",
+                        pos, $x[pos], $y[pos]
+                    );
+                }
+            }
+        };
+    }
+
+    #[test]
+    fn neural_network_activation_stability() {
+        // TODO
+        // This test should just ensure that a stable neural network implementation doesn't change
     }
 }

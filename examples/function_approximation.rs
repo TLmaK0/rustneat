@@ -56,8 +56,7 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
     while champion.is_none() {
-        population.evolve();
-        population.evaluate_in(&mut environment);
+        population.evolve(&mut environment);
         for organism in &population.get_organisms() {
             if organism.fitness >= 96f64 {
                 champion = Some(organism.clone());

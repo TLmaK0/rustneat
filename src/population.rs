@@ -1,5 +1,5 @@
-use conv::prelude::*;
-use crate::{Genome, Organism, Environment, Specie, SpeciesEvaluator, NeuralNetwork};
+use crate::{Genome, Organism, Environment, Specie, NeuralNetwork};
+use rayon::prelude::*;
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -14,10 +14,10 @@ pub struct Population<G = NeuralNetwork> {
     /// container of species
     pub species: Vec<Specie<G>>,
     champion_fitness: f64,
-    epochs_without_improvements: usize,
+    generations_without_improvements: usize,
 }
 
-const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
+const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 15;
 
 impl<G: Genome> Population<G> {
     /// Create a new population with `population_size` organisms. Each organism will have only a single unconnected
@@ -39,7 +39,7 @@ impl<G: Genome> Population<G> {
         Population {
             species: vec![specie],
             champion_fitness: 0f64,
-            epochs_without_improvements: 0usize,
+            generations_without_improvements: 0usize,
         }
     }
 
@@ -49,31 +49,6 @@ impl<G: Genome> Population<G> {
             .iter()
             .fold(0, |total, specie| total + specie.organisms.len())
     }
-    /// Create offspring by mutation and mating. May create new species.
-    pub fn evolve(&mut self) {
-        self.generate_offspring();
-    }
-    /// TODO
-    pub fn evaluate_in(&mut self, environment: &mut dyn Environment<G>) {
-        let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
-
-        if self.champion_fitness >= champion.fitness {
-            self.epochs_without_improvements += 1;
-            #[cfg(feature = "telemetry")]
-            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
-        } else {
-            self.champion_fitness = champion.fitness;
-            #[cfg(feature = "telemetry")]
-            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
-            #[cfg(feature = "telemetry")]
-            telemetry!(
-                "network1",
-                1.0,
-                serde_json::to_string(&champion.genome.get_genes()).unwrap()
-            );
-            self.epochs_without_improvements = 0usize;
-        }
-    }
     /// Collect all organisms of the population
     pub fn get_organisms(&self) -> Vec<Organism<G>> {
         self.species
@@ -81,54 +56,72 @@ impl<G: Genome> Population<G> {
             .flat_map(|specie| specie.organisms.clone())
             .collect::<Vec<_>>()
     }
-    /// How many iterations without improvement
-    pub fn epochs_without_improvements(&self) -> usize {
-        self.epochs_without_improvements
+    /// How many generations have passed without improvement in peak fitness
+    pub fn generations_without_improvements(&self) -> usize {
+        self.generations_without_improvements
     }
 
-    fn generate_offspring(&mut self) {
-        self.speciate();
-
-        let total_average_fitness = self.species.iter_mut().fold(0f64, |total, specie| {
-            total + specie.calculate_average_fitness()
-        });
-
-        let num_of_organisms = self.size();
+    /// Evolve to the next generation. This includes, in order:
+    /// * Collecting all organisms and dividing them into (new) species
+    /// * Creating a number of offsprings in each species depending on that species' average
+    /// fitness
+    /// * Evaluating the fitness of all organisms
+    ///
+    /// Because of the last step, organisms will always have an up-to-date fitness value.
+    pub fn evolve(&mut self, env: &mut Environment<G>) {
+        // Collect all organisms
         let organisms = self.get_organisms();
 
-        if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
+        // Divide into species
+        self.species = Population::speciate(&organisms);
+
+        // Find champion, check if there is any improvement
+        self.update_champion(&organisms);
+
+        let sum_of_species_fitness: f64 = self.species.iter()
+            .map(|specie| specie.average_shared_fitness())
+            .sum();
+
+        if self.generations_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
+            // After a certain generations with no improvement, we prune all species except the two
+            // best ones
             let mut best_species = self.get_best_species();
-            let num_of_selected = best_species.len();
+            let n_species = best_species.len();
             for specie in &mut best_species {
-                specie.generate_offspring(
-                    num_of_organisms.checked_div(num_of_selected).unwrap(),
-                    &organisms,
-                );
+                specie.generate_offspring(organisms.len() / n_species, &organisms);
             }
-            self.epochs_without_improvements = 0;
-            return;
-        }
+            self.generations_without_improvements = 0;
+        } else {
+            // Normal case: Give each species a number of offsprings related to that species
+            // average fitness
 
-        let organisms_by_average_fitness =
-            num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
+            let offspring_per_fitness = organisms.len() as f64 / sum_of_species_fitness;
 
-        for specie in &mut self.species {
-            let specie_fitness = specie.calculate_average_fitness();
-            let offspring_size = if total_average_fitness <= 0f64 {
-                specie.organisms.len()
-            } else {
-                (specie_fitness * organisms_by_average_fitness).round() as usize
-            };
-            if offspring_size > 0 {
-                // TODO: check if offspring is for organisms fitness also, not only by specie
+            for specie in &mut self.species {
+                let specie_fitness = specie.average_shared_fitness();
+                let offspring_size = if sum_of_species_fitness == 0.0 {
+                    specie.organisms.len()
+                } else {
+                    (specie_fitness * offspring_per_fitness).round() as usize
+                };
                 specie.generate_offspring(offspring_size, &organisms);
-            } else {
-                specie.remove_organisms();
             }
         }
+
+        // Evaluate the fitness of all organisms
+        self.species.par_iter_mut()
+            .for_each(|species| species.organisms.par_iter_mut()
+                .for_each(|organism| {
+                    organism.fitness = env.test(&mut organism.genome);
+                    if organism.fitness < 0.0 {
+                        eprintln!("Fitness {} < 0.0", organism.fitness);
+                        std::process::exit(-1);
+                    }
+                }))
     }
 
     fn get_best_species(&self) -> Vec<Specie<G>> {
+        // TODO rewrite
         let mut result = vec![];
 
         if self.species.len() < 2 {
@@ -155,63 +148,83 @@ impl<G: Genome> Population<G> {
         result
     }
 
-    fn speciate(&mut self) {
-        let organisms = &self.get_organisms();
-        for specie in &mut self.species {
-            specie.remove_organisms();
-        }
-
+    /// Helper of `evolve`
+    fn speciate(organisms: &[Organism<G>]) -> Vec<Specie<G>> {
+        let mut species = Vec::<Specie<G>>::new();
         for organism in organisms {
-            let mut new_specie: Option<Specie<G>> = None;
-            match self.species
-                .iter_mut()
-                .find(|specie| specie.match_genome(&organism.genome))
-            {
+            match species.iter_mut().find(|specie| specie.match_genome(&organism.genome)) {
                 Some(specie) => {
-                    specie.add(organism.clone());
+                    specie.organisms.push(organism.clone());
                 }
                 None => {
-                    let mut specie = Specie::new(organism.clone());
-                    specie.add(organism.clone());
-                    new_specie = Some(specie);
+                    species.push(Specie::new(organism.clone()));
                 }
-            };
-            if new_specie.is_some() {
-                self.species.push(new_specie.unwrap());
             }
+        }
+        species
+    }
+    /// Helper of `evolve`. Find champion, and check if there is any improvement
+    fn update_champion(&mut self, organisms: &[Organism<G>]) {
+        let champion_fitness = organisms.iter().fold(0.0, |max, organism| {
+            if organism.fitness > max {
+                organism.fitness
+            } else {
+                max
+            }
+        });
+
+        if self.champion_fitness >= champion_fitness {
+            self.generations_without_improvements += 1;
+        } else {
+            self.champion_fitness = champion_fitness;
+            #[cfg(feature = "telemetry")]
+            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
+            #[cfg(feature = "telemetry")]
+            telemetry!(
+                "network1",
+                1.0,
+                serde_json::to_string(&champion.genome.get_genes()).unwrap()
+            );
+            self.generations_without_improvements = 0;
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{nn::Gene, Organism, Specie, nn::NeuralNetwork, Population};
+    use crate::{nn::ConnectionGene, Organism, Specie, nn::NeuralNetwork, Population, Environment};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
-        let mut genome1 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
-        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
-        let mut genome2 = NeuralNetwork::default();
-        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
-        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
-        genome2.add_gene(Gene::new(1, 1, 1f64, true, false));
-        genome2.add_gene(Gene::new(1, 0, 1f64, true, false));
+        let mut genome1 = NeuralNetwork::with_neurons(2);
+        genome1.add_connection(0, 0, 1.0);
+        genome1.add_connection(0, 1, 1.0);
+        let mut genome2 = NeuralNetwork::with_neurons(2);
+        genome1.add_connection(0, 0, 1.0);
+        genome1.add_connection(0, 1, 1.0);
+        genome2.add_connection(1, 1, 1.0);
+        genome2.add_connection(1, 0, 1.0);
 
         let mut population = Population::create_population(2);
-        let organisms = vec![Organism::new(genome1), Organism::new(genome2)];
-        let mut specie = Specie::new(organisms.first().unwrap().clone());
-        specie.organisms = organisms;
+        let mut specie = Specie::new(Organism::new(genome1));
+        specie.organisms.push(Organism::new(genome2));
         population.species = vec![specie];
-        population.speciate();
-        assert_eq!(population.species.len(), 2usize);
+        // (note: there is only one species)
+        let new_species = Population::speciate(&population.species[0].organisms);
+
+        assert_eq!(new_species.len(), 2);
     }
 
     #[test]
     fn after_population_evolve_population_should_be_the_same() {
-        let mut population = Population::<NeuralNetwork>::create_population(150);
+        struct X;
+        impl Environment<NeuralNetwork> for X {
+            fn test(&self, organism: &mut NeuralNetwork) -> f64 { 0.0 }
+        }
+
+        let mut population = Population::create_population(150);
         for _ in 0..150 {
-            population.evolve();
+            population.evolve(&mut X);
         }
         assert!(population.size() == 150);
     }
