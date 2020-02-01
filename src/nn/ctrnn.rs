@@ -50,7 +50,6 @@ impl Ctrnn {
             let len = std::cmp::min(outputs_activations.len(), output.len());
 
             output[..len].clone_from_slice(&outputs_activations[..len])
-
         }
     }
 
@@ -74,30 +73,5 @@ impl Ctrnn {
     fn vector_to_matrix(vector: Vec<f64>) -> Matrix<f64> {
         let width = (vector.len() as f64).sqrt() as usize;
         Matrix::new(width, width, vector)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    
-    macro_rules! assert_delta_vector {
-        ($x:expr, $y:expr, $d:expr) => {
-            for pos in 0..$x.len() {
-                if !(($x[pos] - $y[pos]).abs() <= $d) {
-                    panic!(
-                        "Element at position {:?} -> {:?} \
-                         is not equal to {:?}",
-                        pos, $x[pos], $y[pos]
-                    );
-                }
-            }
-        };
-    }
-
-    #[test]
-    fn neural_network_activation_stability() {
-        // TODO
-        // This test should just ensure that a stable neural network implementation
-        // doesn't change
     }
 }

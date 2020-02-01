@@ -128,9 +128,8 @@ impl NeatParams {
 }
 
 impl NeatParams {
-    // temporary
     /// 100gen, 26pop, 250iter
-    pub fn optimized_for_xor3(n_inputs: usize, n_outputs: usize) -> NeatParams {
+    pub fn optimized_for_xor(n_inputs: usize, n_outputs: usize) -> NeatParams {
         NeatParams {
             n_inputs,
             n_outputs,

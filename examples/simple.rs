@@ -33,7 +33,7 @@ fn main() {
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
-    let p = NeatParams::optimized_for_xor3(2, 1);
+    let p = NeatParams::optimized_for_xor(2, 1);
 
     const MAX_ITERATIONS: usize = 100;
     let mut start_genome = NeuralNetwork::with_neurons(3);

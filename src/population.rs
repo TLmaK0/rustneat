@@ -58,7 +58,7 @@ impl<G: Genome> Population<G> {
             .fold(0, |total, specie| total + specie.organisms.len())
     }
     /// Collect all organisms of the population
-    pub fn get_organisms(& self) -> impl Iterator<Item = & Organism<G>> {
+    pub fn get_organisms(&self) -> impl Iterator<Item = &Organism<G>> {
         self.species
             .iter()
             .flat_map(|specie| specie.organisms.iter())
@@ -252,8 +252,8 @@ impl<G: Genome> Population<G> {
             .champion_fitness();
         // Kill species that haven't improved in a awhile
         self.species.retain(|s| {
-            (s.age - s.age_last_improvement < p.remove_after_n_generations
-                || s.champion_fitness() >= safe_fitness)
+            s.age - s.age_last_improvement < p.remove_after_n_generations
+                || s.champion_fitness() >= safe_fitness
         });
     }
 }

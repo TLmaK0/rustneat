@@ -4,8 +4,7 @@ extern crate rustneat;
 use rustneat::{Environment, NeatParams, NeuralNetwork, Organism, Population};
 use std::io::Write;
 
-// This example measure average XOR performance, and should be useful to check
-// that changes in the algorithm doesn't break the algorithm
+// This example measure average XOR performance.
 
 struct XORClassification;
 
@@ -23,47 +22,12 @@ impl Environment for XORClassification {
         nn.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
-         16.0 / (1.0 + distance)
+        16.0 / (1.0 + distance)
     }
 }
 
 fn main() {
-    // let p = NeatParams {
-    // n_inputs: 2,
-    // n_outputs: 1,
-
-    // remove_after_n_generations: 18,
-    // species_elite: 2,
-
-    // mutation_pr: 1.0,
-    // interspecie_mate_pr: 0.01,
-    // cull_fraction: 0.2,
-
-    // mutate_add_conn_pr: 0.5,
-    // mutate_del_conn_pr: 0.5,
-    // mutate_add_neuron_pr: 0.1,
-    // mutate_del_neuron_pr: 0.1,
-
-    // weight_init_mean: 0.0,
-    // weight_init_var: 1.0,
-    // weight_mutate_var: 0.5,
-    // weight_mutate_pr: 0.8,
-    // weight_replace_pr: 0.1,
-
-    // bias_init_mean: 0.0,
-    // bias_init_var: 1.0,
-    // bias_mutate_var: 0.5,
-    // bias_mutate_pr: 0.7,
-    // bias_replace_pr: 0.1,
-
-    // include_weak_disjoint_gene: 0.0,
-
-    // // other
-    // compatibility_threshold: 3.3,
-    // distance_weight_coef: 0.13,
-    // distance_disjoint_coef: 0.6,
-    // };
-    let p = NeatParams::optimized_for_xor3(2, 1);
+    let p = NeatParams::optimized_for_xor(2, 1);
 
     use chrono::{Timelike, Utc};
     let now = Utc::now();

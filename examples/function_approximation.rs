@@ -40,7 +40,7 @@ impl Environment for FunctionApproximation {
 }
 
 fn main() {
-    let p = NeatParams::optimized_for_xor3(4, 1);
+    let p = NeatParams::optimized_for_xor(4, 1);
     let mut population = Population::create_population(150);
     let mut environment = FunctionApproximation;
     let mut champion: Option<Organism> = None;

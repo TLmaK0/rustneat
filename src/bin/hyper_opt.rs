@@ -4,7 +4,6 @@ extern crate slog;
 
 use blackbox::BlackboxInput;
 use blackbox_derive::make_optimizer;
-use slog::Logger;
 
 use chrono::{Timelike, Utc};
 use rustneat::{Environment, NeatParams, NeuralNetwork, Population};

@@ -527,7 +527,7 @@ mod tests {
         let mut output2 = vec![0.0; 1];
         organism.make_network().activate(vec![INPUT], &mut output2);
         assert!((output1[0] - output2[0]).abs() < 0.01);
-        // ^ due to the ctrnn implementation only approximating a DE, the output is not
-        // always exactly the same
+        // ^ due to the ctrnn implementation only approximating a DE, the output
+        // is not always exactly the same
     }
 }

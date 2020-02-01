@@ -61,7 +61,7 @@ mod test {
     #[test]
     fn can_solve_xor() {
         const MAX_GENERATIONS: usize = 1500;
-        let p = NeatParams::optimized_for_xor3(2, 1);
+        let p = NeatParams::optimized_for_xor(2, 1);
         let start_genome = NeuralNetwork::with_neurons(3);
         let mut population = Population::create_population_from(start_genome, 150);
         let mut environment = XORClassification;
