@@ -1,3 +1,6 @@
+var ioNeurons = (getParameterByName('ioNeurons') || '0,0').split(',');
+console.log(ioNeurons);
+
 var simulation;
 var color;
 var link;
@@ -45,7 +48,10 @@ var allLinks = {};
 
 function addIfNewNode(nodes, newNodes, node_id){
   if (nodes.indexOf(node_id) < 0) {
-    newNodes.push({id: "node" + node_id, group: 0});
+    var group = 0;
+    if (node_id < ioNeurons[0]) group = 3;
+    else if (node_id < ioNeurons[1]) group = 7;
+    newNodes.push({id: "node" + node_id, group: group});
     nodes.push(node_id);
   }
 }
@@ -210,3 +216,12 @@ function network(id, genes){
   }
 }
 
+function getParameterByName(name) {
+  var url = window.location.href;
+  name = name.replace(/[\[\]]/g, "\\$&");
+  var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+      results = regex.exec(url);
+  if (!results) return null;
+  if (!results[2]) return '';
+  return decodeURIComponent(results[2].replace(/\+/g, " "));
+}

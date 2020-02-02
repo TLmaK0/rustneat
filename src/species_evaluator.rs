@@ -1,30 +1,28 @@
+use crate::{Environment, Genome, Organism, Specie};
 use crossbeam::{self, Scope};
-use environment::Environment;
-use genome::Genome;
 use num_cpus;
-use organism::Organism;
-use specie::Specie;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
 /// Calculate fitness and champions for a species
-pub struct SpeciesEvaluator<'a> {
+pub struct SpeciesEvaluator<'a, G> {
     threads: usize,
-    environment: &'a mut Environment,
+    environment: &'a mut Environment<G>,
 }
 
-impl<'a> SpeciesEvaluator<'a> {
+impl<'a, G: Genome + Send> SpeciesEvaluator<'a, G> {
     /// Take an environment that will test organisms.
-    pub fn new(environment: &mut Environment) -> SpeciesEvaluator {
+    pub fn new(environment: &mut Environment<G>) -> SpeciesEvaluator<G> {
         SpeciesEvaluator {
             threads: num_cpus::get(),
             environment: environment,
         }
     }
 
-    /// return champion fitness
-    pub fn evaluate(&self, species: &mut Vec<Specie>) -> Organism {
-        let mut champion: Organism = Organism::new(Genome::default());
+    /// Returns (champion organism, fitness)
+    pub fn evaluate(&self, species: &mut Vec<Specie<G>>) -> Organism<G> {
+        // The second element in the touple is the fitness of this organism
+        let mut champion = Organism::<G>::default();
 
         for specie in species {
             if specie.organisms.is_empty() {
@@ -32,7 +30,7 @@ impl<'a> SpeciesEvaluator<'a> {
             }
 
             let organisms_by_thread = (specie.organisms.len() + self.threads - 1) / self.threads; // round up
-            let (tx, rx): (Sender<Organism>, Receiver<Organism>) = mpsc::channel();
+            let (tx, rx): (Sender<Organism<G>>, Receiver<Organism<G>>) = mpsc::channel();
             crossbeam::scope(|scope| {
                 let threads_used = self.dispatch_organisms(
                     specie.organisms.as_mut_slice(),
@@ -54,10 +52,10 @@ impl<'a> SpeciesEvaluator<'a> {
 
     fn dispatch_organisms<'b>(
         &'b self,
-        organisms: &'b mut [Organism],
+        organisms: &'b mut [Organism<G>],
         organisms_by_thread: usize,
         threads_used: usize,
-        tx: &Sender<Organism>,
+        tx: &Sender<Organism<G>>,
         scope: &Scope<'b>,
     ) -> usize {
         if organisms.len() <= organisms_by_thread {
@@ -83,14 +81,18 @@ impl<'a> SpeciesEvaluator<'a> {
 
     fn evaluate_organisms<'b>(
         &'b self,
-        organisms: &'b mut [Organism],
-        tx: Sender<Organism>,
+        organisms: &'b mut [Organism<G>],
+        tx: Sender<Organism<G>>,
         scope: &Scope<'b>,
     ) {
         scope.spawn(move || {
-            let mut champion = Organism::new(Genome::default());
+            let mut champion = Organism::default();
             for organism in &mut organisms.iter_mut() {
-                organism.fitness = self.environment.test(organism);
+                organism.fitness = self.environment.test(&mut organism.genome);
+                if organism.fitness < 0f64 {
+                    eprintln!("Fitness can't be negative: {:?}", organism.fitness);
+                    ::std::process::exit(-1);
+                }
                 if organism.fitness > champion.fitness {
                     champion = organism.clone();
                 }

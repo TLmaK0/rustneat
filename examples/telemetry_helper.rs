@@ -8,17 +8,23 @@ extern crate rusty_dashed;
 use self::rusty_dashed::Dashboard;
 
 #[allow(dead_code)]
-pub fn main(){}
+pub fn main() {}
 
 #[cfg(feature = "telemetry")]
-pub fn enable_telemetry(query_string: &str) {
+pub fn enable_telemetry(query_string: &str, open: bool) {
     let mut dashboard = Dashboard::new();
     dashboard.add_graph("fitness1", "fitness", 0, 0, 4, 4);
     dashboard.add_graph("network1", "network", 4, 0, 4, 4);
+    dashboard.add_graph("approximation1", "approximation", 0, 4, 2, 2);
 
     rusty_dashed::Server::serve_dashboard(dashboard);
 
     let url = format!("http://localhost:3000{}", query_string);
+
+    if !open {
+        return;
+    }
+
     match open::that(url.clone()) {
         Err(_) => println!(
             "\nOpen browser and go to {:?} to see how neural network evolves\n",
