@@ -1,7 +1,7 @@
 extern crate rand;
 extern crate rustneat;
 
-use rustneat::{Environment, Organism, Population, NeuralNetwork};
+use rustneat::{Environment, NeuralNetwork, Organism, Population};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;

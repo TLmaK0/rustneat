@@ -1,10 +1,11 @@
-const COMPATIBILITY_THRESHOLD: f64 = 3.0; //used to speciate organisms
+const COMPATIBILITY_THRESHOLD: f64 = 3.0; // used to speciate organisms
 
-/// Implementing `Genome` conceptually means that the implementor "has a genome", and the
-/// implementor can be called an "organism".
+/// Implementing `Genome` conceptually means that the implementor "has a
+/// genome", and the implementor can be called an "organism".
 // (TODO: remove Default?)
 pub trait Genome: Clone + Default + Send {
-    /// Returns a new organism which is a clone of `&self` apart from possible mutations
+    /// Returns a new organism which is a clone of `&self` apart from possible
+    /// mutations
     fn mutate(&self) -> Self;
 
     /// `fittest` is true if `other` is more fit.
@@ -13,7 +14,6 @@ pub trait Genome: Clone + Default + Send {
     /// TODO: how should it be implemented for e.g. a composed organism?
     fn distance(&self, other: &Self) -> f64;
 
-
     /// Compare another Genome for species equality
     // TODO This should be impl Eq
     fn is_same_specie(&self, other: &Self) -> bool {
@@ -21,8 +21,8 @@ pub trait Genome: Clone + Default + Send {
     }
 }
 
-/// Used in algorithm just to group an organism (genome) with its fitness, and also in the
-/// interface to get the fitness of organisms
+/// Used in algorithm just to group an organism (genome) with its fitness, and
+/// also in the interface to get the fitness of organisms
 #[derive(Default, Clone, Debug)]
 pub struct Organism<G> {
     /// The genome of this organism
@@ -48,9 +48,10 @@ impl<G: Genome> Organism<G> {
     pub fn mate(&self, other: &Self) -> Organism<G> {
         Organism::new(
             self.genome
-                .mate(&other.genome, self.fitness < other.fitness))
+                .mate(&other.genome, self.fitness < other.fitness),
+        )
     }
-    /// 
+    ///
     pub fn distance(&self, other: &Self) -> f64 {
         self.genome.distance(&other.genome)
     }

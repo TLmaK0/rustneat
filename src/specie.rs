@@ -1,6 +1,9 @@
-use conv::prelude::*;
-use rand::{self, distributions::{Distribution, Uniform}};
 use crate::{Genome, Organism};
+use conv::prelude::*;
+use rand::{
+    self,
+    distributions::{Distribution, Uniform},
+};
 
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
@@ -54,7 +57,8 @@ impl<G: Genome> Specie<G> {
             return 0.0;
         }
 
-        let total_fitness = self.organisms
+        let total_fitness = self
+            .organisms
             .iter()
             .fold(0.0, |total, organism| total + organism.fitness);
 
@@ -80,14 +84,16 @@ impl<G: Genome> Specie<G> {
 
         let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
 
-        // Select `num_of_organisms` organisms in this specie, and make offspring from them.
+        // Select `num_of_organisms` organisms in this specie, and make offspring from
+        // them.
         let mut offspring: Vec<Organism<G>> = {
             let mut selected_organisms = vec![];
             let uniform = Uniform::from(0..self.organisms.len());
             for _ in 0..num_of_organisms - copy_champion {
                 selected_organisms.push(uniform.sample(&mut rng));
             }
-            selected_organisms.iter()
+            selected_organisms
+                .iter()
                 .map(|organism_pos| {
                     self.create_child(&self.organisms[*organism_pos], population_organisms)
                 })
@@ -125,7 +131,11 @@ impl<G: Genome> Specie<G> {
     }
 
     /// Create a new child by mutating and existing one or mating two genomes.
-    fn create_child(&self, organism: &Organism<G>, population_organisms: &[Organism<G>]) -> Organism<G> {
+    fn create_child(
+        &self,
+        organism: &Organism<G>,
+        population_organisms: &[Organism<G>],
+    ) -> Organism<G> {
         if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() < 2 {
             self.create_child_by_mutation(organism)
         } else {

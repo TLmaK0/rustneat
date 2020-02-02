@@ -1,9 +1,8 @@
-use crossbeam::{self, Scope};
 use crate::{Environment, Genome, Organism, Specie};
+use crossbeam::{self, Scope};
 use num_cpus;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-
 
 /// Calculate fitness and champions for a species
 pub struct SpeciesEvaluator<'a, G> {

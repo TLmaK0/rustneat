@@ -1,12 +1,11 @@
+use crate::{Environment, Genome, Organism, Specie, SpeciesEvaluator};
 use conv::prelude::*;
-use crate::{Genome, Organism, Environment, Specie, SpeciesEvaluator};
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
 
 #[cfg(feature = "telemetry")]
 use serde_json;
-
 
 /// Contains several species, and a way to evolve these to the next generation.
 #[derive(Debug)]
@@ -20,8 +19,8 @@ pub struct Population<G> {
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 5;
 
 impl<G: Genome> Population<G> {
-    /// Create a new population with `population_size` organisms. Each organism will have only a single unconnected
-    /// neuron.
+    /// Create a new population with `population_size` organisms. Each organism
+    /// will have only a single unconnected neuron.
     pub fn create_population(population_size: usize) -> Population<G> {
         Self::create_population_from(G::default(), population_size)
     }
@@ -163,7 +162,8 @@ impl<G: Genome> Population<G> {
 
         for organism in organisms {
             let mut new_specie: Option<Specie<G>> = None;
-            match self.species
+            match self
+                .species
                 .iter_mut()
                 .find(|specie| specie.match_genome(&organism.genome))
             {
@@ -185,7 +185,7 @@ impl<G: Genome> Population<G> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{nn::Gene, Organism, Specie, nn::NeuralNetwork, Population};
+    use crate::{nn::Gene, nn::NeuralNetwork, Organism, Population, Specie};
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {

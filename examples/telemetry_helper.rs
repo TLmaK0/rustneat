@@ -8,7 +8,7 @@ extern crate rusty_dashed;
 use self::rusty_dashed::Dashboard;
 
 #[allow(dead_code)]
-pub fn main(){}
+pub fn main() {}
 
 #[cfg(feature = "telemetry")]
 pub fn enable_telemetry(query_string: &str, open: bool) {

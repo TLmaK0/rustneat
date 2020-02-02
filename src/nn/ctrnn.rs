@@ -5,12 +5,11 @@ use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
 pub struct Ctrnn<'a> {
     pub y: &'a [f64],
     pub delta_t: f64,
-    pub tau: &'a [f64], //time constant
-    pub wij: &'a [f64], //weights
-    pub theta: &'a [f64], //bias
-    pub i: &'a [f64], //sensors
+    pub tau: &'a [f64],   // time constant
+    pub wij: &'a [f64],   // weights
+    pub theta: &'a [f64], // bias
+    pub i: &'a [f64],     // sensors
 }
-
 
 #[allow(missing_docs)]
 impl<'a> Ctrnn<'a> {
@@ -23,10 +22,8 @@ impl<'a> Ctrnn<'a> {
         let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * self.delta_t;
         for _ in 0..steps {
             let activations = (&y - &theta).apply(&Ctrnn::sigmoid);
-            y = &y + delta_t_tau.elemul(
-                &((&wij * activations) - &y + &i)
-            );
-        };
+            y = &y + delta_t_tau.elemul(&((&wij * activations) - &y + &i));
+        }
         y.into_vec()
     }
 
@@ -64,6 +61,7 @@ mod tests {
     #[test]
     fn neural_network_activation_stability() {
         // TODO
-        // This test should just ensure that a stable neural network implementation doesn't change
+        // This test should just ensure that a stable neural network
+        // implementation doesn't change
     }
 }

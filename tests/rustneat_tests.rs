@@ -1,7 +1,6 @@
-
 #[cfg(test)]
 mod test {
-    use rustneat::{Environment, Organism, Population, NeuralNetwork};
+    use rustneat::{Environment, NeuralNetwork, Organism, Population};
 
     struct MyEnvironment;
 
@@ -50,32 +49,5 @@ mod test {
         let mut environment = MyEnvironment;
         population.evaluate_in(&mut environment);
         assert!(population.get_organisms()[0].fitness == 0.1234f64);
-    }
-
-    #[test]
-    fn network_should_be_able_to_solve_xor_classification() {
-        let mut population = Population::<NeuralNetwork>::create_population(150);
-        let mut environment = XORClassification;
-        let mut champion_option: Option<Organism<NeuralNetwork>> = None;
-        while champion_option.is_none() {
-            population.evolve();
-            population.evaluate_in(&mut environment);
-            for organism in &population.get_organisms() {
-                if organism.fitness > 15.9f64 {
-                    champion_option = Some(organism.clone());
-                }
-            }
-        }
-        let Organism {genome: champion, fitness: _} = champion_option.as_mut().unwrap();
-        let mut output = vec![0f64];
-        champion.activate(vec![0f64, 0f64], &mut output);
-        // println!("Output[0] = {}", output[0]);
-        assert!(output[0] < 0.1f64);
-        champion.activate(vec![0f64, 1f64], &mut output);
-        assert!(output[0] > 0.9f64);
-        champion.activate(vec![1f64, 0f64], &mut output);
-        assert!(output[0] > 0.9f64);
-        champion.activate(vec![1f64, 1f64], &mut output);
-        assert!(output[0] < 0.1f64);
     }
 }
