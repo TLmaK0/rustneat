@@ -9,12 +9,12 @@ use serde_json;
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub struct CtrnnNeuralNetwork<'a> {
-    pub y: &'a [f64],
+    pub y: &'a [f64], //current state of neuron(j)
     pub delta_t: f64,
-    pub tau: &'a [f64], //time constant
-    pub wij: &'a [f64], //weights
-    pub theta: &'a [f64], //bias
-    pub i: &'a [f64], //sensors
+    pub tau: &'a [f64], //τ - time constant
+    pub wji: &'a [f64], //w - weights of the connection from neuron(j) to neuron(i)
+    pub theta: &'a [f64], //θ - bias of the neuron(j)
+    pub i: &'a [f64], //I - external input to neuron(i)
 }
 
 #[allow(missing_docs)]
@@ -26,18 +26,17 @@ impl Ctrnn {
     pub fn activate_nn(&self, steps: usize, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
         let mut y = Ctrnn::vector_to_column_matrix(nn.y);
         let theta = Ctrnn::vector_to_column_matrix(nn.theta);
-        let wij = Ctrnn::vector_to_matrix(nn.wij);
+        let wji = Ctrnn::vector_to_matrix(nn.wji);
         let i = Ctrnn::vector_to_column_matrix(nn.i);
-        let tau = Ctrnn::vector_to_column_matrix(nn.tau);
-        let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * nn.delta_t;
+//        let tau = Ctrnn::vector_to_column_matrix(nn.tau);
+//        let delta_t_tau = tau.apply(&(|x| 1.0 / x)) * nn.delta_t;
         for _ in 0..steps {
             let current_weights = (&y - &theta).apply(&Ctrnn::sigmoid);
-            y = delta_t_tau.elemul(
-                &((&wij * current_weights) - &y + &i)
-            );
+//              y = delta_t_tau.elemul(
+//                &((&wji * current_weights) - &y + &i)
+//              );
+            y = ((&wji * current_weights) - &y + &i).apply(&(|j| nn.delta_t * j));
 
-            #[cfg(feature = "ctrnn_telemetry")]
-            self.telemetry(&y);
         };
         y.into_vec()
     }
@@ -84,7 +83,7 @@ mod tests {
         let gamma = vec![0.0, 0.0];
         let delta_t = 1.0;
         let tau = vec![1.0, 1.0];
-        let wij = vec![
+        let wji = vec![
                 0.0, 1.0,
                 0.0, 0.0,
             ];
@@ -96,7 +95,7 @@ mod tests {
             y: &gamma,
             delta_t: delta_t,
             tau: &tau,
-            wij: &wij,
+            wji: &wji,
             theta: &theta,
             i: &i
         };
@@ -118,7 +117,7 @@ mod tests {
         let gamma = vec![0.0, 0.0, 0.0];
         let delta_t = 13.436;
         let tau = vec![61.694, 10.149, 16.851];
-        let wij = vec![
+        let wji = vec![
                 -2.94737, 2.70665, -0.57046,
                 -3.27553, 3.67193, 1.83218,
                 2.32476, 0.24739, 0.58587,
@@ -130,7 +129,7 @@ mod tests {
             y: &gamma,
             delta_t: delta_t,
             tau: &tau,
-            wij: &wij,
+            wji: &wji,
             theta: &theta,
             i: &i
         };

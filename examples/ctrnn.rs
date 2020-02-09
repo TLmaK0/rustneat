@@ -1,4 +1,5 @@
 // run with: cargo run --release --example ctrnn --features="telemetry ctrnn_telemetry"
+// try to reproduce results from: http://www.tinyblueplanet.com/easy/FCSReport.pdf
 extern crate rustneat;
 
 use rustneat::{Ctrnn, CtrnnNeuralNetwork};
@@ -13,25 +14,55 @@ extern crate rusty_dashed;
 use self::rusty_dashed::Dashboard;
 
 fn main() {
-    let mut dashboard = Dashboard::new();
-    dashboard.add_graph("ctrnn1", "ctrnn", 0, 0, 4, 4);
-    telemetry_helper::run_server(dashboard, "", true);
+    #[cfg(feature = "telemetry")]
+    show_graph();
+
     std::thread::sleep(std::time::Duration::from_millis(4000));
 
-    let neurons_len = 2;
-    let tau = vec![1.0; neurons_len];
-    let theta  = vec![0.0; neurons_len];
-    let wij = vec![0.0, 1.0, 0.0, 0.0];
+    minimal_ctrnn_node();
+
+    std::thread::sleep(std::time::Duration::from_millis(4000));
+}
+
+fn minimal_ctrnn_node(){
     Ctrnn::default().activate_nn(
         100,
         &CtrnnNeuralNetwork {
-            y: &vec![1.0, 0.0],
-            delta_t: 1.0,
-            tau: &tau,
-            wij: &wij,
-            theta: &theta,
-            i: &vec![0.0; neurons_len]
+            y: &vec![1.0],
+            delta_t: 0.01,
+            tau: &vec![1.0],
+            wji: &vec![
+                0.0
+            ],
+            theta: &vec![0.0],
+            i: &vec![0.0]
         },
     );
-    std::thread::sleep(std::time::Duration::from_millis(4000));
+}
+
+fn neurons_1_input_0(){
+    Ctrnn::default().activate_nn(
+        1,
+        &CtrnnNeuralNetwork {
+            y: &vec![0.0],
+            delta_t: 1.0,
+            tau: &vec![1.0],
+            wji: &vec![
+                //      i=0
+                        0.0  // j=0
+            ],
+            theta: &vec![0.0],
+            i: &vec![0.0]
+        },
+    );
+
+    // Should return:
+    // Matrix { rows: 1, cols: 1, data: [0.0] }
+}
+
+#[cfg(feature = "telemetry")]
+fn show_graph(){
+    let mut dashboard = Dashboard::new();
+    dashboard.add_graph("ctrnn1", "ctrnn", 0, 0, 4, 4);
+    telemetry_helper::run_server(dashboard, "", true);
 }
