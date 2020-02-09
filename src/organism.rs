@@ -48,7 +48,7 @@ impl Organism {
             i = [i, vec![0.0; neurons_len - sensors_len]].concat();
         }
 
-        let wij = self.get_weights();
+        let wji = self.get_weights();
 
         let activations = Ctrnn::default().activate_nn(
             10,
@@ -56,7 +56,7 @@ impl Organism {
                 y: &vec![0.0; neurons_len],
                 delta_t: 1.0,
                 tau: &tau,
-                wij: &wij,
+                wji: &wji,
                 theta: &theta,
                 i: &i
             },

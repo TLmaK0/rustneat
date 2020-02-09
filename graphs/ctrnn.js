@@ -23,7 +23,8 @@ function ctrnn_init(id){
 }
 
 function ctrnn(id, value){
-  var neuron1_value = value[1];
+  console.log(value);
+  var neuron1_value = value[0];
   values.push([values.length, neuron1_value]);
   path.attr("d", lineChart(values));
 }
