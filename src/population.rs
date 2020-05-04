@@ -172,6 +172,9 @@ impl Population {
                 self.species.push(new_specie.unwrap());
             }
         }
+
+        // Remove species that no longer have any organisms.
+        self.species.retain(|s| ! s.organisms.is_empty());
     }
 
     fn create_organisms(&mut self, population_size: usize) {
