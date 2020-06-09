@@ -22,7 +22,8 @@ pub struct Ctrnn {}
 
 impl Ctrnn {
     /// Activate the NN
-    pub fn activate_nn(&self, steps: usize, step_size: f64, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
+    pub fn activate_nn(&self, time: f64, step_size: f64, nn: &CtrnnNeuralNetwork) -> Vec<f64> {
+        let steps = (time / step_size) as usize;
         let mut y = Ctrnn::vector_to_column_matrix(nn.y);
         let theta = Ctrnn::vector_to_column_matrix(nn.theta);
         let wji = Ctrnn::vector_to_matrix(nn.wji);

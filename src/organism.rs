@@ -51,7 +51,7 @@ impl Organism {
         let wji = self.get_weights();
 
         let activations = Ctrnn::default().activate_nn(
-            100,
+            0.1,
             0.001,
             &CtrnnNeuralNetwork {
                 y: &vec![0.0; neurons_len],
