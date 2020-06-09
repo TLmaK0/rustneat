@@ -8,6 +8,11 @@ This implementations uses a **CTRNN** based on**On the Dynamics of Small Continu
 
 ![telemetry](docs/img/rustneat.png)
 
+## Install Rust
+
+`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+`source $HOME/.cargo/env`
+
 ## Run test
 
 To speed up tests, run them with `--release` (XOR classification/simple_sample should take less than a minute)
@@ -125,3 +130,5 @@ Thanks for the icon nerves by Delwar Hossain from the Noun Project
 **On the Dynamics of Small Continuous-Time Recurrent Neural Network** (Beer, 1995) http://www.cs.uvm.edu/~jbongard/2014_CS206/Beer_CTRNNs.pdf
 
 **An Investigation into the Dynamics of a Continuous Time Recurrent Neural Network Node** http://www.tinyblueplanet.com/easy/FCSReport.pdf
+
+**http://indy9000.github.io/posts/analysis-of-a-simple-ctrnn.html** http://indy9000.github.io/posts/analysis-of-a-simple-ctrnn.html

@@ -37,7 +37,7 @@ impl Organism {
         let neurons_len = self.genome.len();
         let sensors_len = sensors.len();
 
-        let tau = vec![1.0; neurons_len];
+        let tau = vec![0.01; neurons_len];
         let theta = self.get_bias(); 
 
         let mut i = sensors.clone();
@@ -51,10 +51,10 @@ impl Organism {
         let wji = self.get_weights();
 
         let activations = Ctrnn::default().activate_nn(
-            10,
+            100,
+            0.001,
             &CtrnnNeuralNetwork {
                 y: &vec![0.0; neurons_len],
-                delta_t: 1.0,
                 tau: &tau,
                 wji: &wji,
                 theta: &theta,
