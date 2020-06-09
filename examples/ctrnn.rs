@@ -8,6 +8,7 @@ use rustneat::{Ctrnn, CtrnnNeuralNetwork};
 mod telemetry_helper;
 
 #[cfg(feature = "telemetry")]
+#[macro_use]
 extern crate rusty_dashed;
 
 #[cfg(feature = "telemetry")]
@@ -17,47 +18,37 @@ fn main() {
     #[cfg(feature = "telemetry")]
     show_graph();
 
-    std::thread::sleep(std::time::Duration::from_millis(4000));
+    std::thread::sleep(std::time::Duration::from_millis(1000));
 
-    minimal_ctrnn_node();
+    minimal_ctrnn_node(0.1);
+    telemetry!("ctrnn1", 1.0, "reset()");
+    minimal_ctrnn_node(0.5);
+    telemetry!("ctrnn1", 1.0, "reset()");
+    minimal_ctrnn_node(1.0);
+    telemetry!("ctrnn1", 1.0, "reset()");
+    minimal_ctrnn_node(1.5);
+    telemetry!("ctrnn1", 1.0, "reset()");
+    minimal_ctrnn_node(2.0);
+    telemetry!("ctrnn1", 1.0, "reset()");
+    minimal_ctrnn_node(2.1);
 
     std::thread::sleep(std::time::Duration::from_millis(4000));
 }
 
-fn minimal_ctrnn_node(){
+fn minimal_ctrnn_node(step_size: f64){
     Ctrnn::default().activate_nn(
-        100,
+        15,
+        step_size,
         &CtrnnNeuralNetwork {
             y: &vec![1.0],
-            delta_t: 0.01,
             tau: &vec![1.0],
             wji: &vec![
                 0.0
             ],
             theta: &vec![0.0],
-            i: &vec![0.0]
+            i: &vec![0.5]
         },
     );
-}
-
-fn neurons_1_input_0(){
-    Ctrnn::default().activate_nn(
-        1,
-        &CtrnnNeuralNetwork {
-            y: &vec![0.0],
-            delta_t: 1.0,
-            tau: &vec![1.0],
-            wji: &vec![
-                //      i=0
-                        0.0  // j=0
-            ],
-            theta: &vec![0.0],
-            i: &vec![0.0]
-        },
-    );
-
-    // Should return:
-    // Matrix { rows: 1, cols: 1, data: [0.0] }
 }
 
 #[cfg(feature = "telemetry")]
