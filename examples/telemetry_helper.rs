@@ -22,12 +22,16 @@ pub fn enable_telemetry(query_string: &str, open: bool) {
 #[cfg(feature = "telemetry")]
 pub fn run_server(dashboard: Dashboard, query_string: &str, open: bool){
     rusty_dashed::Server::serve_dashboard(dashboard);
+    open_url(query_string, open);
+}
 
-    let url = format!("http://localhost:3000{}", query_string);
-
+#[cfg(feature = "telemetry")]
+pub fn open_url(query_string: &str, open: bool){
     if !open {
         return;
     }
+
+    let url = format!("http://localhost:3000{}", query_string);
 
     match open::that(url.clone()) {
         Err(_) => println!(
