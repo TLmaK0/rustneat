@@ -3,6 +3,7 @@ use genome::Genome;
 use organism::Organism;
 use rand;
 use rand::distributions::{IndependentSample, Range};
+use rand::Rng;
 
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
@@ -31,14 +32,17 @@ impl Specie {
             age_last_improvement: 0,
         }
     }
+
     /// Add an Organism
     pub fn add(&mut self, organism: Organism) {
         self.organisms.push(organism);
     }
+
     /// Check if another organism is of the same species as this one.
     pub fn match_genome(&self, organism: &Organism) -> bool {
         self.representative.is_same_specie(&organism.genome)
     }
+
     /// Get the most performant organism
     pub fn calculate_champion_fitness(&self) -> f64 {
         self.organisms.iter().fold(0f64, |max, organism| {
@@ -49,6 +53,7 @@ impl Specie {
             }
         })
     }
+
     /// Work out average fitness of this species
     pub fn calculate_average_fitness(&mut self) -> f64 {
         let organisms_count = self.organisms.len().value_as::<f64>().unwrap();
@@ -56,7 +61,8 @@ impl Specie {
             return 0f64;
         }
 
-        let total_fitness = self.organisms
+        let total_fitness = self
+            .organisms
             .iter()
             .fold(0f64, |total, organism| total + organism.fitness);
 
@@ -110,6 +116,14 @@ impl Specie {
         }
         self.organisms = offspring;
     }
+    /// Choice a new representative of the specie at random
+    pub fn choose_new_representative(&mut self) {
+        self.representative = rand::thread_rng()
+            .choose(&self.organisms)
+            .unwrap()
+            .genome
+            .clone();
+    }
 
     /// Get a genome representitive of this species.
     pub fn get_representative_genome(&self) -> Genome {
@@ -119,6 +133,11 @@ impl Specie {
     pub fn remove_organisms(&mut self) {
         self.adjust_fitness();
         self.organisms = vec![];
+    }
+
+    /// Returns true if specie hasn't organisms
+    pub fn is_empty(&self) -> bool {
+        self.organisms.is_empty()
     }
 
     /// TODO

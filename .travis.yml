@@ -24,8 +24,7 @@ before_script:
 script:
   - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
       (
-        set -x;
-        cargo fmt -- --write-mode=diff
+        cargo fmt -- --check
       );
     fi
-  - cargo test  --verbose --release
+  - cargo test --release

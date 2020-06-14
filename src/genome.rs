@@ -46,19 +46,19 @@ impl Genome {
 
     /// Mate two genes
     pub fn mate(&self, other: &Genome, fittest: bool) -> Genome {
-        if self.genes.len() > other.genes.len() {
-            self.mate_genes(other, fittest)
+        if fittest {
+            self.mate_genes(other)
         } else {
-            other.mate_genes(self, !fittest)
+            other.mate_genes(self)
         }
     }
 
-    fn mate_genes(&self, other: &Genome, fittest: bool) -> Genome {
+    fn mate_genes(&self, other: &Genome) -> Genome {
         let mut genome = Genome::default();
         for gene in &self.genes {
             genome.add_gene({
                 //Only mate half of the genes randomly
-                if !fittest || rand::random::<f64>() > 0.5f64 {
+                if rand::random::<f64>() > 0.5f64 {
                     *gene
                 } else {
                     match other.genes.binary_search(gene) {
@@ -149,24 +149,11 @@ impl Genome {
         if gene.in_neuron_id() == gene.out_neuron_id() && gene.in_neuron_id() > max_neuron_id {
             panic!(
                 "Try to create a gene neuron unconnected, max neuron id {}, {} -> {}",
-                max_neuron_id, gene.in_neuron_id(), gene.out_neuron_id()
+                max_neuron_id,
+                gene.in_neuron_id(),
+                gene.out_neuron_id()
             );
         }
-
-        //assert!(
-        //    gene.in_neuron_id() <= max_neuron_id,
-        //    format!(
-        //        "in_neuron_id {} is greater than max allowed id {}",
-        //        gene.in_neuron_id(), max_neuron_id
-        //    )
-        //);
-        //assert!(
-        //    gene.out_neuron_id() <= max_neuron_id,
-        //    format!(
-        //        "out_neuron_id {} is greater than max allowed id {}",
-        //        gene.out_neuron_id(), max_neuron_id
-        //    )
-        //);
 
         if gene.in_neuron_id() > self.last_neuron_id {
             self.last_neuron_id = gene.in_neuron_id();
@@ -220,7 +207,8 @@ impl Genome {
 
         let z = if n < 20 { 1f64 } else { n as f64 };
 
-        let matching_genes = self.genes
+        let matching_genes = self
+            .genes
             .iter()
             .filter(|i1_gene| other.genes.contains(i1_gene))
             .collect::<Vec<&Gene>>();
