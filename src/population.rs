@@ -2,6 +2,7 @@ use conv::prelude::*;
 use environment::Environment;
 use genome::Genome;
 use organism::Organism;
+use std::cmp::Ordering;
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -46,7 +47,7 @@ impl Population {
         self.generate_offspring();
     }
     /// TODO
-    pub fn evaluate_in(&mut self, environment: &mut Environment) {
+    pub fn evaluate_in(&mut self, environment: &mut dyn Environment) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
         if self.champion_fitness >= champion.fitness {
@@ -120,42 +121,35 @@ impl Population {
         }
     }
 
-    fn get_best_species(&self) -> Vec<Specie> {
-        let mut result = vec![];
-
-        if self.species.len() < 2 {
-            return self.species.clone();
-        }
-
-        for specie in &self.species {
-            if result.len() < 1 {
-                result.push(specie.clone())
-            } else if result.len() < 2 {
-                if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
-                    result.insert(0, specie.clone());
-                } else {
-                    result.push(specie.clone());
-                }
-            } else if result[0].calculate_champion_fitness() < specie.calculate_champion_fitness() {
-                result[1] = result[0].clone();
-                result[0] = specie.clone();
-            } else if result[1].calculate_champion_fitness() < specie.calculate_champion_fitness() {
-                result[1] = specie.clone();
+    fn get_best_species(&mut self) -> Vec<Specie> {
+        self.species.sort_by(|specie1, specie2| {
+            if specie1.calculate_champion_fitness() > specie2.calculate_champion_fitness() {
+                Ordering::Greater
+            } else {
+                Ordering::Less
             }
-        }
+        });
 
-        result
+        if self.species.len() <= 2 {
+            self.species.clone()
+        } else {
+            self.species[1..2].to_vec().clone()
+        }
     }
 
     fn speciate(&mut self) {
         let organisms = &self.get_organisms();
+        self.species.retain(|specie| !specie.is_empty());
+
         for specie in &mut self.species {
+            specie.choose_new_representative();
             specie.remove_organisms();
         }
 
         for organism in organisms {
             let mut new_specie: Option<Specie> = None;
-            match self.species
+            match self
+                .species
                 .iter_mut()
                 .find(|specie| specie.match_genome(organism))
             {
@@ -172,6 +166,7 @@ impl Population {
                 self.species.push(new_specie.unwrap());
             }
         }
+        self.species.retain(|specie| !specie.is_empty());
     }
 
     fn create_organisms(&mut self, population_size: usize) {

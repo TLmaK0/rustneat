@@ -38,7 +38,7 @@ impl Organism {
         let sensors_len = sensors.len();
 
         let tau = vec![0.01; neurons_len];
-        let theta = self.get_bias(); 
+        let theta = self.get_bias();
 
         let mut i = sensors.clone();
 
@@ -52,13 +52,13 @@ impl Organism {
 
         let activations = Ctrnn::default().activate_nn(
             0.1,
-            0.001,
+            0.01,
             &CtrnnNeuralNetwork {
                 y: &vec![0.0; neurons_len],
                 tau: &tau,
                 wji: &wji,
                 theta: &theta,
-                i: &i
+                i: &i,
             },
         );
 
@@ -87,7 +87,7 @@ impl Organism {
         let mut matrix = vec![0.0; neurons_len];
         for gene in self.genome.get_genes() {
             if gene.is_bias() {
-                matrix[gene.in_neuron_id()] += 1f64; 
+                matrix[gene.in_neuron_id()] += 1f64;
             }
         }
         matrix
@@ -110,12 +110,14 @@ mod tests {
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
         assert!(
-            output[0] > 0.9f64,
+            output[0] > 0.5f64,
             format!("{:?} is not bigger than 0.9", output[0])
         );
 
         let mut organism = Organism::new(Genome::default());
-        organism.genome.add_gene(Gene::new(0, 1, -2f64, true, false));
+        organism
+            .genome
+            .add_gene(Gene::new(0, 1, -2f64, true, false));
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
@@ -154,9 +156,15 @@ mod tests {
         );
 
         let mut organism = Organism::new(Genome::default());
-        organism.genome.add_gene(Gene::new(0, 1, -2f64, true, false));
-        organism.genome.add_gene(Gene::new(1, 2, -2f64, true, false));
-        organism.genome.add_gene(Gene::new(2, 1, -2f64, true, false));
+        organism
+            .genome
+            .add_gene(Gene::new(0, 1, -2f64, true, false));
+        organism
+            .genome
+            .add_gene(Gene::new(1, 2, -2f64, true, false));
+        organism
+            .genome
+            .add_gene(Gene::new(2, 1, -2f64, true, false));
         let mut output = vec![0f64];
         organism.activate(vec![1f64], &mut output);
         assert!(
@@ -187,9 +195,15 @@ mod tests {
     fn should_be_able_to_get_matrix_representation_of_the_neuron_connections() {
         let mut organism = Organism::new(Genome::default());
         organism.genome.add_gene(Gene::new(0, 1, 1f64, true, false));
-        organism.genome.add_gene(Gene::new(1, 2, 0.5f64, true, false));
-        organism.genome.add_gene(Gene::new(2, 1, 0.5f64, true, false));
-        organism.genome.add_gene(Gene::new(2, 2, 0.75f64, true, false));
+        organism
+            .genome
+            .add_gene(Gene::new(1, 2, 0.5f64, true, false));
+        organism
+            .genome
+            .add_gene(Gene::new(2, 1, 0.5f64, true, false));
+        organism
+            .genome
+            .add_gene(Gene::new(2, 2, 0.75f64, true, false));
         organism.genome.add_gene(Gene::new(1, 0, 1f64, true, false));
         assert_eq!(
             organism.get_weights(),

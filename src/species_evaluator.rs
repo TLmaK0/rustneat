@@ -10,12 +10,12 @@ use std::sync::mpsc::{Receiver, Sender};
 /// Calculate fitness and champions for a species
 pub struct SpeciesEvaluator<'a> {
     threads: usize,
-    environment: &'a mut Environment,
+    environment: &'a mut dyn Environment,
 }
 
 impl<'a> SpeciesEvaluator<'a> {
     /// Take an environment that will test organisms.
-    pub fn new(environment: &mut Environment) -> SpeciesEvaluator {
+    pub fn new(environment: &mut dyn Environment) -> SpeciesEvaluator {
         SpeciesEvaluator {
             threads: num_cpus::get(),
             environment: environment,

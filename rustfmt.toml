@@ -1,5 +1,0 @@
-# This line causes rustfmt 0.6.2 to panic:
-wrap_comments = true
-normalize_comments = true
-#write_mode = WriteMode::Overwrite
-

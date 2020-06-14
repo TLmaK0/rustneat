@@ -2,7 +2,7 @@ use gene::Gene;
 
 pub trait Mutation {}
 
-impl Mutation {
+impl dyn Mutation {
     pub fn connection_weight(gene: &mut Gene, perturbation: bool) {
         let mut new_weight = Gene::generate_weight();
         if perturbation {
@@ -11,8 +11,14 @@ impl Mutation {
         gene.set_weight(new_weight);
     }
 
-    pub fn add_connection(in_neuron_id: usize, out_neuron_id: usize) -> (Gene) {
-        Gene::new(in_neuron_id, out_neuron_id, Gene::generate_weight(), true, false)
+    pub fn add_connection(in_neuron_id: usize, out_neuron_id: usize) -> Gene {
+        Gene::new(
+            in_neuron_id,
+            out_neuron_id,
+            Gene::generate_weight(),
+            true,
+            false,
+        )
     }
 
     pub fn add_neuron(gene: &mut Gene, new_neuron_id: usize) -> (Gene, Gene) {
@@ -20,7 +26,13 @@ impl Mutation {
 
         let gen1 = Gene::new(gene.in_neuron_id(), new_neuron_id, 1f64, true, false);
 
-        let gen2 = Gene::new(new_neuron_id, gene.out_neuron_id(), gene.weight(), true, false);
+        let gen2 = Gene::new(
+            new_neuron_id,
+            gene.out_neuron_id(),
+            gene.weight(),
+            true,
+            false,
+        );
         (gen1, gen2)
     }
 
@@ -32,7 +44,7 @@ impl Mutation {
         }
     }
 
-    pub fn toggle_bias(gene: &mut Gene){
+    pub fn toggle_bias(gene: &mut Gene) {
         if gene.is_bias() {
             gene.set_bias(false)
         } else {

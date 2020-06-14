@@ -8,9 +8,10 @@ extern crate rusty_dashed;
 use self::rusty_dashed::Dashboard;
 
 #[allow(dead_code)]
-pub fn main(){}
+pub fn main() {}
 
 #[cfg(feature = "telemetry")]
+#[allow(dead_code)]
 pub fn enable_telemetry(query_string: &str, open: bool) {
     let mut dashboard = Dashboard::new();
     dashboard.add_graph("fitness1", "fitness", 0, 0, 4, 4);
@@ -20,13 +21,13 @@ pub fn enable_telemetry(query_string: &str, open: bool) {
 }
 
 #[cfg(feature = "telemetry")]
-pub fn run_server(dashboard: Dashboard, query_string: &str, open: bool){
+pub fn run_server(dashboard: Dashboard, query_string: &str, open: bool) {
     rusty_dashed::Server::serve_dashboard(dashboard);
     open_url(query_string, open);
 }
 
 #[cfg(feature = "telemetry")]
-pub fn open_url(query_string: &str, open: bool){
+pub fn open_url(query_string: &str, open: bool) {
     if !open {
         return;
     }
