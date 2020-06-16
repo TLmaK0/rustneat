@@ -45,7 +45,8 @@ impl Ctrnn {
         y.into_vec()
     }
 
-    fn sigmoid(x: f64) -> f64 {
+    /// Calculates sigmoid of a number
+    pub fn sigmoid(x: f64) -> f64 {
         1f64 / (1f64 + (-x).exp())
     }
 

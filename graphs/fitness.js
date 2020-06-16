@@ -45,10 +45,10 @@ function fitness(id, value){
   var yAxis = d3.axisLeft(y);
   var xAxis = d3.axisBottom(x);
 
-  fitnessAxis[id+'y'].attr("transform", "translate(30,0)").call(yAxis);
+  fitnessAxis[id+'y'].attr("transform", "translate(30, -19)").call(yAxis);
   fitnessAxis[id+'x'].attr("transform", "translate(30,"+ (height - 19) + ")").call(xAxis);
 
-  path.attr("transform", "translate(30,0)").attr("d", lineChart(data));
+  path.attr("transform", "translate(30,-19)").attr("d", lineChart(data));
 }
 
 function getParameterByName(name) {

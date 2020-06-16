@@ -37,9 +37,8 @@ Install python dependencies
 ```bash
 sudo apt install python3
 sudo apt install python3-pip
-sudo apt install libpython3.5-dev
+sudo apt install libpython3.6-dev
 sudo pip3 install gym
-sudo apt install nvidia-384
 sudo apt install python3-opengl
 ```
 
