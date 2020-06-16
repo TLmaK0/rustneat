@@ -4,6 +4,21 @@
 }
 
 #fitness1 svg path {
-  stroke: black;
+  stroke: #251080;
   fill: none;
 }
+
+
+#fitness1 svg g path {
+  stroke: #eae8e8;
+}
+
+#fitness1 svg line, #fitness1 svg text {
+  stroke: #eae8e8;
+}
+
+body .grid-stack > .grid-stack-item > .grid-stack-item-content {
+  background-color: #1887bc;
+}
+
+

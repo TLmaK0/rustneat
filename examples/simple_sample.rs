@@ -31,7 +31,7 @@ impl Environment for XORClassification {
 
 fn main() {
     #[cfg(feature = "telemetry")]
-    telemetry_helper::enable_telemetry("?max_fitness=16", true);
+    telemetry_helper::enable_telemetry("?max_fitness=18", true);
 
     #[cfg(feature = "telemetry")]
     std::thread::sleep(std::time::Duration::from_millis(2000));

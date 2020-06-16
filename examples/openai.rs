@@ -1,13 +1,13 @@
-extern crate rustneat;
-
 extern crate cpython;
-
+extern crate ctrlc;
 extern crate python3_sys as ffi;
+extern crate rustneat;
 
 use cpython::{NoArgs, ObjectProtocol, PyModule, PyObject, Python};
 use ffi::PySys_SetArgv;
 use rustneat::{Environment, Organism, Population};
 use std::ffi::CString;
+use std::{cmp, process};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
@@ -55,15 +55,12 @@ impl CartPole {
             if render {
                 env.call_method(py, "render", NoArgs, None).unwrap();
             }
-
-            let (observation, reward, done) = extract_step_result(
-                py,
-                env.call_method(py, "step", (output[0].round() as i64,), None)
-                    .unwrap(),
-            );
+            let value = cmp::max(0, cmp::min(1, output[0] as i64));
+            let (observation, reward, done) =
+                extract_step_result(py, env.call_method(py, "step", (value,), None).unwrap());
             total_reward += reward;
 
-            organism.activate(&observation, &mut output);
+            organism.activate(observation, &mut output);
             !done
         } {}
         env.call_method(py, "close", NoArgs, None).unwrap();
@@ -72,8 +69,16 @@ impl CartPole {
 }
 
 fn main() {
+    #[allow(unused_must_use)]
+    {
+        ctrlc::set_handler(move || {
+            println!("Exiting...");
+            process::exit(130);
+        });
+    }
+
     #[cfg(feature = "telemetry")]
-    telemetry_helper::enable_telemetry("?max_fitness=200");
+    telemetry_helper::enable_telemetry("?max_fitness=220", true);
 
     let mut population = Population::create_population(150);
     let mut environment = CartPole::new();
