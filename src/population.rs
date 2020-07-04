@@ -15,6 +15,7 @@ use species_evaluator::SpeciesEvaluator;
 
 /// All species in the network
 #[derive(Debug)]
+#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
 pub struct Population {
     /// container of species
     pub species: Vec<Specie>,

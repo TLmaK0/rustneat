@@ -5,7 +5,8 @@ use std::cmp::Ordering;
 
 /// A connection Gene
 #[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "telemetry", derive(Serialize))]
+#[cfg_attr(any(feature = "telemetry", feature = "with_serde"), derive(Serialize))]
+#[cfg_attr(feature = "with_serde", derive(Deserialize))]
 pub struct Gene {
     in_neuron_id: usize,
     out_neuron_id: usize,
