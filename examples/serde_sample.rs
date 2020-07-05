@@ -37,12 +37,13 @@ const POPULATION_PATH: &str = "population.json";
 
 fn main() {
     let lock = Arc::new(Mutex::new(()));
-    let l = Arc::clone(&lock);
-    ctrlc::set_handler(move || {
-        let _guard = l.lock().unwrap();
-        std::process::exit(0);
-    })
-    .unwrap();
+    {
+        let lock = Arc::clone(&lock);
+        ctrlc::set_handler(move || {
+            let _guard = lock.lock().unwrap();
+            std::process::exit(0);
+        }).unwrap();
+    }
 
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry("?max_fitness=18", true);
