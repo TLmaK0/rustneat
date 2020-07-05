@@ -53,7 +53,7 @@ fn main() {
     let mut population = match File::open(POPULATION_PATH) {
         Ok(file) => match serde_json::from_reader(BufReader::new(file)) {
             Ok(population) => {
-                println!("Loaded population from {}", POPULATION_PATH);
+                eprintln!("Loaded population from {}", POPULATION_PATH);
                 population
             }
             Err(err) => {
