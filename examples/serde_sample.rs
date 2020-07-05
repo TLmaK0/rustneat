@@ -97,5 +97,8 @@ fn main() {
             }
         }
     }
-    println!("{}", serde_json::to_string_pretty(&champion.unwrap()).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&champion.unwrap()).unwrap()
+    );
 }
