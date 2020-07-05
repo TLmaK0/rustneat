@@ -42,7 +42,8 @@ fn main() {
         ctrlc::set_handler(move || {
             let _guard = lock.lock().unwrap();
             std::process::exit(0);
-        }).unwrap();
+        })
+        .unwrap();
     }
 
     #[cfg(feature = "telemetry")]
