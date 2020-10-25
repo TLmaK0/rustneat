@@ -20,6 +20,17 @@ const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 const MUTATE_TOGGLE_BIAS: f64 = 0.01;
 
 impl Genome {
+    ///Add initial input and output neurons interconnected
+    pub fn new_initialized(input_neurons: usize, output_neurons: usize) -> Genome {
+       let mut genome = Genome::default();
+       for i in 0..input_neurons {
+           for o in 0..output_neurons {
+                genome.add_gene(Gene::new_connection(i, input_neurons + o));
+           }
+       }
+       genome
+    }
+
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
     pub fn mutate(&mut self) {
@@ -337,5 +348,23 @@ mod tests {
         let mut genome2 = Genome::default();
         genome2.add_gene(Gene::new(0, 0, 15f64, true, false));
         assert!(!genome1.is_same_specie(&genome2));
+    }
+
+    #[test]
+    fn genomes_initialized_has_correct_neurons() {
+        let genome1 = Genome::new_initialized(2, 3);
+        assert_eq!(genome1.total_genes(), 6); 
+        assert_eq!(genome1.genes[0].in_neuron_id(), 0);
+        assert_eq!(genome1.genes[0].out_neuron_id(), 2);
+        assert_eq!(genome1.genes[1].in_neuron_id(), 0);
+        assert_eq!(genome1.genes[1].out_neuron_id(), 3);
+        assert_eq!(genome1.genes[2].in_neuron_id(), 0);
+        assert_eq!(genome1.genes[2].out_neuron_id(), 4);
+        assert_eq!(genome1.genes[3].in_neuron_id(), 1);
+        assert_eq!(genome1.genes[3].out_neuron_id(), 2);
+        assert_eq!(genome1.genes[4].in_neuron_id(), 1);
+        assert_eq!(genome1.genes[4].out_neuron_id(), 3);
+        assert_eq!(genome1.genes[5].in_neuron_id(), 1);
+        assert_eq!(genome1.genes[5].out_neuron_id(), 4);
     }
 }

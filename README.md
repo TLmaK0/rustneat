@@ -39,6 +39,7 @@ sudo apt install python3
 sudo apt install python3-pip
 sudo apt install libpython3.6-dev
 sudo pip3 install gym
+sudo pip3 install gym[box2d]
 sudo apt install python3-opengl
 ```
 
