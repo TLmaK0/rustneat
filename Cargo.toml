@@ -36,7 +36,11 @@ ctrnn_telemetry = []
 
 [[example]]
 name = "openai"
-required-features = ["cpython"]
+required-features = ["openai"]
+
+[[example]]
+name = "openai_lunar_lander"
+required-features = ["openai"]
 
 [[example]]
 name = "simple_sample"

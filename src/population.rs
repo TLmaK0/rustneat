@@ -20,6 +20,8 @@ pub struct Population {
     pub species: Vec<Specie>,
     champion_fitness: f64,
     epochs_without_improvements: usize,
+    /// champion of the population
+    pub champion: Option<Organism>
 }
 
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 10;
@@ -30,12 +32,27 @@ impl Population {
         let mut population = Population {
             species: vec![],
             champion_fitness: 0f64,
+            champion: None,
             epochs_without_improvements: 0usize,
         };
 
         population.create_organisms(population_size);
         population
     }
+
+    /// Create a population of size X with where every organisms has initial input and output neurons
+    pub fn create_population_initialized(population_size: usize, input_neurons: usize, output_neurons: usize) -> Population {
+        let mut population = Population {
+            species: vec![],
+            champion_fitness: 0f64,
+            champion: None,
+            epochs_without_improvements: 0usize,
+        };
+
+        population.create_organisms_initialized(population_size, input_neurons, output_neurons);
+        population
+    }
+
     /// Find total of all orgnaisms in the population
     pub fn size(&self) -> usize {
         self.species
@@ -55,7 +72,6 @@ impl Population {
             #[cfg(feature = "telemetry")]
             telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
         } else {
-            self.champion_fitness = champion.fitness;
             #[cfg(feature = "telemetry")]
             telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
             #[cfg(feature = "telemetry")]
@@ -65,7 +81,9 @@ impl Population {
                 serde_json::to_string(&champion.genome.get_genes()).unwrap()
             );
             self.epochs_without_improvements = 0usize;
+            self.champion = Some(champion.clone());
         }
+        self.champion_fitness = champion.fitness;
     }
     /// Return all organisms of the population
     pub fn get_organisms(&self) -> Vec<Organism> {
@@ -169,17 +187,21 @@ impl Population {
         self.species.retain(|specie| !specie.is_empty());
     }
 
-    fn create_organisms(&mut self, population_size: usize) {
+    fn create_organisms_initialized(&mut self, population_size: usize, input_neurons: usize, output_neurons: usize) {
         self.species = vec![];
         let mut organisms = vec![];
 
         while organisms.len() < population_size {
-            organisms.push(Organism::new(Genome::default()));
+            organisms.push(Organism::new(Genome::new_initialized(input_neurons, output_neurons)));
         }
 
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
         specie.organisms = organisms;
         self.species.push(specie);
+    }
+
+    fn create_organisms(&mut self, population_size: usize) {
+        self.create_organisms_initialized(population_size, 0, 0);
     }
 }
 

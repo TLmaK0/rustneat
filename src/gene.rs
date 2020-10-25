@@ -63,6 +63,16 @@ impl Gene {
             is_bias: is_bias,
         }
     }
+
+    /// Create a new gene with a specific connection
+    pub fn new_connection(in_neuron_id: usize, out_neuron_id: usize) -> Gene {
+        Gene {
+            in_neuron_id: in_neuron_id,
+            out_neuron_id: out_neuron_id,
+            ..Gene::default()
+        }
+    }
+
     /// Generate a weight
     pub fn generate_weight() -> f64 {
         rand::random::<Closed01<f64>>().0 * 2f64 - 1f64
