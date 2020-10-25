@@ -1,7 +1,6 @@
 use crossbeam::{self, Scope};
 use environment::Environment;
 use genome::Genome;
-use num_cpus;
 use organism::Organism;
 use specie::Specie;
 use std::sync::mpsc;
@@ -17,7 +16,7 @@ impl<'a> SpeciesEvaluator<'a> {
     /// Take an environment that will test organisms.
     pub fn new(environment: &mut dyn Environment) -> SpeciesEvaluator {
         SpeciesEvaluator {
-            threads: num_cpus::get(),
+            threads: environment.threads(),
             environment: environment,
         }
     }

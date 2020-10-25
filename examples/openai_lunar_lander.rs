@@ -3,23 +3,27 @@ extern crate cpython;
 extern crate python3_sys as ffi;
 extern crate ctrlc;
 
-use cpython::{NoArgs, ObjectProtocol, PyModule, PyObject, Python};
+use cpython::{NoArgs, ObjectProtocol, PyObject, Python};
 use ffi::PySys_SetArgv;
-use rustneat::{Environment, Organism, Population, Ctrnn};
+use rustneat::{Environment, Organism, Population};
 use std::ffi::CString;
-use std::{cmp, process};
+use std::process;
 use std::cmp::Ordering;
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
 
 struct LunarLander {
-    gym: PyModule,
+    env: PyObject
 }
 
 impl Environment for LunarLander {
     fn test(&self, organism: &mut Organism) -> f64 {
         self.lunar_lander_test(organism, false)
+    }
+
+    fn threads(&self) -> usize {
+        return 1;
     }
 }
 
@@ -39,22 +43,28 @@ impl LunarLander {
             .call_method(py, "set_level", (40,), None)
             .unwrap();
 
-        LunarLander { gym: gym }
+        let env = gym.call(py, "make", ("LunarLander-v2",), None).unwrap();
+
+        LunarLander { env: env }
+    }
+
+    pub fn close(&self) {
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        self.env.call_method(py, "close", NoArgs, None).unwrap();
     }
 
     pub fn lunar_lander_test(&self, organism: &mut Organism, render: bool) -> f64 {
         let gil = Python::acquire_gil();
         let py = gil.python();
 
-        let env = self.gym.call(py, "make", ("LunarLander-v2",), None).unwrap();
-
-        env.call_method(py, "reset", NoArgs, None).unwrap();
+        let mut observation: Vec<f64> = extract_observation(py, self.env.call_method(py, "reset", NoArgs, None).unwrap());
         let mut total_reward = 0f64;
 
         let mut output = vec![0f64, 0f64, 0f64, 0f64];
         while {
             if render {
-                env.call_method(py, "render", NoArgs, None).unwrap();
+                self.env.call_method(py, "render", NoArgs, None).unwrap();
             }
             let out_exp = output.clone().into_iter().map(|v| v.exp());
             let sum_exp: f64 = out_exp.clone().sum();
@@ -64,17 +74,17 @@ impl LunarLander {
                             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
                             .map(|(index, _)| index).unwrap();
 
-            let (observation, reward, done) = extract_step_result(
+            organism.activate(observation.clone(), &mut output);
+            let (observation_tmp, reward, done) = extract_step_result(
                 py,
-                env.call_method(py, "step", (value,), None)
+                self.env.call_method(py, "step", (value,), None)
                     .unwrap(),
             );
+            observation = observation_tmp;
             total_reward += reward;
 
-            organism.activate(observation, &mut output);
             !done
         } {}
-        env.call_method(py, "close", NoArgs, None).unwrap();
         total_reward
     }
 }
@@ -97,21 +107,27 @@ fn main() {
     while champion.is_none() {
         population.evolve();
         population.evaluate_in(&mut environment);
-        let tmp_champion = population.champion.clone().unwrap();
-        if generations == 30 {
-            environment.lunar_lander_test(&mut tmp_champion.clone(), true);
-            generations = 0;
-        }
+        match population.champion {
+            Some(_) => {
+                let tmp_champion = population.champion.clone().unwrap();
+                if generations == 30 {
+                    environment.lunar_lander_test(&mut tmp_champion.clone(), true);
+                    generations = 0;
+                }
 
-        if tmp_champion.fitness >= 200f64 {
-            //check again. At least 2 successfully landing
-            if environment.lunar_lander_test(&mut tmp_champion.clone(), true) >= 200f64 {
-                champion = Some(tmp_champion);
-            }
+                if tmp_champion.fitness >= 200f64 {
+                    //check again. At least 2 successfully landing
+                    if environment.lunar_lander_test(&mut tmp_champion.clone(), true) >= 200f64 {
+                        champion = Some(tmp_champion);
+                    }
+                }
+            },
+            None => {}
         }
         generations += 1;
     }
     environment.lunar_lander_test(&mut champion.unwrap(), true);
+    environment.close();
 }
 
 fn extract_step_result(py: Python, object: PyObject) -> (Vec<f64>, f64, bool) {
