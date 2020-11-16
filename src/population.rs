@@ -3,6 +3,7 @@ use environment::Environment;
 use genome::Genome;
 use organism::Organism;
 use std::cmp::Ordering;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "telemetry")]
 use rusty_dashed;
@@ -53,16 +54,18 @@ impl Population {
         population
     }
 
-    /// Find total of all orgnaisms in the population
+    /// Find total of all organisms in the population
     pub fn size(&self) -> usize {
         self.species
             .iter()
             .fold(0usize, |total, specie| total + specie.organisms.len())
     }
+
     /// Create offspring by mutation and mating. May create new species.
     pub fn evolve(&mut self) {
         self.generate_offspring();
     }
+
     /// TODO
     pub fn evaluate_in(&mut self, environment: &mut dyn Environment) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
@@ -85,6 +88,7 @@ impl Population {
         }
         self.champion_fitness = champion.fitness;
     }
+
     /// Return all organisms of the population
     pub fn get_organisms(&self) -> Vec<Organism> {
         self.species
@@ -92,6 +96,7 @@ impl Population {
             .flat_map(|specie| specie.organisms.clone())
             .collect::<Vec<Organism>>()
     }
+
     /// How many iterations without improvement
     pub fn epochs_without_improvements(&self) -> usize {
         self.epochs_without_improvements
@@ -159,9 +164,28 @@ impl Population {
         let organisms = &self.get_organisms();
         self.species.retain(|specie| !specie.is_empty());
 
+        let mut next_specie_id = 0i64;
+
+        #[cfg(feature = "telemetry")]
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+
         for specie in &mut self.species {
+            #[cfg(feature = "telemetry")]
+            telemetry!("species1",
+                       1.0,
+                       format!("{{'id':{}, 'fitness':{}, 'organisms':{}, 'timestamp':'{:?}'}}",
+                               specie.id,
+                               specie.calculate_champion_fitness(),
+                               specie.organisms.len(),
+                               now
+                               ));
+
             specie.choose_new_representative();
+
             specie.remove_organisms();
+
+            specie.id = next_specie_id;
+            next_specie_id += 1;
         }
 
         for organism in organisms {
@@ -176,7 +200,9 @@ impl Population {
                 }
                 None => {
                     let mut specie = Specie::new(organism.genome.clone());
+                    specie.id = next_specie_id;
                     specie.add(organism.clone());
+                    next_specie_id += 1;
                     new_specie = Some(specie);
                 }
             };
