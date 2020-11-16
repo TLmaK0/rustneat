@@ -15,6 +15,8 @@ pub struct Specie {
     age_last_improvement: usize,
     /// All orgnamisms in this species
     pub organisms: Vec<Organism>,
+    /// Allows to set an id to identify it
+    pub id: i64
 }
 
 const MUTATION_PROBABILITY: f64 = 0.25f64;
@@ -30,6 +32,7 @@ impl Specie {
             champion_fitness: 0f64,
             age: 0,
             age_last_improvement: 0,
+            id: 0
         }
     }
 
@@ -116,6 +119,7 @@ impl Specie {
         }
         self.organisms = offspring;
     }
+
     /// Choice a new representative of the specie at random
     pub fn choose_new_representative(&mut self) {
         self.representative = rand::thread_rng()
@@ -129,6 +133,7 @@ impl Specie {
     pub fn get_representative_genome(&self) -> Genome {
         self.representative.clone()
     }
+
     /// Clear existing organisms in this species.
     pub fn remove_organisms(&mut self) {
         self.adjust_fitness();
