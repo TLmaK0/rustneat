@@ -21,6 +21,7 @@ pub struct Specie {
 
 const MUTATION_PROBABILITY: f64 = 0.25f64;
 const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001f64;
+const BEST_ORGANISMS_THRESHOLD: f64 = 1f64;
 
 impl Specie {
     /// Create a new species from a Genome
@@ -89,6 +90,14 @@ impl Specie {
         self.age += 1;
 
         let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
+
+        let mut organisms_to_mate = (self.organisms.len() as f64 * BEST_ORGANISMS_THRESHOLD) as usize;
+        if organisms_to_mate < 1 {
+            organisms_to_mate = 1;
+        }
+
+        self.organisms.sort();
+        self.organisms.truncate(organisms_to_mate);
 
         let mut rng = rand::thread_rng();
         let mut offspring: Vec<Organism> = {

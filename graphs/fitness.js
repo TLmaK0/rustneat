@@ -1,4 +1,15 @@
 var maxFitness = getParameterByName('max_fitness');
+
+function getParameterByName(name) {
+    var url = window.location.href;
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
+}
+
 var fitnessAxis = {};
 function fitness_init(id){
   var svg = d3.select('#' + id).append('svg');
@@ -51,12 +62,3 @@ function fitness(id, value){
   path.attr("transform", "translate(30,-19)").attr("d", lineChart(data));
 }
 
-function getParameterByName(name) {
-    var url = window.location.href;
-    name = name.replace(/[\[\]]/g, "\\$&");
-    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-        results = regex.exec(url);
-    if (!results) return null;
-    if (!results[2]) return '';
-    return decodeURIComponent(results[2].replace(/\+/g, " "));
-}

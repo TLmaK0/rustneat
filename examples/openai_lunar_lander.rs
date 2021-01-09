@@ -90,6 +90,8 @@ impl LunarLander {
 }
 
 fn main() {
+    let max_fitness = 200f64;
+
     #[allow(unused_must_use)] {
         ctrlc::set_handler(move  || {
             println!("Exiting...");
@@ -98,9 +100,9 @@ fn main() {
     }
 
     #[cfg(feature = "telemetry")]
-    telemetry_helper::enable_telemetry("?max_fitness=300", true);
+    telemetry_helper::enable_telemetry(format!("?max_fitness={}", max_fitness).as_str(), true);
 
-    let mut population = Population::create_population_initialized(150, 8, 4);
+    let mut population = Population::create_population_initialized(50, 8, 4);
     let mut environment = LunarLander::new();
     let mut champion: Option<Organism> = None;
     let mut generations = 0;
@@ -115,9 +117,9 @@ fn main() {
                     generations = 0;
                 }
 
-                if tmp_champion.fitness >= 200f64 {
+                if tmp_champion.fitness >= max_fitness {
                     //check again. At least 2 successfully landing
-                    if environment.lunar_lander_test(&mut tmp_champion.clone(), true) >= 200f64 {
+                    if environment.lunar_lander_test(&mut tmp_champion.clone(), true) >= max_fitness {
                         champion = Some(tmp_champion);
                     }
                 }

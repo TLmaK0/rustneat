@@ -1,6 +1,7 @@
 use ctrnn::{Ctrnn, CtrnnNeuralNetwork};
 use genome::Genome;
 use std::cmp;
+use std::cmp::Ordering;
 
 /// An organism is a Genome with fitness.
 /// Also maitain a fitenss measure of the organism
@@ -9,6 +10,26 @@ use std::cmp;
 pub struct Organism {
     pub genome: Genome,
     pub fitness: f64,
+}
+
+impl Ord for Organism {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.fitness.partial_cmp(&self.fitness).unwrap()
+    }
+}
+
+impl Eq for Organism { }
+
+impl PartialEq for Organism {
+    fn eq(&self, other: &Self) -> bool {
+        self.fitness == other.fitness
+    }
+}
+
+impl PartialOrd for Organism {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Organism {

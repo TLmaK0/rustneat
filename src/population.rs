@@ -3,6 +3,7 @@ use environment::Environment;
 use genome::Genome;
 use organism::Organism;
 use std::cmp::Ordering;
+#[cfg(feature = "telemetry")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "telemetry")]
@@ -70,13 +71,12 @@ impl Population {
     pub fn evaluate_in(&mut self, environment: &mut dyn Environment) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
+        #[cfg(feature = "telemetry")]
+        telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
+
         if self.champion_fitness >= champion.fitness {
             self.epochs_without_improvements += 1;
-            #[cfg(feature = "telemetry")]
-            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
         } else {
-            #[cfg(feature = "telemetry")]
-            telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
             #[cfg(feature = "telemetry")]
             telemetry!(
                 "network1",
@@ -136,7 +136,6 @@ impl Population {
                 (specie_fitness * organisms_by_average_fitness).round() as usize
             };
             if offspring_size > 0 {
-                // TODO: check if offspring is for organisms fitness also, not only by specie
                 specie.generate_offspring(offspring_size, &organisms);
             } else {
                 specie.remove_organisms();
@@ -145,6 +144,10 @@ impl Population {
     }
 
     fn get_best_species(&mut self) -> Vec<Specie> {
+        if self.species.len() <= 2 {
+            return self.species.clone()
+        }
+
         self.species.sort_by(|specie1, specie2| {
             if specie1.calculate_champion_fitness() > specie2.calculate_champion_fitness() {
                 Ordering::Greater
@@ -153,11 +156,7 @@ impl Population {
             }
         });
 
-        if self.species.len() <= 2 {
-            self.species.clone()
-        } else {
-            self.species[1..2].to_vec().clone()
-        }
+        self.species[1..2].to_vec().clone()
     }
 
     fn speciate(&mut self) {
