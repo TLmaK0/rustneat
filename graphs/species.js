@@ -1,3 +1,15 @@
+var maxFitness = getParameterByName('max_fitness');
+
+function getParameterByName(name) {
+    var url = window.location.href;
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+        results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
+}
+
 var data = [];
 
 var tmpData = [];
@@ -6,7 +18,7 @@ var speciesKeys = [];
 
 var speciesColor = {};
 
-var color = d3.scaleSequential().domain([0,16]).interpolator(d3.interpolateInferno);
+var color = d3.scaleSequential().domain([0,maxFitness]).interpolator(d3.interpolateInferno);
 
 var maxData  = 100;
 
@@ -55,6 +67,7 @@ function species(id, specieData){
     .exit()
     .data(stackChart).enter().append('path')
     .attr('fill', function(d) { return speciesColor[d.key]; })
+    .attr('stroke', '#ffffff')
     .attr('d', d3.area()
                     .x((d, i) => x(i))
                     .y0((d) => y(d[0]))
@@ -66,12 +79,10 @@ function insertNewData(specieData){
 
   speciesColor[specieData.id] = color(specieData.fitness);
 
-  if (tmpData.length > maxData * speciesKeys.length) tmpData = tmpData.slice(1);
+  if (tmpData.length > maxData * speciesKeys.length) tmpData = tmpData.slice(maxData);
 
   if (!speciesKeys.includes(specieData.id)) speciesKeys.push(specieData.id);
 
   data = Array.from(d3.group(tmpData, d => d.timestamp), ([key, value]) => value);
-
-  if (data.length > maxData) data.slice(data.length - maxData);
 }
 
