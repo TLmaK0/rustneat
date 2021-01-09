@@ -11,7 +11,7 @@ pub struct Genome {
     last_neuron_id: usize,
 }
 
-const COMPATIBILITY_THRESHOLD: f64 = 3f64; //used to speciate organisms
+const COMPATIBILITY_THRESHOLD: f64 = 5f64; //used to speciate organisms
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
 const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
 const MUTATE_ADD_NEURON: f64 = 0.004f64;
