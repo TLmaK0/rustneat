@@ -9,6 +9,7 @@ use rustneat::{Environment, Organism, Population};
 use std::ffi::CString;
 use std::process;
 use std::cmp::Ordering;
+use std::{sync::Mutex, ops::{Deref, DerefMut}};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
@@ -17,13 +18,45 @@ struct LunarLander {
     env: PyObject
 }
 
-impl Environment for LunarLander {
+struct LunarLanderMultiprocess {
+    lunar_lander_pool: Mutex<Vec<LunarLander>>
+}
+
+impl LunarLanderMultiprocess {
+    fn new() -> LunarLanderMultiprocess {
+        let cpus = LunarLanderMultiprocess::threads();
+        let lunar_lander_pool = (0..cpus).map(|_| LunarLander::new()).collect::<Vec::<LunarLander>>();
+        LunarLanderMultiprocess { lunar_lander_pool: Mutex::new(lunar_lander_pool) }
+    }
+
+    pub fn lunar_lander_test(&self, organism: &mut Organism, render: bool) -> f64 {
+        let lunar_lander = {
+            self.lunar_lander_pool.lock().unwrap().deref_mut().pop().unwrap()
+        };
+        let result = lunar_lander.lunar_lander_test(organism, render);
+        self.lunar_lander_pool.lock().unwrap().push(lunar_lander);
+        return result;
+    }
+
+    fn close(&self) {
+        for lunar_lander in self.lunar_lander_pool.lock().unwrap().deref() {
+            lunar_lander.close();
+        }
+    }
+
+    fn threads() -> usize {
+        //TODO: use multiple processes. Gil still blocking threads.
+        num_cpus::get()
+    }
+}
+
+impl Environment for LunarLanderMultiprocess {
     fn test(&self, organism: &mut Organism) -> f64 {
         self.lunar_lander_test(organism, false)
     }
 
     fn threads(&self) -> usize {
-        return 1;
+        LunarLanderMultiprocess::threads()
     }
 }
 
@@ -90,7 +123,7 @@ impl LunarLander {
 }
 
 fn main() {
-    let max_fitness = 200f64;
+    let max_fitness = 300f64;
 
     #[allow(unused_must_use)] {
         ctrlc::set_handler(move  || {
@@ -102,8 +135,8 @@ fn main() {
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry(format!("?max_fitness={}", max_fitness).as_str(), true);
 
-    let mut population = Population::create_population_initialized(50, 8, 4);
-    let mut environment = LunarLander::new();
+    let mut population = Population::create_population_initialized(150, 8, 4);
+    let mut environment = LunarLanderMultiprocess::new();
     let mut champion: Option<Organism> = None;
     let mut generations = 0;
     while champion.is_none() {
@@ -128,7 +161,10 @@ fn main() {
         }
         generations += 1;
     }
-    environment.lunar_lander_test(&mut champion.unwrap(), true);
+
+    let result = champion.unwrap();
+    environment.lunar_lander_test(&mut result.clone(), true);
+    println!("{:?}", result.genome);
     environment.close();
 }
 
