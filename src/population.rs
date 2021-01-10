@@ -188,7 +188,6 @@ impl Population {
         }
 
         for organism in organisms {
-            let mut new_specie: Option<Specie> = None;
             match self
                 .species
                 .iter_mut()
@@ -202,12 +201,9 @@ impl Population {
                     specie.id = next_specie_id;
                     specie.add(organism.clone());
                     next_specie_id += 1;
-                    new_specie = Some(specie);
+                    self.species.push(specie);
                 }
             };
-            if new_specie.is_some() {
-                self.species.push(new_specie.unwrap());
-            }
         }
         self.species.retain(|specie| !specie.is_empty());
     }

@@ -11,7 +11,6 @@ pub struct Genome {
     last_neuron_id: usize,
 }
 
-const COMPATIBILITY_THRESHOLD: f64 = 5f64; //used to speciate organisms
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
 const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
 const MUTATE_ADD_NEURON: f64 = 0.004f64;
@@ -182,7 +181,7 @@ impl Genome {
     /// Compare another Genome for species equality
     // TODO This should be impl Eq
     pub fn is_same_specie(&self, other: &Genome) -> bool {
-        self.compatibility_distance(other) < COMPATIBILITY_THRESHOLD
+        self.compatibility_distance(other) < 1f64
     }
 
     /// Total weigths of all genes
@@ -205,7 +204,7 @@ impl Genome {
     fn compatibility_distance(&self, other: &Genome) -> f64 {
         // TODO: optimize this method
         let c2 = 1f64;
-        let c3 = 0.4f64;
+        let c3 = 0.1f64;
 
         // Number of excess
         let n1 = self.genes.len();
@@ -215,8 +214,6 @@ impl Genome {
         if n == 0 {
             return 0f64; // no genes in any genome, the genomes are equal
         }
-
-        let z = if n < 20 { 1f64 } else { n as f64 };
 
         let matching_genes = self
             .genes
@@ -229,16 +226,17 @@ impl Genome {
         let d = n1 + n2 - (2 * n3);
 
         // average weight differences of matching genes
-        let w1 = matching_genes.iter().fold(0f64, |acc, &m_gene| {
+        let mut w = matching_genes.iter().fold(0f64, |acc, &m_gene| {
             acc + (m_gene.weight()
                 - &other.genes[other.genes.binary_search(m_gene).unwrap()].weight())
                 .abs()
         });
 
-        let w = if n3 == 0 { 0f64 } else { w1 / n3 as f64 };
+        // if no matching genes then are completely different
+        w = if n3 == 0 { 1f64 } else { w / n3 as f64 };
 
         // compatibility distance
-        (c2 * d as f64 / z) + c3 * w
+        (c2 * d as f64 / n as f64) + c3 * w
     }
 }
 
