@@ -1,37 +1,49 @@
-extern crate rustneat;
 extern crate cpython;
-extern crate python3_sys as ffi;
 extern crate ctrlc;
+extern crate python3_sys as ffi;
+extern crate rustneat;
 
 use cpython::{NoArgs, ObjectProtocol, PyObject, Python};
 use ffi::PySys_SetArgv;
 use rustneat::{Environment, Organism, Population};
+use std::cmp::Ordering;
 use std::ffi::CString;
 use std::process;
-use std::cmp::Ordering;
-use std::{sync::Mutex, ops::{Deref, DerefMut}};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Mutex,
+};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
 
 struct LunarLander {
-    env: PyObject
+    env: PyObject,
 }
 
 struct LunarLanderMultiprocess {
-    lunar_lander_pool: Mutex<Vec<LunarLander>>
+    lunar_lander_pool: Mutex<Vec<LunarLander>>,
 }
 
 impl LunarLanderMultiprocess {
     fn new() -> LunarLanderMultiprocess {
         let cpus = LunarLanderMultiprocess::threads();
-        let lunar_lander_pool = (0..cpus).map(|_| LunarLander::new()).collect::<Vec::<LunarLander>>();
-        LunarLanderMultiprocess { lunar_lander_pool: Mutex::new(lunar_lander_pool) }
+        let lunar_lander_pool = (0..cpus)
+            .map(|_| LunarLander::new())
+            .collect::<Vec<LunarLander>>();
+        LunarLanderMultiprocess {
+            lunar_lander_pool: Mutex::new(lunar_lander_pool),
+        }
     }
 
     pub fn lunar_lander_test(&self, organism: &mut Organism, render: bool) -> f64 {
         let lunar_lander = {
-            self.lunar_lander_pool.lock().unwrap().deref_mut().pop().unwrap()
+            self.lunar_lander_pool
+                .lock()
+                .unwrap()
+                .deref_mut()
+                .pop()
+                .unwrap()
         };
         let result = lunar_lander.lunar_lander_test(organism, render);
         self.lunar_lander_pool.lock().unwrap().push(lunar_lander);
@@ -91,7 +103,8 @@ impl LunarLander {
         let gil = Python::acquire_gil();
         let py = gil.python();
 
-        let mut observation: Vec<f64> = extract_observation(py, self.env.call_method(py, "reset", NoArgs, None).unwrap());
+        let mut observation: Vec<f64> =
+            extract_observation(py, self.env.call_method(py, "reset", NoArgs, None).unwrap());
         let mut total_reward = 0f64;
 
         let mut output = vec![0f64, 0f64, 0f64, 0f64];
@@ -101,17 +114,17 @@ impl LunarLander {
             }
             let out_exp = output.clone().into_iter().map(|v| v.exp());
             let sum_exp: f64 = out_exp.clone().sum();
-            let softmax = out_exp.map(|e| e / sum_exp); 
+            let softmax = out_exp.map(|e| e / sum_exp);
             let value = softmax
-                            .enumerate()
-                            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-                            .map(|(index, _)| index).unwrap();
+                .enumerate()
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+                .map(|(index, _)| index)
+                .unwrap();
 
             organism.activate(observation.clone(), &mut output);
             let (observation_tmp, reward, done) = extract_step_result(
                 py,
-                self.env.call_method(py, "step", (value,), None)
-                    .unwrap(),
+                self.env.call_method(py, "step", (value,), None).unwrap(),
             );
             observation = observation_tmp;
             total_reward += reward;
@@ -125,8 +138,9 @@ impl LunarLander {
 fn main() {
     let max_fitness = 300f64;
 
-    #[allow(unused_must_use)] {
-        ctrlc::set_handler(move  || {
+    #[allow(unused_must_use)]
+    {
+        ctrlc::set_handler(move || {
             println!("Exiting...");
             process::exit(130);
         });
@@ -152,11 +166,12 @@ fn main() {
 
                 if tmp_champion.fitness >= max_fitness {
                     //check again. At least 2 successfully landing
-                    if environment.lunar_lander_test(&mut tmp_champion.clone(), true) >= max_fitness {
+                    if environment.lunar_lander_test(&mut tmp_champion.clone(), true) >= max_fitness
+                    {
                         champion = Some(tmp_champion);
                     }
                 }
-            },
+            }
             None => {}
         }
         generations += 1;

@@ -18,7 +18,7 @@ impl Ord for Organism {
     }
 }
 
-impl Eq for Organism { }
+impl Eq for Organism {}
 
 impl PartialEq for Organism {
     fn eq(&self, other: &Self) -> bool {
@@ -130,11 +130,7 @@ mod tests {
         let sensors = vec![1.0];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
-        assert!(
-            output[0] > 0.5f64,
-            "{:?} is not bigger than 0.9",
-            output[0]
-        );
+        assert!(output[0] > 0.5f64, "{:?} is not bigger than 0.9", output[0]);
 
         let mut organism = Organism::new(Genome::default());
         organism
@@ -159,11 +155,7 @@ mod tests {
         let sensors = vec![0f64];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
-        assert!(
-            output[0] > 0.9f64,
-            "{:?} is not bigger than 0.9",
-            output[0]
-        );
+        assert!(output[0] > 0.9f64, "{:?} is not bigger than 0.9", output[0]);
     }
 
     #[test]
@@ -174,11 +166,7 @@ mod tests {
         organism.genome.add_gene(Gene::new(2, 1, 2f64, true, false));
         let mut output = vec![0f64];
         organism.activate(vec![10f64], &mut output);
-        assert!(
-            output[0] > 0.9,
-            "{:#?} is not bigger than 0.9",
-            output[0]
-        );
+        assert!(output[0] > 0.9, "{:#?} is not bigger than 0.9", output[0]);
 
         let mut organism = Organism::new(Genome::default());
         organism
@@ -192,11 +180,7 @@ mod tests {
             .add_gene(Gene::new(2, 1, -2f64, true, false));
         let mut output = vec![0f64];
         organism.activate(vec![1f64], &mut output);
-        assert!(
-            output[0] < 0.1,
-            "{:?} is not smaller than 0.1",
-            output[0]
-        );
+        assert!(output[0] < 0.1, "{:?} is not smaller than 0.1", output[0]);
     }
 
     #[test]

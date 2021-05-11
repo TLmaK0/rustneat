@@ -23,7 +23,7 @@ pub struct Population {
     champion_fitness: f64,
     epochs_without_improvements: usize,
     /// champion of the population
-    pub champion: Option<Organism>
+    pub champion: Option<Organism>,
 }
 
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 10;
@@ -43,7 +43,11 @@ impl Population {
     }
 
     /// Create a population of size X with where every organisms has initial input and output neurons
-    pub fn create_population_initialized(population_size: usize, input_neurons: usize, output_neurons: usize) -> Population {
+    pub fn create_population_initialized(
+        population_size: usize,
+        input_neurons: usize,
+        output_neurons: usize,
+    ) -> Population {
         let mut population = Population {
             species: vec![],
             champion_fitness: 0f64,
@@ -145,7 +149,7 @@ impl Population {
 
     fn get_best_species(&mut self) -> Vec<Specie> {
         if self.species.len() <= 2 {
-            return self.species.clone()
+            return self.species.clone();
         }
 
         self.species.sort_by(|specie1, specie2| {
@@ -170,14 +174,17 @@ impl Population {
 
         for specie in &mut self.species {
             #[cfg(feature = "telemetry")]
-            telemetry!("species1",
-                       1.0,
-                       format!("{{'id':{}, 'fitness':{}, 'organisms':{}, 'timestamp':'{:?}'}}",
-                               specie.id,
-                               specie.calculate_champion_fitness(),
-                               specie.organisms.len(),
-                               now
-                               ));
+            telemetry!(
+                "species1",
+                1.0,
+                format!(
+                    "{{'id':{}, 'fitness':{}, 'organisms':{}, 'timestamp':'{:?}'}}",
+                    specie.id,
+                    specie.calculate_champion_fitness(),
+                    specie.organisms.len(),
+                    now
+                )
+            );
 
             specie.choose_new_representative();
 
@@ -208,12 +215,20 @@ impl Population {
         self.species.retain(|specie| !specie.is_empty());
     }
 
-    fn create_organisms_initialized(&mut self, population_size: usize, input_neurons: usize, output_neurons: usize) {
+    fn create_organisms_initialized(
+        &mut self,
+        population_size: usize,
+        input_neurons: usize,
+        output_neurons: usize,
+    ) {
         self.species = vec![];
         let mut organisms = vec![];
 
         while organisms.len() < population_size {
-            organisms.push(Organism::new(Genome::new_initialized(input_neurons, output_neurons)));
+            organisms.push(Organism::new(Genome::new_initialized(
+                input_neurons,
+                output_neurons,
+            )));
         }
 
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
