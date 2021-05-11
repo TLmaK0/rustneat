@@ -114,7 +114,7 @@ impl Genome {
 
     fn mutate_connection_weight(&mut self) {
         for gene in &mut self.genes {
-            Mutation::connection_weight(
+            <dyn Mutation>::connection_weight(
                 gene,
                 rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY,
             );
@@ -124,13 +124,13 @@ impl Genome {
     fn mutate_toggle_expression(&mut self) {
         let mut rng = rand::thread_rng();
         let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
-        Mutation::toggle_expression(&mut self.genes[selected_gene]);
+        <dyn Mutation>::toggle_expression(&mut self.genes[selected_gene]);
     }
 
     fn mutate_toggle_bias(&mut self) {
         let mut rng = rand::thread_rng();
         let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
-        Mutation::toggle_bias(&mut self.genes[selected_gene]);
+        <dyn Mutation>::toggle_bias(&mut self.genes[selected_gene]);
     }
 
     fn mutate_add_neuron(&mut self) {
@@ -140,14 +140,14 @@ impl Genome {
                 rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
             let gene = &mut self.genes[selected_gene];
             self.last_neuron_id += 1;
-            Mutation::add_neuron(gene, self.last_neuron_id)
+            <dyn Mutation>::add_neuron(gene, self.last_neuron_id)
         };
         self.add_gene(gene1);
         self.add_gene(gene2);
     }
 
     fn add_connection(&mut self, in_neuron_id: usize, out_neuron_id: usize) {
-        let gene = Mutation::add_connection(in_neuron_id, out_neuron_id);
+        let gene = <dyn Mutation>::add_connection(in_neuron_id, out_neuron_id);
         self.add_gene(gene);
     }
 
@@ -204,7 +204,7 @@ impl Genome {
     fn compatibility_distance(&self, other: &Genome) -> f64 {
         // TODO: optimize this method
         let c2 = 1f64;
-        let c3 = 0.1f64;
+        let c3 = 0.2f64;
 
         // Number of excess
         let n1 = self.genes.len();
