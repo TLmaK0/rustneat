@@ -132,7 +132,8 @@ mod tests {
         organism.activate(sensors, &mut output);
         assert!(
             output[0] > 0.5f64,
-            format!("{:?} is not bigger than 0.9", output[0])
+            "{:?} is not bigger than 0.9",
+            output[0]
         );
 
         let mut organism = Organism::new(Genome::default());
@@ -144,7 +145,8 @@ mod tests {
         organism.activate(sensors, &mut output);
         assert!(
             output[0] < 0.1f64,
-            format!("{:?} is not smaller than 0.1", output[0])
+            "{:?} is not smaller than 0.1",
+            output[0]
         );
     }
 
@@ -159,7 +161,8 @@ mod tests {
         organism.activate(sensors, &mut output);
         assert!(
             output[0] > 0.9f64,
-            format!("{:?} is not bigger than 0.9", output[0])
+            "{:?} is not bigger than 0.9",
+            output[0]
         );
     }
 
@@ -173,7 +176,8 @@ mod tests {
         organism.activate(vec![10f64], &mut output);
         assert!(
             output[0] > 0.9,
-            format!("{:?} is not bigger than 0.9", output[0])
+            "{:#?} is not bigger than 0.9",
+            output[0]
         );
 
         let mut organism = Organism::new(Genome::default());
@@ -190,7 +194,8 @@ mod tests {
         organism.activate(vec![1f64], &mut output);
         assert!(
             output[0] < 0.1,
-            format!("{:?} is not smaller than 0.1", output[0])
+            "{:?} is not smaller than 0.1",
+            output[0]
         );
     }
 
