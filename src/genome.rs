@@ -21,13 +21,13 @@ const MUTATE_TOGGLE_BIAS: f64 = 0.01;
 impl Genome {
     ///Add initial input and output neurons interconnected
     pub fn new_initialized(input_neurons: usize, output_neurons: usize) -> Genome {
-       let mut genome = Genome::default();
-       for i in 0..input_neurons {
-           for o in 0..output_neurons {
+        let mut genome = Genome::default();
+        for i in 0..input_neurons {
+            for o in 0..output_neurons {
                 genome.add_gene(Gene::new_connection(i, input_neurons + o));
-           }
-       }
-       genome
+            }
+        }
+        genome
     }
 
     /// May add a connection &| neuron &| mutat connection weight &|
@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn genomes_initialized_has_correct_neurons() {
         let genome1 = Genome::new_initialized(2, 3);
-        assert_eq!(genome1.total_genes(), 6); 
+        assert_eq!(genome1.total_genes(), 6);
         assert_eq!(genome1.genes[0].in_neuron_id(), 0);
         assert_eq!(genome1.genes[0].out_neuron_id(), 2);
         assert_eq!(genome1.genes[1].in_neuron_id(), 0);

@@ -37,7 +37,10 @@ Install python dependencies
 ```bash
 sudo apt install python3
 sudo apt install python3-pip
-sudo apt install libpython3.6-dev
+sudo apt install libpython3.8-dev
+sudo apt-get remove swig
+sudo apt-get install swig3.0
+sudo ln -s /usr/bin/swig3.0 /usr/bin/swig
 sudo pip3 install gym
 sudo pip3 install gym[box2d]
 sudo apt install python3-opengl
@@ -121,7 +124,7 @@ fn main() {
 Check style guidelines with:
 
 `rustup component add rustfmt-preview`
-`cargo fmt -- --write-mode=diff`
+`cargo fmt`
 
 # Thanks
 Thanks for the icon nerves by Delwar Hossain from the Noun Project

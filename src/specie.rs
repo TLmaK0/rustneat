@@ -16,7 +16,7 @@ pub struct Specie {
     /// All orgnamisms in this species
     pub organisms: Vec<Organism>,
     /// Allows to set an id to identify it
-    pub id: i64
+    pub id: i64,
 }
 
 const MUTATION_PROBABILITY: f64 = 0.25f64;
@@ -33,7 +33,7 @@ impl Specie {
             champion_fitness: 0f64,
             age: 0,
             age_last_improvement: 0,
-            id: 0
+            id: 0,
         }
     }
 
@@ -91,7 +91,8 @@ impl Specie {
 
         let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
 
-        let mut organisms_to_mate = (self.organisms.len() as f64 * BEST_ORGANISMS_THRESHOLD) as usize;
+        let mut organisms_to_mate =
+            (self.organisms.len() as f64 * BEST_ORGANISMS_THRESHOLD) as usize;
         if organisms_to_mate < 1 {
             organisms_to_mate = 1;
         }
