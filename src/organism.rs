@@ -7,6 +7,7 @@ use std::cmp::Ordering;
 /// Also maitain a fitenss measure of the organism
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
 pub struct Organism {
     pub genome: Genome,
     pub fitness: f64,

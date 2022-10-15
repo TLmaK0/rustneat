@@ -6,6 +6,7 @@ use std::cmp;
 /// Vector of Genes
 /// Holds a count of last neuron added, similar to Innovation number
 #[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
 pub struct Genome {
     genes: Vec<Gene>,
     last_neuron_id: usize,

@@ -7,6 +7,7 @@ use rand::Rng;
 
 /// A species (several organisms) and associated fitnesses
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]
 pub struct Specie {
     representative: Genome,
     average_fitness: f64,

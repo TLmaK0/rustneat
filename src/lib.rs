@@ -29,7 +29,7 @@ extern crate num_cpus;
 extern crate rand;
 extern crate rulinalg;
 
-#[cfg(feature = "telemetry")]
+#[cfg(any(feature = "telemetry", feature = "with_serde"))]
 #[macro_use]
 extern crate serde_derive;
 

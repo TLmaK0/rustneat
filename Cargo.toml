@@ -31,6 +31,7 @@ ctrlc = { version = "3.1.4", optional = true }
 [features]
 default = []
 telemetry = ["rusty_dashed", "open", "serde", "serde_derive", "serde_json"]
+with_serde = ["serde", "serde_derive"]
 openai = ["cpython", "python3-sys", "ctrlc"]
 ctrnn_telemetry = []
 
@@ -46,7 +47,14 @@ required-features = ["openai"]
 name = "simple_sample"
 
 [[example]]
+name = "serde_sample"
+
+[[example]]
 name = "function_approximation"
 
 [[example]]
 name = "ctrnn"
+
+[dev-dependencies]
+ctrlc = "3.1.4"
+serde_json = "1.0"
