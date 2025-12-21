@@ -194,8 +194,8 @@ impl Specie {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use genome::Genome;
-    use organism::Organism;
+    use crate::genome::Genome;
+    use crate::organism::Organism;
     use std::f64::EPSILON;
 
     #[test]

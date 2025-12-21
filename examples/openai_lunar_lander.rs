@@ -3,7 +3,7 @@ extern crate pyo3;
 extern crate rustneat;
 
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{IntoPyDict, PyModule};
 use pyo3::PyResult;
 use rustneat::{Environment, Genome, Organism, Population};
 use std::process;
@@ -85,9 +85,16 @@ impl LunarLanderMultiprocess {
             // Inject rustneat_py module into worker
             worker_module.call_method1("set_rustneat_module", (rustneat_py_module,)).unwrap();
 
-            // Create multiprocessing pool with 2x workers
-            println!("Creating pool with {} workers ({}x CPUs)", workers, workers / cpus);
-            let pool = mp.call_method1("Pool", (workers,)).unwrap().unbind();
+            // Get the init_worker function for pool initialization
+            let init_worker_fn = worker_module.getattr("init_worker").unwrap();
+
+            // Create multiprocessing pool with 2x workers and initializer
+            println!("Creating pool with {} workers ({}x CPUs) with persistent environments", workers, workers / cpus);
+            let pool = mp.call_method(
+                "Pool",
+                (workers,),
+                Some(&[("initializer", init_worker_fn)].into_py_dict_bound(py))
+            ).unwrap().unbind();
 
             LunarLanderMultiprocess {
                 pool,
@@ -142,6 +149,52 @@ impl LunarLanderMultiprocess {
 impl Environment for LunarLanderMultiprocess {
     fn test(&self, organism: &mut Organism) -> f64 {
         self.lunar_lander_test(organism, false)
+    }
+
+    fn test_batch(&self, organisms: &mut [Organism]) {
+        if organisms.is_empty() {
+            return;
+        }
+
+        Python::with_gil(|py| {
+            // Prepare batch data for all organisms
+            let batch_data: Vec<_> = organisms
+                .iter()
+                .map(|organism| {
+                    let neurons_len = organism.genome.len();
+                    let genes_list = organism.genome.get_genes()
+                        .iter()
+                        .map(|gene| {
+                            (
+                                gene.in_neuron_id(),
+                                gene.out_neuron_id(),
+                                gene.weight(),
+                                gene.enabled(),
+                                gene.is_bias()
+                            )
+                        })
+                        .collect::<Vec<_>>();
+
+                    let builtins = py.import_bound("builtins").unwrap();
+                    let dict = builtins.call_method0("dict").unwrap();
+                    dict.set_item("genes", genes_list).unwrap();
+                    dict.set_item("neurons_len", neurons_len).unwrap();
+                    (dict, false)
+                })
+                .collect();
+
+            let worker_fn = self.worker_module.bind(py).getattr("evaluate_organism").unwrap();
+            let pool = self.pool.bind(py);
+
+            // Use starmap for batch evaluation
+            let results = pool.call_method1("starmap", (worker_fn, batch_data)).unwrap();
+
+            // Extract fitness values and update organisms
+            let results_list: Vec<f64> = results.extract().unwrap();
+            for (organism, fitness) in organisms.iter_mut().zip(results_list.iter()) {
+                organism.fitness = *fitness;
+            }
+        });
     }
 
     fn threads(&self) -> usize {

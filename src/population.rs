@@ -247,9 +247,9 @@ use crate::gene::Gene;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use genome::Genome;
-    use organism::Organism;
-    use specie::Specie;
+    use crate::genome::Genome;
+    use crate::organism::Organism;
+    use crate::specie::Specie;
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {

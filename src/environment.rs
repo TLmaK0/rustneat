@@ -6,6 +6,14 @@ pub trait Environment: Sync {
     /// against
     fn test(&self, organism: &mut Organism) -> f64;
 
+    /// Batch evaluation of multiple organisms. Default implementation calls test() sequentially.
+    /// Override this method to implement efficient batch evaluation (e.g., using pool.starmap()).
+    fn test_batch(&self, organisms: &mut [Organism]) {
+        for organism in organisms.iter_mut() {
+            organism.fitness = self.test(organism);
+        }
+    }
+
     /// Returns the number of threads to use on evaluation.
     /// Implement this method to use single thread environment returning 1.
     fn threads(&self) -> usize {

@@ -121,7 +121,7 @@ use crate::gene::Gene;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use genome::Genome;
+    use crate::genome::Genome;
 
     #[test]
     fn should_propagate_signal_without_hidden_layers() {

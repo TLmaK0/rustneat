@@ -87,9 +87,12 @@ impl<'a> SpeciesEvaluator<'a> {
         scope: &Scope<'b>,
     ) {
         scope.spawn(move || {
+            // Use batch evaluation instead of sequential test calls
+            self.environment.test_batch(organisms);
+
+            // Find champion from evaluated organisms
             let mut champion = Organism::new(Genome::default());
-            for organism in &mut organisms.iter_mut() {
-                organism.fitness = self.environment.test(organism);
+            for organism in organisms.iter() {
                 if organism.fitness > champion.fitness {
                     champion = organism.clone();
                 }
