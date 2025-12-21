@@ -1,4 +1,4 @@
-use gene::Gene;
+use crate::gene::Gene;
 
 pub trait Mutation {}
 

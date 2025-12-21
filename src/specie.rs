@@ -1,6 +1,6 @@
 use conv::prelude::*;
-use genome::Genome;
-use organism::Organism;
+use crate::genome::Genome;
+use crate::organism::Organism;
 use rand;
 use rand::distributions::{IndependentSample, Range};
 use rand::Rng;

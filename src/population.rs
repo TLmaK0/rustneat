@@ -1,7 +1,7 @@
 use conv::prelude::*;
-use environment::Environment;
-use genome::Genome;
-use organism::Organism;
+use crate::environment::Environment;
+use crate::genome::Genome;
+use crate::organism::Organism;
 use std::cmp::Ordering;
 #[cfg(feature = "telemetry")]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -12,8 +12,8 @@ use rusty_dashed;
 #[cfg(feature = "telemetry")]
 use serde_json;
 
-use specie::Specie;
-use species_evaluator::SpeciesEvaluator;
+use crate::specie::Specie;
+use crate::species_evaluator::SpeciesEvaluator;
 
 /// All species in the network
 #[derive(Debug)]
@@ -242,7 +242,7 @@ impl Population {
 }
 
 #[cfg(test)]
-use gene::Gene;
+use crate::gene::Gene;
 
 #[cfg(test)]
 mod tests {

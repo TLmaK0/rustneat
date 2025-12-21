@@ -1,5 +1,5 @@
-use gene::Gene;
-use mutation::Mutation;
+use crate::gene::Gene;
+use crate::mutation::Mutation;
 use rand::{self, Closed01};
 use std::cmp;
 

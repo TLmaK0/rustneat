@@ -1,4 +1,4 @@
-use organism::Organism;
+use crate::organism::Organism;
 
 /// A trait that is implemented by user to allow test of the Environment.
 pub trait Environment: Sync {

@@ -1,8 +1,8 @@
 use crossbeam::{self, Scope};
-use environment::Environment;
-use genome::Genome;
-use organism::Organism;
-use specie::Specie;
+use crate::environment::Environment;
+use crate::genome::Genome;
+use crate::organism::Organism;
+use crate::specie::Specie;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 

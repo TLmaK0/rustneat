@@ -1,5 +1,5 @@
-use ctrnn::{Ctrnn, CtrnnNeuralNetwork};
-use genome::Genome;
+use crate::ctrnn::{Ctrnn, CtrnnNeuralNetwork};
+use crate::genome::Genome;
 use std::cmp;
 use std::cmp::Ordering;
 
@@ -116,7 +116,7 @@ impl Organism {
 }
 
 #[cfg(test)]
-use gene::Gene;
+use crate::gene::Gene;
 
 #[cfg(test)]
 mod tests {
