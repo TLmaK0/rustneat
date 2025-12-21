@@ -26,7 +26,7 @@ pub struct Population {
     pub champion: Option<Organism>,
 }
 
-const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 10;
+const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 50;
 
 impl Population {
     /// Create a new population of size X.

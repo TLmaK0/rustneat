@@ -19,8 +19,8 @@ pub struct Specie {
     pub id: i64,
 }
 
-const MUTATION_PROBABILITY: f64 = 0.25f64;
-const INTERSPECIE_MATE_PROBABILITY: f64 = 0.001f64;
+const MUTATION_PROBABILITY: f64 = 0.4f64;
+const INTERSPECIE_MATE_PROBABILITY: f64 = 0.03f64;
 const BEST_ORGANISMS_THRESHOLD: f64 = 1f64;
 
 impl Specie {

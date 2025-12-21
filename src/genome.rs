@@ -12,11 +12,12 @@ pub struct Genome {
 }
 
 const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
-const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
-const MUTATE_ADD_NEURON: f64 = 0.004f64;
-const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
+const MUTATE_ADD_CONNECTION: f64 = 0.01f64;
+const MUTATE_ADD_NEURON: f64 = 0.01f64;
+const MUTATE_TOGGLE_EXPRESSION: f64 = 0.005f64;
 const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 const MUTATE_TOGGLE_BIAS: f64 = 0.01;
+const COMPATIBILITY_THRESHOLD: f64 = 1.3f64;
 
 impl Genome {
     ///Add initial input and output neurons interconnected
@@ -181,7 +182,9 @@ impl Genome {
     /// Compare another Genome for species equality
     // TODO This should be impl Eq
     pub fn is_same_specie(&self, other: &Genome) -> bool {
-        self.compatibility_distance(other) < 1f64
+        // why 1f64???????? 
+        // see http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
+        self.compatibility_distance(other) < COMPATIBILITY_THRESHOLD
     }
 
     /// Total weigths of all genes
@@ -233,7 +236,7 @@ impl Genome {
         });
 
         // if no matching genes then are completely different
-        w = if n3 == 0 { 1f64 } else { w / n3 as f64 };
+        w = if n3 == 0 { COMPATIBILITY_THRESHOLD } else { w / n3 as f64 };
 
         // compatibility distance
         (c2 * d as f64 / n as f64) + c3 * w
