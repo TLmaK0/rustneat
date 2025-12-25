@@ -220,7 +220,7 @@ fn main() {
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry(format!("?max_fitness={}", max_fitness).as_str(), true);
 
-    let mut population = Population::create_population_initialized(150, 8, 4);
+    let mut population = Population::create_population_initialized(100, 8, 4);
     let mut environment = LunarLanderMultiprocess::new();
     let mut champion: Option<Organism> = None;
     let mut generations = 0;

@@ -4,9 +4,9 @@
 Rust implementation of the **NEAT** (NeuroEvolution of Augmenting Topologies) algorithm with **CTRNN** (Continuous-Time Recurrent Neural Networks) to evolve neural network topologies that solve control and classification problems.
 
 ## Current Plan
-@[CURRENT_FEATURE.md](CURRENT_FEATURE.md) - Current feature development plan. This file is continuously updated as work progresses and is NOT versioned in git.
+@[plan.md](plan.md) - Current feature development plan. This file is continuously updated as work progresses and is NOT versioned in git.
 
-**Guidelines for CURRENT_FEATURE.md:**
+**Guidelines for plan.md:**
 - For each step in "Next Steps", create a detailed implementation plan when you start working on it
 - Break down each step into concrete sub-tasks with checkboxes
 - Mark tasks as completed (✓) as you finish them
