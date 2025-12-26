@@ -71,8 +71,8 @@ impl Population {
         self.generate_offspring();
     }
 
-    /// TODO
-    pub fn evaluate_in(&mut self, environment: &mut dyn Environment) {
+    /// Evaluate all organisms in the population using the given environment.
+    pub fn evaluate_in(&mut self, environment: &dyn Environment) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
         #[cfg(feature = "telemetry")]

@@ -5,7 +5,7 @@ extern crate rustneat;
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyModule};
 use pyo3::PyResult;
-use rustneat::{Environment, Genome, Organism, Population};
+use rustneat::{Environment, Gene, Genome, Organism, Population};
 use std::process;
 
 #[cfg(feature = "telemetry")]
@@ -30,11 +30,18 @@ impl PyOrganism {
 }
 
 #[pyfunction]
-fn create_organism(_genes: Vec<(usize, usize, f64, bool, bool)>, _neurons_len: usize) -> PyResult<PyOrganism> {
-    // Create genome with specified neuron count
-    // Note: In a full implementation, we would need to reconstruct the genome
-    // from the serialized genes. For now, we create a basic organism with default genome.
-    let genome = Genome::default();
+fn create_organism(genes: Vec<(usize, usize, f64, bool, bool)>, neurons_len: usize) -> PyResult<PyOrganism> {
+    // Reconstruct genes from serialized data
+    let gene_vec: Vec<Gene> = genes
+        .into_iter()
+        .map(|(in_id, out_id, weight, enabled, is_bias)| {
+            Gene::new(in_id, out_id, weight, enabled, is_bias)
+        })
+        .collect();
+
+    // Reconstruct genome with proper neuron count (neurons_len = last_neuron_id + 1)
+    let last_neuron_id = if neurons_len > 0 { neurons_len - 1 } else { 0 };
+    let genome = Genome::from_genes(gene_vec, last_neuron_id);
     let organism = Organism::new(genome);
 
     Ok(PyOrganism { organism })
@@ -220,11 +227,11 @@ fn main() {
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry(format!("?max_fitness={}", max_fitness).as_str(), true);
 
-    let mut population = Population::create_population_initialized(100, 8, 4);
-    let mut environment = LunarLanderMultiprocess::new();
+    let mut population = Population::create_population_initialized(150, 8, 4);
+    let environment = LunarLanderMultiprocess::new();
     let mut champion: Option<Organism> = None;
     let mut generations = 0;
-    let mut best_fitness = f64::NEG_INFINITY;
+    let mut best_fitness = -200.0; // Typical starting fitness for Lunar Lander
     let improvement_threshold = 20.0; // Show render when fitness improves by at least 20 points
 
     println!("Starting evolution...");
@@ -239,7 +246,7 @@ fn main() {
 
     while champion.is_none() {
         population.evolve();
-        population.evaluate_in(&mut environment);
+        population.evaluate_in(&environment);
         generations += 1;
 
         // Show performance stats every 50 generations
@@ -265,8 +272,9 @@ fn main() {
                 // Print progress every generation
                 println!("Gen {}: Best fitness = {:.2}", generations, current_fitness);
 
-                // Render when there's a significant improvement
-                if current_fitness - best_fitness >= improvement_threshold {
+                // Only verify when fitness exceeds a meaningful threshold (not just random luck)
+                // Lunar Lander: >50 is decent, >100 is good, >200 is landing
+                if current_fitness > 50.0 && current_fitness > best_fitness + improvement_threshold {
                     println!("\n=== POTENTIAL IMPROVEMENT: {:.2} -> {:.2} (+{:.2}) ===",
                              best_fitness, current_fitness, current_fitness - best_fitness);
                     println!("Verifying with 5 additional tests...");
@@ -283,7 +291,7 @@ fn main() {
                     println!("Average fitness: {:.2}", average_fitness);
 
                     // Only count as real improvement if average is better
-                    if average_fitness - best_fitness >= improvement_threshold {
+                    if average_fitness > best_fitness + improvement_threshold {
                         println!("✓ CONFIRMED IMPROVEMENT! Rendering best attempt...\n");
                         environment.lunar_lander_test(&mut tmp_champion.clone(), true);
                         best_fitness = average_fitness;

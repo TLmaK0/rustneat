@@ -18,7 +18,7 @@ def init_worker():
     # Create persistent environment for this worker
     _worker_env = gym.make('LunarLander-v3', render_mode=None)
 
-def evaluate_organism(genome_data, render=False, max_steps=500):
+def evaluate_organism(genome_data, render=False, max_steps=1000):
     """Evaluate organism fitness using rustneat_py for neural network activation."""
     global _worker_env
 

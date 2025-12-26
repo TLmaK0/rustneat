@@ -20,6 +20,23 @@ const MUTATE_TOGGLE_BIAS: f64 = 0.01;
 const COMPATIBILITY_THRESHOLD: f64 = 1.3f64;
 
 impl Genome {
+    /// Create a genome from serialized gene data
+    pub fn from_genes(genes: Vec<Gene>, last_neuron_id: usize) -> Genome {
+        let mut genome = Genome {
+            genes: Vec::new(),
+            last_neuron_id,
+        };
+        for gene in genes {
+            // Directly add gene without validation since we're reconstructing
+            match genome.genes.binary_search(&gene) {
+                Ok(pos) => genome.genes[pos].set_enabled(),
+                Err(_) => genome.genes.push(gene),
+            }
+        }
+        genome.genes.sort();
+        genome
+    }
+
     ///Add initial input and output neurons interconnected
     pub fn new_initialized(input_neurons: usize, output_neurons: usize) -> Genome {
         let mut genome = Genome::default();

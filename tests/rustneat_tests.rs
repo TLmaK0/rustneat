@@ -30,8 +30,8 @@ mod test {
     #[test]
     fn population_can_be_tested_on_environment() {
         let mut population = Population::create_population(10);
-        let mut environment = MyEnvironment;
-        population.evaluate_in(&mut environment);
+        let environment = MyEnvironment;
+        population.evaluate_in(&environment);
         assert!(population.get_organisms()[0].fitness == 0.1234f64);
     }
 
@@ -50,20 +50,18 @@ mod test {
             organism.activate(vec![1f64, 1f64], &mut output);
             distance += (0f64 - output[0]).powi(2);
 
-            let fitness = 16f64 / (1f64 + distance);
-
-            fitness
+            16f64 / (1f64 + distance)
         }
     }
 
     #[test]
     fn network_should_be_able_to_solve_xor_classification() {
         let mut population = Population::create_population(150);
-        let mut environment = XORClassification;
+        let environment = XORClassification;
         let mut champion_option: Option<Organism> = None;
         while champion_option.is_none() {
             population.evolve();
-            population.evaluate_in(&mut environment);
+            population.evaluate_in(&environment);
             for organism in &population.get_organisms() {
                 if organism.fitness > 15.5f64 {
                     champion_option = Some(organism.clone());

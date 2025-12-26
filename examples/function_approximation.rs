@@ -48,7 +48,7 @@ impl Environment for FunctionApproximation {
 
 fn main() {
     let mut population = Population::create_population(150);
-    let mut environment = FunctionApproximation;
+    let environment = FunctionApproximation;
     let mut champion: Option<Organism> = None;
 
     #[cfg(feature = "telemetry")]
@@ -69,7 +69,7 @@ fn main() {
 
     while champion.is_none() {
         population.evolve();
-        population.evaluate_in(&mut environment);
+        population.evaluate_in(&environment);
         for organism in &population.get_organisms() {
             if organism.fitness >= 96f64 {
                 champion = Some(organism.clone());
