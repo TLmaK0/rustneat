@@ -12,6 +12,8 @@ pub struct Organism {
     pub fitness: f64,
     /// Fitness adjusted by species size (fitness sharing)
     pub adjusted_fitness: f64,
+    /// If true, skip evaluation and preserve current fitness (used for elitism)
+    pub preserve_fitness: bool,
 }
 
 impl Ord for Organism {
@@ -41,6 +43,7 @@ impl Organism {
             genome: genome,
             fitness: 0f64,
             adjusted_fitness: 0f64,
+            preserve_fitness: false,
         }
     }
     /// Return a new Orgnaism by mutating this Genome and fitness of zero

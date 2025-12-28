@@ -45,9 +45,12 @@ pub trait Environment: Sync {
     /// gymnasium's VectorEnv to run multiple environments in parallel.
     ///
     /// When overriding, you must set `organism.fitness` for each organism.
+    /// Note: Skip organisms with `preserve_fitness = true` (elite copies).
     fn test_batch(&self, organisms: &mut [Organism]) {
         for organism in organisms.iter_mut() {
-            organism.fitness = self.test(organism);
+            if !organism.preserve_fitness {
+                organism.fitness = self.test(organism);
+            }
         }
     }
 

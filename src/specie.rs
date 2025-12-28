@@ -20,7 +20,7 @@ pub struct Specie {
 
 const MUTATION_PROBABILITY: f64 = 0.4f64;  // Original
 const INTERSPECIE_MATE_PROBABILITY: f64 = 0.03f64;  // Original
-const BEST_ORGANISMS_THRESHOLD: f64 = 1.0f64;  // All can reproduce, but with fitness-proportionate selection
+const BEST_ORGANISMS_THRESHOLD: f64 = 0.5f64;  // Only top 50% can reproduce
 
 impl Specie {
     /// Create a new species from a Genome
@@ -149,7 +149,10 @@ impl Specie {
                     }
                 });
 
-            offspring.push(champion.unwrap());
+            // Mark champion copy to preserve its fitness (skip re-evaluation)
+            let mut elite = champion.unwrap();
+            elite.preserve_fitness = true;
+            offspring.push(elite);
         }
         self.organisms = offspring;
     }

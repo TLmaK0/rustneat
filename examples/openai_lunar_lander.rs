@@ -211,11 +211,24 @@ impl Environment for LunarLanderMultiprocess {
             return;
         }
 
+        // Collect indices of organisms that need evaluation (skip elite copies)
+        let to_evaluate: Vec<usize> = organisms
+            .iter()
+            .enumerate()
+            .filter(|(_, org)| !org.preserve_fitness)
+            .map(|(i, _)| i)
+            .collect();
+
+        if to_evaluate.is_empty() {
+            return;
+        }
+
         Python::with_gil(|py| {
-            // Prepare batch data for all organisms
-            let batch_data: Vec<_> = organisms
+            // Prepare batch data only for organisms that need evaluation
+            let batch_data: Vec<_> = to_evaluate
                 .iter()
-                .map(|organism| {
+                .map(|&idx| {
+                    let organism = &organisms[idx];
                     let neurons_len = organism.genome.len();
                     let genes_list = organism.genome.get_genes()
                         .iter()
@@ -244,10 +257,10 @@ impl Environment for LunarLanderMultiprocess {
             // Use starmap for batch evaluation
             let results = pool.call_method1("starmap", (worker_fn, batch_data)).unwrap();
 
-            // Extract fitness values and update organisms
+            // Extract fitness values and update only evaluated organisms
             let results_list: Vec<f64> = results.extract().unwrap();
-            for (organism, fitness) in organisms.iter_mut().zip(results_list.iter()) {
-                organism.fitness = *fitness;
+            for (&idx, fitness) in to_evaluate.iter().zip(results_list.iter()) {
+                organisms[idx].fitness = *fitness;
             }
         });
     }
@@ -297,6 +310,7 @@ fn main() {
     let mut champion: Option<Organism> = None;
     let mut generations = 0;
     let mut best_fitness = 300.0; // Typical starting fitness (-200 + 500 offset)
+    let mut last_verified_fitness = 0.0; // Track last fitness we verified to avoid re-verifying same champion
     let improvement_threshold = 20.0; // Show render when fitness improves by at least 20 points
 
     println!("Starting evolution...");
@@ -337,9 +351,14 @@ fn main() {
                 // Print progress every generation
                 println!("Gen {}: Best fitness = {:.2}", generations, current_fitness);
 
-                // Only verify when fitness exceeds a meaningful threshold (not just random luck)
+                // Only verify when fitness exceeds a meaningful threshold AND champion has changed
                 // With +500 offset: >550 is decent, >600 is good, >700 is landing
-                if current_fitness > 550.0 && current_fitness > best_fitness + improvement_threshold {
+                if current_fitness > 550.0
+                    && current_fitness > best_fitness + improvement_threshold
+                    && current_fitness > last_verified_fitness
+                {
+                    last_verified_fitness = current_fitness; // Mark as verified
+
                     println!("\n=== POTENTIAL IMPROVEMENT: {:.2} -> {:.2} (+{:.2}) ===",
                              best_fitness, current_fitness, current_fitness - best_fitness);
                     println!("Verifying with 5 additional tests...");

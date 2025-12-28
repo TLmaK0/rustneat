@@ -18,7 +18,7 @@ def init_worker():
     # Create persistent environment for this worker
     _worker_env = gym.make('LunarLander-v3', render_mode=None)
 
-def run_single_episode(organism, env, max_steps=1000):
+def run_single_episode(organism, env, max_steps=500):
     """Run a single episode and return the reward."""
     # Reset CTRNN state at the start of each episode
     organism.reset_state()
@@ -48,7 +48,7 @@ def run_single_episode(organism, env, max_steps=1000):
     return total_reward
 
 
-def evaluate_organism(genome_data, render=False, max_steps=1000, num_episodes=3):
+def evaluate_organism(genome_data, render=False, max_steps=500, num_episodes=3):
     """Evaluate organism fitness using rustneat_py for neural network activation.
 
     Runs multiple episodes and returns the average to reduce variance.
