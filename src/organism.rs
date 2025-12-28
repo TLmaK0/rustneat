@@ -10,6 +10,8 @@ use std::cmp::Ordering;
 pub struct Organism {
     pub genome: Genome,
     pub fitness: f64,
+    /// Fitness adjusted by species size (fitness sharing)
+    pub adjusted_fitness: f64,
 }
 
 impl Ord for Organism {
@@ -38,6 +40,7 @@ impl Organism {
         Organism {
             genome: genome,
             fitness: 0f64,
+            adjusted_fitness: 0f64,
         }
     }
     /// Return a new Orgnaism by mutating this Genome and fitness of zero
@@ -53,6 +56,11 @@ impl Organism {
                 .mate(&other.genome, self.fitness < other.fitness),
         )
     }
+    /// Reset the internal state of the organism (for CTRNN)
+    pub fn reset_state(&mut self) {
+        // CTRNN state is recalculated fresh in activate(), no persistent state needed
+    }
+
     /// Activate this organism in the NN
     pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
         let neurons_len = self.genome.len();

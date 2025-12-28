@@ -1,12 +1,56 @@
 extern crate ctrlc;
 extern crate pyo3;
 extern crate rustneat;
+extern crate serde;
+extern crate serde_json;
 
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyModule};
 use pyo3::PyResult;
-use rustneat::{Environment, Gene, Genome, Organism, Population};
+use rustneat::{Environment, Gene, Genome, MutationConfig, Organism, Population};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 use std::process;
+
+const CONFIG_FILE: &str = "best_config.json";
+
+/// Serializable configuration file
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ConfigFile {
+    weight_mutation_rate: f64,
+    add_connection_rate: f64,
+    add_neuron_rate: f64,
+    toggle_expression_rate: f64,
+    weight_perturbation_rate: f64,
+    toggle_bias_rate: f64,
+    compatibility_threshold: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    best_fitness: Option<f64>,
+}
+
+impl ConfigFile {
+    fn load(path: &str) -> Option<Self> {
+        if Path::new(path).exists() {
+            let content = fs::read_to_string(path).ok()?;
+            serde_json::from_str(&content).ok()
+        } else {
+            None
+        }
+    }
+
+    fn to_mutation_config(&self) -> MutationConfig {
+        MutationConfig::new()
+            .weight_mutation_rate(self.weight_mutation_rate)
+            .add_connection_rate(self.add_connection_rate)
+            .add_neuron_rate(self.add_neuron_rate)
+            .toggle_expression_rate(self.toggle_expression_rate)
+            .weight_perturbation_rate(self.weight_perturbation_rate)
+            .toggle_bias_rate(self.toggle_bias_rate)
+            .compatibility_threshold(self.compatibility_threshold)
+            .build()
+    }
+}
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
@@ -26,6 +70,10 @@ impl PyOrganism {
         let mut outputs = vec![0.0; 4];
         self.organism.activate(inputs, &mut outputs);
         Ok(outputs)
+    }
+
+    fn reset_state(&mut self) {
+        self.organism.reset_state();
     }
 }
 
@@ -214,7 +262,8 @@ impl Environment for LunarLanderMultiprocess {
 // ============================================================================
 
 fn main() {
-    let max_fitness = 300f64;
+    // Fitness is offset by +500 (Lunar Lander returns [-500,300] -> [0,800])
+    let max_fitness = 800f64;  // 300 + 500 offset
 
     #[allow(unused_must_use)]
     {
@@ -227,11 +276,27 @@ fn main() {
     #[cfg(feature = "telemetry")]
     telemetry_helper::enable_telemetry(format!("?max_fitness={}", max_fitness).as_str(), true);
 
-    let mut population = Population::create_population_initialized(150, 8, 4);
+    // Load config from file or use defaults
+    let mut population = if let Some(config_file) = ConfigFile::load(CONFIG_FILE) {
+        println!("Loaded config from {}", CONFIG_FILE);
+        println!("  add_connection_rate: {:.4}", config_file.add_connection_rate);
+        println!("  add_neuron_rate: {:.4}", config_file.add_neuron_rate);
+        println!("  weight_mutation_rate: {:.4}", config_file.weight_mutation_rate);
+        if let Some(fitness) = config_file.best_fitness {
+            println!("  (tuned with fitness: {:.2})", fitness);
+        }
+        println!();
+        let config = config_file.to_mutation_config();
+        Population::create_population_initialized_with_config(150, 8, 4, config)
+    } else {
+        println!("No {} found, using default config\n", CONFIG_FILE);
+        Population::create_population_initialized(150, 8, 4)
+    };
+
     let environment = LunarLanderMultiprocess::new();
     let mut champion: Option<Organism> = None;
     let mut generations = 0;
-    let mut best_fitness = -200.0; // Typical starting fitness for Lunar Lander
+    let mut best_fitness = 300.0; // Typical starting fitness (-200 + 500 offset)
     let improvement_threshold = 20.0; // Show render when fitness improves by at least 20 points
 
     println!("Starting evolution...");
@@ -273,8 +338,8 @@ fn main() {
                 println!("Gen {}: Best fitness = {:.2}", generations, current_fitness);
 
                 // Only verify when fitness exceeds a meaningful threshold (not just random luck)
-                // Lunar Lander: >50 is decent, >100 is good, >200 is landing
-                if current_fitness > 50.0 && current_fitness > best_fitness + improvement_threshold {
+                // With +500 offset: >550 is decent, >600 is good, >700 is landing
+                if current_fitness > 550.0 && current_fitness > best_fitness + improvement_threshold {
                     println!("\n=== POTENTIAL IMPROVEMENT: {:.2} -> {:.2} (+{:.2}) ===",
                              best_fitness, current_fitness, current_fitness - best_fitness);
                     println!("Verifying with 5 additional tests...");

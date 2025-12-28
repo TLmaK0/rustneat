@@ -59,6 +59,18 @@ impl Population {
         population
     }
 
+    /// Create a population with custom mutation configuration
+    /// Note: MutationConfig is currently stored for future use
+    pub fn create_population_initialized_with_config(
+        population_size: usize,
+        input_neurons: usize,
+        output_neurons: usize,
+        _config: crate::mutation_config::MutationConfig,
+    ) -> Population {
+        // TODO: Store config and use it during mutation
+        Self::create_population_initialized(population_size, input_neurons, output_neurons)
+    }
+
     /// Find total of all organisms in the population
     pub fn size(&self) -> usize {
         self.species
@@ -74,6 +86,11 @@ impl Population {
     /// Evaluate all organisms in the population using the given environment.
     pub fn evaluate_in(&mut self, environment: &dyn Environment) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
+
+        // Apply fitness sharing after evaluation
+        for specie in &mut self.species {
+            specie.adjust_fitness();
+        }
 
         #[cfg(feature = "telemetry")]
         telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
@@ -152,15 +169,15 @@ impl Population {
             return self.species.clone();
         }
 
+        // Sort by champion fitness descending (best first)
         self.species.sort_by(|specie1, specie2| {
-            if specie1.calculate_champion_fitness() > specie2.calculate_champion_fitness() {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            }
+            specie2.calculate_champion_fitness()
+                .partial_cmp(&specie1.calculate_champion_fitness())
+                .unwrap_or(Ordering::Equal)
         });
 
-        self.species[1..2].to_vec().clone()
+        // Return the top 2 species
+        self.species[0..2].to_vec()
     }
 
     fn speciate(&mut self) {

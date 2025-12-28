@@ -18,23 +18,11 @@ def init_worker():
     # Create persistent environment for this worker
     _worker_env = gym.make('LunarLander-v3', render_mode=None)
 
-def evaluate_organism(genome_data, render=False, max_steps=1000):
-    """Evaluate organism fitness using rustneat_py for neural network activation."""
-    global _worker_env
+def run_single_episode(organism, env, max_steps=1000):
+    """Run a single episode and return the reward."""
+    # Reset CTRNN state at the start of each episode
+    organism.reset_state()
 
-    # Use persistent environment, or create temporary one for rendering
-    if render:
-        env = gym.make('LunarLander-v3', render_mode='human')
-    else:
-        env = _worker_env
-
-    genes = genome_data['genes']
-    neurons_len = genome_data['neurons_len']
-
-    # Create organism using rustneat_py (Rust implementation)
-    organism = rustneat_py.create_organism(genes, neurons_len)
-
-    # Run episode with step limit
     reset_result = env.reset()
     observation = reset_result[0] if isinstance(reset_result, tuple) else reset_result
     total_reward = 0.0
@@ -57,8 +45,34 @@ def evaluate_organism(genome_data, render=False, max_steps=1000):
         total_reward += reward
         steps += 1
 
-    # Only close temporary rendering environments
-    if render:
-        env.close()
-
     return total_reward
+
+
+def evaluate_organism(genome_data, render=False, max_steps=1000, num_episodes=3):
+    """Evaluate organism fitness using rustneat_py for neural network activation.
+
+    Runs multiple episodes and returns the average to reduce variance.
+    """
+    global _worker_env
+
+    genes = genome_data['genes']
+    neurons_len = genome_data['neurons_len']
+
+    # Create organism using rustneat_py (Rust implementation)
+    organism = rustneat_py.create_organism(genes, neurons_len)
+
+    if render:
+        # For rendering, just run one episode with visualization
+        env = gym.make('LunarLander-v3', render_mode='human')
+        total_reward = run_single_episode(organism, env, max_steps)
+        env.close()
+    else:
+        # Run multiple episodes and average for more stable fitness
+        total_reward = 0.0
+        for _ in range(num_episodes):
+            total_reward += run_single_episode(organism, _worker_env, max_steps)
+        total_reward /= num_episodes
+
+    # Transform to positive fitness: Lunar Lander returns [-500, 300]
+    # Adding 500 shifts to [0, 800] which NEAT can handle properly
+    return total_reward + 500

@@ -2,7 +2,6 @@ use conv::prelude::*;
 use crate::genome::Genome;
 use crate::organism::Organism;
 use rand;
-use rand::distributions::{IndependentSample, Range};
 use rand::Rng;
 
 /// A species (several organisms) and associated fitnesses
@@ -19,9 +18,9 @@ pub struct Specie {
     pub id: i64,
 }
 
-const MUTATION_PROBABILITY: f64 = 0.4f64;
-const INTERSPECIE_MATE_PROBABILITY: f64 = 0.03f64;
-const BEST_ORGANISMS_THRESHOLD: f64 = 1f64;
+const MUTATION_PROBABILITY: f64 = 0.4f64;  // Original
+const INTERSPECIE_MATE_PROBABILITY: f64 = 0.03f64;  // Original
+const BEST_ORGANISMS_THRESHOLD: f64 = 1.0f64;  // All can reproduce, but with fitness-proportionate selection
 
 impl Specie {
     /// Create a new species from a Genome
@@ -89,7 +88,8 @@ impl Specie {
     ) {
         self.age += 1;
 
-        let copy_champion = if num_of_organisms > 5 { 1 } else { 0 };
+        // Always copy champion (elitism)
+        let copy_champion = if num_of_organisms > 1 { 1 } else { 0 };
 
         let mut organisms_to_mate =
             (self.organisms.len() as f64 * BEST_ORGANISMS_THRESHOLD) as usize;
@@ -100,12 +100,36 @@ impl Specie {
         self.organisms.sort();
         self.organisms.truncate(organisms_to_mate);
 
-        let mut rng = rand::thread_rng();
         let mut offspring: Vec<Organism> = {
+            // Fitness-proportionate selection (roulette wheel) using adjusted_fitness
+            let mut rng = rand::thread_rng();
+
+            // Calculate total adjusted fitness for roulette wheel
+            let total_adjusted_fitness: f64 = self
+                .organisms
+                .iter()
+                .map(|o| o.adjusted_fitness.max(0.0))
+                .sum();
+
             let mut selected_organisms = vec![];
-            let range = Range::new(0, self.organisms.len());
             for _ in 0..num_of_organisms - copy_champion {
-                selected_organisms.push(range.ind_sample(&mut rng));
+                if total_adjusted_fitness <= 0.0 {
+                    // Fallback to uniform selection if no positive fitness
+                    selected_organisms.push(rng.gen_range(0, self.organisms.len()));
+                } else {
+                    // Roulette wheel selection
+                    let spin = rng.gen_range(0.0, total_adjusted_fitness);
+                    let mut cumulative = 0.0;
+                    let mut selected = 0;
+                    for (i, organism) in self.organisms.iter().enumerate() {
+                        cumulative += organism.adjusted_fitness.max(0.0);
+                        if cumulative >= spin {
+                            selected = i;
+                            break;
+                        }
+                    }
+                    selected_organisms.push(selected);
+                }
             }
             selected_organisms
                 .iter()
@@ -146,7 +170,6 @@ impl Specie {
 
     /// Clear existing organisms in this species.
     pub fn remove_organisms(&mut self) {
-        self.adjust_fitness();
         self.organisms = vec![];
     }
 
@@ -155,9 +178,16 @@ impl Specie {
         self.organisms.is_empty()
     }
 
-    /// TODO
+    /// Apply fitness sharing: divide each organism's fitness by species size
+    /// This prevents large species from dominating the population
     pub fn adjust_fitness(&mut self) {
-        // TODO: adjust fitness
+        let species_size = self.organisms.len() as f64;
+        if species_size == 0.0 {
+            return;
+        }
+        for organism in &mut self.organisms {
+            organism.adjusted_fitness = organism.fitness / species_size;
+        }
     }
 
     /// Create a new child by mutating and existing one or mating two genomes.
@@ -215,5 +245,30 @@ mod tests {
         specie.add(organism3);
 
         assert!((specie.calculate_average_fitness() - 15f64).abs() < EPSILON);
+    }
+
+    #[test]
+    fn adjust_fitness_should_divide_by_species_size() {
+        let mut specie = Specie::new(Genome::default());
+
+        let mut organism1 = Organism::new(Genome::default());
+        organism1.fitness = 30.0;
+
+        let mut organism2 = Organism::new(Genome::default());
+        organism2.fitness = 60.0;
+
+        let mut organism3 = Organism::new(Genome::default());
+        organism3.fitness = 90.0;
+
+        specie.add(organism1);
+        specie.add(organism2);
+        specie.add(organism3);
+
+        specie.adjust_fitness();
+
+        // Each fitness should be divided by species size (3)
+        assert!((specie.organisms[0].adjusted_fitness - 10.0).abs() < EPSILON);
+        assert!((specie.organisms[1].adjusted_fitness - 20.0).abs() < EPSILON);
+        assert!((specie.organisms[2].adjusted_fitness - 30.0).abs() < EPSILON);
     }
 }
