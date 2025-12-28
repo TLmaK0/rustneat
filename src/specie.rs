@@ -57,6 +57,29 @@ impl Specie {
         })
     }
 
+    /// Update stagnation tracking. Call after evaluation.
+    /// Returns true if species improved this generation.
+    pub fn update_stagnation(&mut self) -> bool {
+        let current_best = self.calculate_champion_fitness();
+        if current_best > self.champion_fitness {
+            self.champion_fitness = current_best;
+            self.age_last_improvement = self.age;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Check if species has stagnated (no improvement for max_generations)
+    pub fn is_stagnant(&self, max_generations: usize) -> bool {
+        self.age > self.age_last_improvement + max_generations
+    }
+
+    /// Get generations since last improvement
+    pub fn generations_without_improvement(&self) -> usize {
+        self.age.saturating_sub(self.age_last_improvement)
+    }
+
     /// Work out average fitness of this species
     pub fn calculate_average_fitness(&mut self) -> f64 {
         let organisms_count = self.organisms.len().value_as::<f64>().unwrap();

@@ -27,6 +27,8 @@ pub struct Population {
 }
 
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 50;
+const STAGNATION_THRESHOLD: usize = 15;  // Remove species after 15 generations without improvement
+const SPECIES_ELITISM: usize = 2;  // Protect top 2 species from stagnation removal
 
 impl Population {
     /// Create a new population of size X.
@@ -87,10 +89,14 @@ impl Population {
     pub fn evaluate_in(&mut self, environment: &dyn Environment) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
-        // Apply fitness sharing after evaluation
+        // Apply fitness sharing and update stagnation tracking
         for specie in &mut self.species {
             specie.adjust_fitness();
+            specie.update_stagnation();
         }
+
+        // Remove stagnant species (but protect top 2 by fitness)
+        self.remove_stagnant_species(STAGNATION_THRESHOLD, SPECIES_ELITISM);
 
         #[cfg(feature = "telemetry")]
         telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
@@ -108,6 +114,33 @@ impl Population {
             self.champion = Some(champion.clone());
         }
         self.champion_fitness = champion.fitness;
+    }
+
+    /// Remove species that haven't improved for too long
+    fn remove_stagnant_species(&mut self, max_generations: usize, protect_top_n: usize) {
+        if self.species.len() <= protect_top_n {
+            return;
+        }
+
+        // Sort by champion fitness descending to identify top species
+        self.species.sort_by(|a, b| {
+            b.calculate_champion_fitness()
+                .partial_cmp(&a.calculate_champion_fitness())
+                .unwrap_or(Ordering::Equal)
+        });
+
+        // Mark which species to keep (top N are protected)
+        let mut to_remove = vec![];
+        for (i, specie) in self.species.iter().enumerate() {
+            if i >= protect_top_n && specie.is_stagnant(max_generations) {
+                to_remove.push(i);
+            }
+        }
+
+        // Remove stagnant species (in reverse order to preserve indices)
+        for i in to_remove.into_iter().rev() {
+            self.species.remove(i);
+        }
     }
 
     /// Return all organisms of the population

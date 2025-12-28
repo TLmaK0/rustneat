@@ -17,7 +17,7 @@ pub(crate) const MUTATE_ADD_NEURON: f64 = 0.01f64;
 pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.005f64;
 pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 pub(crate) const MUTATE_TOGGLE_BIAS: f64 = 0.01;
-pub(crate) const COMPATIBILITY_THRESHOLD: f64 = 1.3f64;
+pub(crate) const COMPATIBILITY_THRESHOLD: f64 = 0.4f64;
 
 impl Genome {
     /// Create a genome from serialized gene data

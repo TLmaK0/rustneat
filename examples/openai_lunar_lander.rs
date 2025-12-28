@@ -349,7 +349,8 @@ fn main() {
                 let current_fitness = tmp_champion.fitness;
 
                 // Print progress every generation
-                println!("Gen {}: Best fitness = {:.2}", generations, current_fitness);
+                println!("Gen {}: Best fitness = {:.2} (species: {})",
+                         generations, current_fitness, population.species.len());
 
                 // Only verify when fitness exceeds a meaningful threshold AND champion has changed
                 // With +500 offset: >550 is decent, >600 is good, >700 is landing
