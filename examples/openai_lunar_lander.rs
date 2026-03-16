@@ -14,6 +14,37 @@ use std::path::Path;
 use std::process;
 
 const CONFIG_FILE: &str = "best_config.json";
+const CHAMPION_FILE: &str = "champion.json";
+
+/// Serializable champion genome
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ChampionFile {
+    fitness: f64,
+    generation: usize,
+    neurons_len: usize,
+    genes: Vec<(usize, usize, f64, bool, bool)>, // (in, out, weight, enabled, bias)
+}
+
+impl ChampionFile {
+    fn save(&self, path: &str) {
+        let content = serde_json::to_string_pretty(self).unwrap();
+        fs::write(path, content).expect("Failed to save champion");
+        println!("Champion saved to {}", path);
+    }
+
+    fn from_organism(organism: &Organism, fitness: f64, generation: usize) -> Self {
+        let genes = organism.genome.get_genes()
+            .iter()
+            .map(|g| (g.in_neuron_id(), g.out_neuron_id(), g.weight(), g.enabled(), g.is_bias()))
+            .collect();
+        ChampionFile {
+            fitness,
+            generation,
+            neurons_len: organism.genome.len(),
+            genes,
+        }
+    }
+}
 
 /// Serializable configuration file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -201,6 +232,8 @@ impl LunarLanderMultiprocess {
     }
 }
 
+const EVALS_PER_ORGANISM: usize = 2;
+
 impl Environment for LunarLanderMultiprocess {
     fn test(&self, organism: &mut Organism) -> f64 {
         self.lunar_lander_test(organism, false)
@@ -224,43 +257,47 @@ impl Environment for LunarLanderMultiprocess {
         }
 
         Python::with_gil(|py| {
-            // Prepare batch data only for organisms that need evaluation
-            let batch_data: Vec<_> = to_evaluate
-                .iter()
-                .map(|&idx| {
-                    let organism = &organisms[idx];
-                    let neurons_len = organism.genome.len();
-                    let genes_list = organism.genome.get_genes()
-                        .iter()
-                        .map(|gene| {
-                            (
-                                gene.in_neuron_id(),
-                                gene.out_neuron_id(),
-                                gene.weight(),
-                                gene.enabled(),
-                                gene.is_bias()
-                            )
-                        })
-                        .collect::<Vec<_>>();
+            // Prepare batch data: each organism evaluated EVALS_PER_ORGANISM times
+            let mut batch_data: Vec<_> = Vec::with_capacity(to_evaluate.len() * EVALS_PER_ORGANISM);
 
+            for &idx in &to_evaluate {
+                let organism = &organisms[idx];
+                let neurons_len = organism.genome.len();
+                let genes_list = organism.genome.get_genes()
+                    .iter()
+                    .map(|gene| {
+                        (
+                            gene.in_neuron_id(),
+                            gene.out_neuron_id(),
+                            gene.weight(),
+                            gene.enabled(),
+                            gene.is_bias()
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                for _ in 0..EVALS_PER_ORGANISM {
                     let builtins = py.import_bound("builtins").unwrap();
                     let dict = builtins.call_method0("dict").unwrap();
-                    dict.set_item("genes", genes_list).unwrap();
+                    dict.set_item("genes", &genes_list).unwrap();
                     dict.set_item("neurons_len", neurons_len).unwrap();
-                    (dict, false)
-                })
-                .collect();
+                    batch_data.push((dict, false));
+                }
+            }
 
             let worker_fn = self.worker_module.bind(py).getattr("evaluate_organism").unwrap();
             let pool = self.pool.bind(py);
 
-            // Use starmap for batch evaluation
+            // Use starmap for batch evaluation (all evals in parallel)
             let results = pool.call_method1("starmap", (worker_fn, batch_data)).unwrap();
-
-            // Extract fitness values and update only evaluated organisms
             let results_list: Vec<f64> = results.extract().unwrap();
-            for (&idx, fitness) in to_evaluate.iter().zip(results_list.iter()) {
-                organisms[idx].fitness = *fitness;
+
+            // Average EVALS_PER_ORGANISM results per organism
+            for (i, &idx) in to_evaluate.iter().enumerate() {
+                let start = i * EVALS_PER_ORGANISM;
+                let avg: f64 = results_list[start..start + EVALS_PER_ORGANISM].iter().sum::<f64>()
+                    / EVALS_PER_ORGANISM as f64;
+                organisms[idx].fitness = avg;
             }
         });
     }
@@ -343,6 +380,12 @@ fn main() {
             last_stats_gen = generations;
         }
 
+        // Log adaptive mutation status every 50 generations
+        if generations % 50 == 0 && population.epochs_without_improvements() > 10 {
+            println!("[Adaptive] Population stagnant for {} epochs, mutation rates boosted",
+                     population.epochs_without_improvements());
+        }
+
         match population.champion {
             Some(_) => {
                 let tmp_champion = population.champion.clone().unwrap();
@@ -380,6 +423,10 @@ fn main() {
                         println!("✓ CONFIRMED IMPROVEMENT! Rendering best attempt...\n");
                         environment.lunar_lander_test(&mut tmp_champion.clone(), true);
                         best_fitness = average_fitness;
+
+                        // Save champion genome
+                        let champion_data = ChampionFile::from_organism(&tmp_champion, current_fitness, generations);
+                        champion_data.save(CHAMPION_FILE);
                     } else {
                         println!("✗ Not consistent enough. Continuing evolution...\n");
                     }

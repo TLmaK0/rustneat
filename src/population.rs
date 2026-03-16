@@ -12,6 +12,7 @@ use rusty_dashed;
 #[cfg(feature = "telemetry")]
 use serde_json;
 
+use crate::mutation_config::MutationConfig;
 use crate::specie::Specie;
 use crate::species_evaluator::SpeciesEvaluator;
 
@@ -24,6 +25,8 @@ pub struct Population {
     epochs_without_improvements: usize,
     /// champion of the population
     pub champion: Option<Organism>,
+    /// Mutation configuration
+    pub mutation_config: MutationConfig,
 }
 
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 50;
@@ -38,6 +41,7 @@ impl Population {
             champion_fitness: 0f64,
             champion: None,
             epochs_without_improvements: 0usize,
+            mutation_config: MutationConfig::default(),
         };
 
         population.create_organisms(population_size);
@@ -55,6 +59,7 @@ impl Population {
             champion_fitness: 0f64,
             champion: None,
             epochs_without_improvements: 0usize,
+            mutation_config: MutationConfig::default(),
         };
 
         population.create_organisms_initialized(population_size, input_neurons, output_neurons);
@@ -62,15 +67,22 @@ impl Population {
     }
 
     /// Create a population with custom mutation configuration
-    /// Note: MutationConfig is currently stored for future use
     pub fn create_population_initialized_with_config(
         population_size: usize,
         input_neurons: usize,
         output_neurons: usize,
-        _config: crate::mutation_config::MutationConfig,
+        config: MutationConfig,
     ) -> Population {
-        // TODO: Store config and use it during mutation
-        Self::create_population_initialized(population_size, input_neurons, output_neurons)
+        let mut population = Population {
+            species: vec![],
+            champion_fitness: 0f64,
+            champion: None,
+            epochs_without_improvements: 0usize,
+            mutation_config: config,
+        };
+
+        population.create_organisms_initialized(population_size, input_neurons, output_neurons);
+        population
     }
 
     /// Find total of all organisms in the population
@@ -78,6 +90,34 @@ impl Population {
         self.species
             .iter()
             .fold(0usize, |total, specie| total + specie.organisms.len())
+    }
+
+    /// Compute adaptive mutation config based on population-level stagnation.
+    /// After 10 epochs without improvement, structural mutation rates scale up,
+    /// capped at 5x at 40 epochs.
+    fn adaptive_config(&self) -> MutationConfig {
+        const STAGNATION_START: usize = 10;
+        const STAGNATION_FULL: usize = 40;
+        const MAX_MULTIPLIER: f64 = 5.0;
+
+        let stagnation = self.epochs_without_improvements;
+        if stagnation <= STAGNATION_START {
+            return self.mutation_config;
+        }
+
+        let progress = ((stagnation - STAGNATION_START) as f64)
+            / ((STAGNATION_FULL - STAGNATION_START) as f64);
+        let multiplier = 1.0 + (MAX_MULTIPLIER - 1.0) * progress.min(1.0);
+
+        MutationConfig {
+            add_connection_rate: (self.mutation_config.add_connection_rate * multiplier).min(0.30),
+            add_neuron_rate: (self.mutation_config.add_neuron_rate * multiplier).min(0.20),
+            toggle_expression_rate: (self.mutation_config.toggle_expression_rate * multiplier).min(0.25),
+            toggle_bias_rate: (self.mutation_config.toggle_bias_rate * multiplier).min(0.10),
+            weight_mutation_rate: self.mutation_config.weight_mutation_rate,
+            weight_perturbation_rate: self.mutation_config.weight_perturbation_rate,
+            compatibility_threshold: self.mutation_config.compatibility_threshold,
+        }
     }
 
     /// Create offspring by mutation and mating. May create new species.
@@ -165,14 +205,16 @@ impl Population {
 
         let num_of_organisms = self.size();
         let organisms = self.get_organisms();
+        let config = self.adaptive_config();
 
         if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
             let mut best_species = self.get_best_species();
             let num_of_selected = best_species.len();
             for specie in &mut best_species {
-                specie.generate_offspring(
+                specie.generate_offspring_with_config(
                     num_of_organisms.checked_div(num_of_selected).unwrap(),
                     &organisms,
+                    &config,
                 );
             }
             self.epochs_without_improvements = 0;
@@ -190,7 +232,7 @@ impl Population {
                 (specie_fitness * organisms_by_average_fitness).round() as usize
             };
             if offspring_size > 0 {
-                specie.generate_offspring(offspring_size, &organisms);
+                specie.generate_offspring_with_config(offspring_size, &organisms, &config);
             } else {
                 specie.remove_organisms();
             }

@@ -1,5 +1,6 @@
 use conv::prelude::*;
 use crate::genome::Genome;
+use crate::mutation_config::MutationConfig;
 use crate::organism::Organism;
 use rand;
 use rand::Rng;
@@ -19,7 +20,7 @@ pub struct Specie {
 }
 
 const MUTATION_PROBABILITY: f64 = 0.4f64;  // Original
-const INTERSPECIE_MATE_PROBABILITY: f64 = 0.03f64;  // Original
+const INTERSPECIE_MATE_PROBABILITY: f64 = 0.15f64;  // Increased from 0.03 to escape local optima
 const BEST_ORGANISMS_THRESHOLD: f64 = 0.5f64;  // Only top 50% can reproduce
 
 impl Specie {
@@ -109,6 +110,16 @@ impl Specie {
         num_of_organisms: usize,
         population_organisms: &[Organism],
     ) {
+        self.generate_offspring_with_config(num_of_organisms, population_organisms, &MutationConfig::default());
+    }
+
+    /// Generate offspring with a specific mutation config (supports adaptive mutation)
+    pub fn generate_offspring_with_config(
+        &mut self,
+        num_of_organisms: usize,
+        population_organisms: &[Organism],
+        base_config: &MutationConfig,
+    ) {
         self.age += 1;
 
         // Always copy champion (elitism)
@@ -157,7 +168,7 @@ impl Specie {
             selected_organisms
                 .iter()
                 .map(|organism_pos| {
-                    self.create_child(&self.organisms[*organism_pos], population_organisms)
+                    self.create_child(&self.organisms[*organism_pos], population_organisms, base_config)
                 })
                 .collect::<Vec<Organism>>()
         };
@@ -217,16 +228,12 @@ impl Specie {
     }
 
     /// Create a new child by mutating and existing one or mating two genomes.
-    fn create_child(&self, organism: &Organism, population_organisms: &[Organism]) -> Organism {
+    fn create_child(&self, organism: &Organism, population_organisms: &[Organism], config: &MutationConfig) -> Organism {
         if rand::random::<f64>() < MUTATION_PROBABILITY || population_organisms.len() < 2 {
-            self.create_child_by_mutation(organism)
+            organism.mutate_with_config(config)
         } else {
             self.create_child_by_mate(organism, population_organisms)
         }
-    }
-
-    fn create_child_by_mutation(&self, organism: &Organism) -> Organism {
-        organism.mutate()
     }
 
     fn create_child_by_mate(

@@ -14,10 +14,10 @@ pub struct Genome {
 pub(crate) const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
 pub(crate) const MUTATE_ADD_CONNECTION: f64 = 0.01f64;
 pub(crate) const MUTATE_ADD_NEURON: f64 = 0.01f64;
-pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.005f64;
+pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.05f64;  // 5% to reactivate disabled genes
 pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 pub(crate) const MUTATE_TOGGLE_BIAS: f64 = 0.01;
-pub(crate) const COMPATIBILITY_THRESHOLD: f64 = 0.4f64;
+pub(crate) const COMPATIBILITY_THRESHOLD: f64 = 0.6f64;  // Increased from 0.4 to reduce species fragmentation
 
 impl Genome {
     /// Create a genome from serialized gene data
@@ -51,23 +51,28 @@ impl Genome {
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
     pub fn mutate(&mut self) {
-        if rand::random::<Closed01<f64>>().0 < MUTATE_ADD_CONNECTION || self.genes.is_empty() {
+        self.mutate_with_config(&crate::mutation_config::MutationConfig::default());
+    }
+
+    /// Mutate using specific mutation rates from config
+    pub fn mutate_with_config(&mut self, config: &crate::mutation_config::MutationConfig) {
+        if rand::random::<Closed01<f64>>().0 < config.add_connection_rate || self.genes.is_empty() {
             self.mutate_add_connection();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_ADD_NEURON {
+        if rand::random::<Closed01<f64>>().0 < config.add_neuron_rate {
             self.mutate_add_neuron();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_CONNECTION_WEIGHT {
+        if rand::random::<Closed01<f64>>().0 < config.weight_mutation_rate {
             self.mutate_connection_weight();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_EXPRESSION {
+        if rand::random::<Closed01<f64>>().0 < config.toggle_expression_rate {
             self.mutate_toggle_expression();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_BIAS {
+        if rand::random::<Closed01<f64>>().0 < config.toggle_bias_rate {
             self.mutate_toggle_bias();
         };
     }
@@ -94,7 +99,8 @@ impl Genome {
                 }
             };
 
-            // NEAT rule: if gene is disabled in either parent, 75% chance offspring has it disabled
+            // NEAT rule: if gene is disabled in either parent, 25% chance offspring has it disabled
+            // (reduced from 75% to allow more gene reactivation)
             let other_gene_disabled = other
                 .genes
                 .binary_search(gene)
@@ -103,7 +109,7 @@ impl Genome {
                 .unwrap_or(false);
 
             if !gene.enabled() || other_gene_disabled {
-                if rand::random::<f64>() < 0.75 {
+                if rand::random::<f64>() < 0.25 {
                     child_gene.set_disabled();
                 } else {
                     child_gene.set_enabled();
@@ -403,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn crossover_disabled_gene_should_stay_disabled_75_percent() {
+    fn crossover_disabled_gene_should_stay_disabled_25_percent() {
         // Parent 1 has disabled gene, parent 2 has enabled gene
         let mut genome1 = Genome::default();
         genome1.add_gene(Gene::new(0, 1, 1.0, false, false)); // disabled
@@ -421,11 +427,12 @@ mod tests {
             }
         }
 
-        // Should be approximately 75% disabled (allow ±10% margin)
+        // Should be approximately 25% disabled (allow ±10% margin)
+        // (reduced from NEAT's 75% to allow more gene reactivation)
         let disabled_ratio = disabled_count as f64 / trials as f64;
         assert!(
-            disabled_ratio > 0.65 && disabled_ratio < 0.85,
-            "Expected ~75% disabled, got {}%",
+            disabled_ratio > 0.15 && disabled_ratio < 0.35,
+            "Expected ~25% disabled, got {}%",
             disabled_ratio * 100.0
         );
     }

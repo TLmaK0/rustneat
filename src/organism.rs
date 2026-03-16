@@ -52,6 +52,12 @@ impl Organism {
         new_genome.mutate();
         Organism::new(new_genome)
     }
+    /// Return a new Organism by mutating with specific config
+    pub fn mutate_with_config(&self, config: &crate::mutation_config::MutationConfig) -> Organism {
+        let mut new_genome = self.genome.clone();
+        new_genome.mutate_with_config(config);
+        Organism::new(new_genome)
+    }
     /// Mate this organism with another
     pub fn mate(&self, other: &Organism) -> Organism {
         Organism::new(
