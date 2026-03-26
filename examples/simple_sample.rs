@@ -23,9 +23,7 @@ impl Environment for XORClassification {
         organism.activate(vec![1f64, 1f64], &mut output);
         distance += (0f64 - output[0]).powi(2);
 
-        let fitness = 16f64 / (1f64 + distance);
-
-        fitness
+        16f64 / (1f64 + distance)
     }
 }
 
@@ -37,11 +35,11 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
 
     let mut population = Population::create_population(150);
-    let mut environment = XORClassification;
+    let environment = XORClassification;
     let mut champion: Option<Organism> = None;
     while champion.is_none() {
         population.evolve();
-        population.evaluate_in(&mut environment);
+        population.evaluate_in(&environment);
         for organism in &population.get_organisms() {
             if organism.fitness > 15.5f64 {
                 champion = Some(organism.clone());

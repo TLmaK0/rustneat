@@ -1,7 +1,7 @@
+use crate::environment::Environment;
+use crate::genome::Genome;
+use crate::organism::Organism;
 use conv::prelude::*;
-use environment::Environment;
-use genome::Genome;
-use organism::Organism;
 use std::cmp::Ordering;
 #[cfg(feature = "telemetry")]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -12,8 +12,9 @@ use rusty_dashed;
 #[cfg(feature = "telemetry")]
 use serde_json;
 
-use specie::Specie;
-use species_evaluator::SpeciesEvaluator;
+use crate::mutation_config::MutationConfig;
+use crate::specie::Specie;
+use crate::species_evaluator::SpeciesEvaluator;
 
 /// All species in the network
 #[derive(Debug)]
@@ -24,9 +25,13 @@ pub struct Population {
     epochs_without_improvements: usize,
     /// champion of the population
     pub champion: Option<Organism>,
+    /// Mutation configuration
+    pub mutation_config: MutationConfig,
 }
 
-const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 10;
+const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 50;
+const STAGNATION_THRESHOLD: usize = 15; // Remove species after 15 generations without improvement
+const SPECIES_ELITISM: usize = 2; // Protect top 2 species from stagnation removal
 
 impl Population {
     /// Create a new population of size X.
@@ -36,6 +41,7 @@ impl Population {
             champion_fitness: 0f64,
             champion: None,
             epochs_without_improvements: 0usize,
+            mutation_config: MutationConfig::default(),
         };
 
         population.create_organisms(population_size);
@@ -53,9 +59,49 @@ impl Population {
             champion_fitness: 0f64,
             champion: None,
             epochs_without_improvements: 0usize,
+            mutation_config: MutationConfig::default(),
         };
 
         population.create_organisms_initialized(population_size, input_neurons, output_neurons);
+        population
+    }
+
+    /// Create a population with custom mutation configuration
+    pub fn create_population_initialized_with_config(
+        population_size: usize,
+        input_neurons: usize,
+        output_neurons: usize,
+        config: MutationConfig,
+    ) -> Population {
+        let mut population = Population {
+            species: vec![],
+            champion_fitness: 0f64,
+            champion: None,
+            epochs_without_improvements: 0usize,
+            mutation_config: config,
+        };
+
+        population.create_organisms_initialized(population_size, input_neurons, output_neurons);
+        population
+    }
+
+    /// Create a population with unconnected genomes (no initial connections).
+    /// NEAT will discover connections through structural mutation.
+    pub fn create_population_unconnected_with_config(
+        population_size: usize,
+        input_neurons: usize,
+        output_neurons: usize,
+        config: MutationConfig,
+    ) -> Population {
+        let mut population = Population {
+            species: vec![],
+            champion_fitness: 0f64,
+            champion: None,
+            epochs_without_improvements: 0usize,
+            mutation_config: config,
+        };
+
+        population.create_organisms_unconnected(population_size, input_neurons, output_neurons);
         population
     }
 
@@ -66,14 +112,62 @@ impl Population {
             .fold(0usize, |total, specie| total + specie.organisms.len())
     }
 
+    /// Compute adaptive mutation config based on population-level stagnation.
+    /// After 10 epochs without improvement, structural mutation rates scale up,
+    /// capped at 5x at 40 epochs.
+    fn adaptive_config(&self) -> MutationConfig {
+        const STAGNATION_START: usize = 5;
+        const STAGNATION_FULL: usize = 20;
+        const MAX_MULTIPLIER: f64 = 5.0;
+
+        let stagnation = self.epochs_without_improvements;
+        if stagnation <= STAGNATION_START {
+            return self.mutation_config;
+        }
+
+        let progress = ((stagnation - STAGNATION_START) as f64)
+            / ((STAGNATION_FULL - STAGNATION_START) as f64);
+        let multiplier = 1.0 + (MAX_MULTIPLIER - 1.0) * progress.min(1.0);
+
+        // Scale mutation_probability from base up to 0.8 when fully stagnant
+        let base_mut_prob = self.mutation_config.mutation_probability;
+        let adaptive_mut_prob =
+            (base_mut_prob + (0.8 - base_mut_prob) * progress.min(1.0)).min(0.8);
+
+        MutationConfig {
+            add_connection_rate: (self.mutation_config.add_connection_rate * multiplier).min(0.30),
+            add_neuron_rate: (self.mutation_config.add_neuron_rate * multiplier).min(0.20),
+            toggle_expression_rate: (self.mutation_config.toggle_expression_rate * multiplier)
+                .min(0.25),
+            toggle_bias_rate: (self.mutation_config.toggle_bias_rate * multiplier).min(0.10),
+            weight_mutation_rate: self.mutation_config.weight_mutation_rate,
+            weight_perturbation_rate: self.mutation_config.weight_perturbation_rate,
+            compatibility_threshold: self.mutation_config.compatibility_threshold,
+            mutation_probability: adaptive_mut_prob,
+            weight_init_range: self.mutation_config.weight_init_range,
+            weight_mutate_power: self.mutation_config.weight_mutate_power,
+            tau: self.mutation_config.tau,
+            step_time: self.mutation_config.step_time,
+        }
+    }
+
     /// Create offspring by mutation and mating. May create new species.
     pub fn evolve(&mut self) {
         self.generate_offspring();
     }
 
-    /// TODO
-    pub fn evaluate_in(&mut self, environment: &mut dyn Environment) {
+    /// Evaluate all organisms in the population using the given environment.
+    pub fn evaluate_in(&mut self, environment: &dyn Environment) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
+
+        // Apply fitness sharing and update stagnation tracking
+        for specie in &mut self.species {
+            specie.adjust_fitness();
+            specie.update_stagnation();
+        }
+
+        // Remove stagnant species (but protect top 2 by fitness)
+        self.remove_stagnant_species(STAGNATION_THRESHOLD, SPECIES_ELITISM);
 
         #[cfg(feature = "telemetry")]
         telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
@@ -89,8 +183,36 @@ impl Population {
             );
             self.epochs_without_improvements = 0usize;
             self.champion = Some(champion.clone());
+            self.champion_fitness = champion.fitness;
         }
         self.champion_fitness = champion.fitness;
+    }
+
+    /// Remove species that haven't improved for too long
+    fn remove_stagnant_species(&mut self, max_generations: usize, protect_top_n: usize) {
+        if self.species.len() <= protect_top_n {
+            return;
+        }
+
+        // Sort by champion fitness descending to identify top species
+        self.species.sort_by(|a, b| {
+            b.calculate_champion_fitness()
+                .partial_cmp(&a.calculate_champion_fitness())
+                .unwrap_or(Ordering::Equal)
+        });
+
+        // Mark which species to keep (top N are protected)
+        let mut to_remove = vec![];
+        for (i, specie) in self.species.iter().enumerate() {
+            if i >= protect_top_n && specie.is_stagnant(max_generations) {
+                to_remove.push(i);
+            }
+        }
+
+        // Remove stagnant species (in reverse order to preserve indices)
+        for i in to_remove.into_iter().rev() {
+            self.species.remove(i);
+        }
     }
 
     /// Return all organisms of the population
@@ -115,14 +237,16 @@ impl Population {
 
         let num_of_organisms = self.size();
         let organisms = self.get_organisms();
+        let config = self.adaptive_config();
 
         if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
             let mut best_species = self.get_best_species();
             let num_of_selected = best_species.len();
             for specie in &mut best_species {
-                specie.generate_offspring(
+                specie.generate_offspring_with_config(
                     num_of_organisms.checked_div(num_of_selected).unwrap(),
                     &organisms,
+                    &config,
                 );
             }
             self.epochs_without_improvements = 0;
@@ -140,7 +264,7 @@ impl Population {
                 (specie_fitness * organisms_by_average_fitness).round() as usize
             };
             if offspring_size > 0 {
-                specie.generate_offspring(offspring_size, &organisms);
+                specie.generate_offspring_with_config(offspring_size, &organisms, &config);
             } else {
                 specie.remove_organisms();
             }
@@ -152,15 +276,16 @@ impl Population {
             return self.species.clone();
         }
 
+        // Sort by champion fitness descending (best first)
         self.species.sort_by(|specie1, specie2| {
-            if specie1.calculate_champion_fitness() > specie2.calculate_champion_fitness() {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            }
+            specie2
+                .calculate_champion_fitness()
+                .partial_cmp(&specie1.calculate_champion_fitness())
+                .unwrap_or(Ordering::Equal)
         });
 
-        self.species[1..2].to_vec().clone()
+        // Return the top 2 species
+        self.species[0..2].to_vec()
     }
 
     fn speciate(&mut self) {
@@ -194,11 +319,12 @@ impl Population {
             next_specie_id += 1;
         }
 
+        let threshold = self.mutation_config.compatibility_threshold;
         for organism in organisms {
             match self
                 .species
                 .iter_mut()
-                .find(|specie| specie.match_genome(organism))
+                .find(|specie| specie.match_genome_with_threshold(organism, threshold))
             {
                 Some(specie) => {
                     specie.add(organism.clone());
@@ -225,10 +351,31 @@ impl Population {
         let mut organisms = vec![];
 
         while organisms.len() < population_size {
-            organisms.push(Organism::new(Genome::new_initialized(
-                input_neurons,
-                output_neurons,
-            )));
+            let mut org = Organism::new(Genome::new_initialized(input_neurons, output_neurons));
+            org.tau = self.mutation_config.tau;
+            org.step_time = self.mutation_config.step_time;
+            organisms.push(org);
+        }
+
+        let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
+        specie.organisms = organisms;
+        self.species.push(specie);
+    }
+
+    fn create_organisms_unconnected(
+        &mut self,
+        population_size: usize,
+        input_neurons: usize,
+        output_neurons: usize,
+    ) {
+        self.species = vec![];
+        let mut organisms = vec![];
+
+        while organisms.len() < population_size {
+            let mut org = Organism::new(Genome::new_unconnected(input_neurons, output_neurons));
+            org.tau = self.mutation_config.tau;
+            org.step_time = self.mutation_config.step_time;
+            organisms.push(org);
         }
 
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
@@ -242,14 +389,14 @@ impl Population {
 }
 
 #[cfg(test)]
-use gene::Gene;
+use crate::gene::Gene;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use genome::Genome;
-    use organism::Organism;
-    use specie::Specie;
+    use crate::genome::Genome;
+    use crate::organism::Organism;
+    use crate::specie::Specie;
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
@@ -257,12 +404,11 @@ mod tests {
         genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
         genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         let mut genome2 = Genome::default();
-        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
-        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         genome2.add_gene(Gene::new(1, 1, 1f64, true, false));
         genome2.add_gene(Gene::new(1, 0, 1f64, true, false));
 
         let mut population = Population::create_population(2);
+        population.mutation_config.compatibility_threshold = 1.0;
         let organisms = vec![Organism::new(genome1), Organism::new(genome2)];
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
         specie.organisms = organisms;

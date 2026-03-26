@@ -1,5 +1,5 @@
-use gene::Gene;
-use mutation::Mutation;
+use crate::gene::Gene;
+use crate::mutation::Mutation;
 use rand::{self, Closed01};
 use std::cmp;
 
@@ -11,14 +11,32 @@ pub struct Genome {
     last_neuron_id: usize,
 }
 
-const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
-const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
-const MUTATE_ADD_NEURON: f64 = 0.004f64;
-const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
-const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
-const MUTATE_TOGGLE_BIAS: f64 = 0.01;
+pub(crate) const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
+pub(crate) const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
+pub(crate) const MUTATE_ADD_NEURON: f64 = 0.004f64;
+pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
+pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
+pub(crate) const MUTATE_TOGGLE_BIAS: f64 = 0.01;
+pub(crate) const COMPATIBILITY_THRESHOLD: f64 = 3f64;
 
 impl Genome {
+    /// Create a genome from serialized gene data
+    pub fn from_genes(genes: Vec<Gene>, last_neuron_id: usize) -> Genome {
+        let mut genome = Genome {
+            genes: Vec::new(),
+            last_neuron_id,
+        };
+        for gene in genes {
+            // Directly add gene without validation since we're reconstructing
+            match genome.genes.binary_search(&gene) {
+                Ok(pos) => genome.genes[pos].set_enabled(),
+                Err(_) => genome.genes.push(gene),
+            }
+        }
+        genome.genes.sort();
+        genome
+    }
+
     ///Add initial input and output neurons interconnected
     pub fn new_initialized(input_neurons: usize, output_neurons: usize) -> Genome {
         let mut genome = Genome::default();
@@ -30,26 +48,44 @@ impl Genome {
         genome
     }
 
+    /// Create genome with input/output neuron IDs but NO connections.
+    /// NEAT will discover connections through mutation.
+    pub fn new_unconnected(input_neurons: usize, output_neurons: usize) -> Genome {
+        Genome {
+            genes: Vec::new(),
+            last_neuron_id: if input_neurons + output_neurons > 0 {
+                input_neurons + output_neurons - 1
+            } else {
+                0
+            },
+        }
+    }
+
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
     pub fn mutate(&mut self) {
-        if rand::random::<Closed01<f64>>().0 < MUTATE_ADD_CONNECTION || self.genes.is_empty() {
-            self.mutate_add_connection();
+        self.mutate_with_config(&crate::mutation_config::MutationConfig::default());
+    }
+
+    /// Mutate using specific mutation rates from config
+    pub fn mutate_with_config(&mut self, config: &crate::mutation_config::MutationConfig) {
+        if rand::random::<Closed01<f64>>().0 < config.add_connection_rate || self.genes.is_empty() {
+            self.mutate_add_connection_with_config(config);
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_ADD_NEURON {
+        if rand::random::<Closed01<f64>>().0 < config.add_neuron_rate {
             self.mutate_add_neuron();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_CONNECTION_WEIGHT {
-            self.mutate_connection_weight();
+        if rand::random::<Closed01<f64>>().0 < config.weight_mutation_rate {
+            self.mutate_connection_weight_with_config(config);
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_EXPRESSION {
+        if rand::random::<Closed01<f64>>().0 < config.toggle_expression_rate {
             self.mutate_toggle_expression();
         };
 
-        if rand::random::<Closed01<f64>>().0 < MUTATE_TOGGLE_BIAS {
+        if rand::random::<Closed01<f64>>().0 < config.toggle_bias_rate {
             self.mutate_toggle_bias();
         };
     }
@@ -65,18 +101,48 @@ impl Genome {
 
     fn mate_genes(&self, other: &Genome) -> Genome {
         let mut genome = Genome::default();
+        // NEAT paper: 40% of crossovers use average weights for matching genes
+        let use_average_weights = rand::random::<f64>() < 0.4;
+
         for gene in &self.genes {
-            genome.add_gene({
-                //Only mate half of the genes randomly
-                if rand::random::<f64>() > 0.5f64 {
-                    *gene
-                } else {
-                    match other.genes.binary_search(gene) {
-                        Ok(position) => other.genes[position],
-                        Err(_) => *gene,
+            let mut child_gene = match other.genes.binary_search(gene) {
+                Ok(position) => {
+                    // Matching gene in both parents
+                    if use_average_weights {
+                        // Inherit average weight from both parents
+                        let mut avg_gene = *gene;
+                        avg_gene.set_weight((gene.weight() + other.genes[position].weight()) / 2.0);
+                        avg_gene
+                    } else if rand::random::<f64>() > 0.5 {
+                        *gene
+                    } else {
+                        other.genes[position]
                     }
                 }
-            });
+                Err(_) => {
+                    // Disjoint/excess gene: inherit from fitter parent (self)
+                    *gene
+                }
+            };
+
+            // NEAT rule: if gene is disabled in either parent, 25% chance offspring has it disabled
+            // (reduced from 75% to allow more gene reactivation)
+            let other_gene_disabled = other
+                .genes
+                .binary_search(gene)
+                .ok()
+                .map(|pos| !other.genes[pos].enabled())
+                .unwrap_or(false);
+
+            if !gene.enabled() || other_gene_disabled {
+                if rand::random::<f64>() < 0.25 {
+                    child_gene.set_disabled();
+                } else {
+                    child_gene.set_enabled();
+                }
+            }
+
+            genome.add_gene(child_gene);
         }
         genome
     }
@@ -101,6 +167,13 @@ impl Genome {
     }
 
     fn mutate_add_connection(&mut self) {
+        self.mutate_add_connection_with_config(&crate::mutation_config::MutationConfig::default());
+    }
+
+    fn mutate_add_connection_with_config(
+        &mut self,
+        config: &crate::mutation_config::MutationConfig,
+    ) {
         let mut rng = rand::thread_rng();
         let neuron_ids_to_connect = {
             if self.last_neuron_id == 0 {
@@ -109,15 +182,35 @@ impl Genome {
                 rand::seq::sample_iter(&mut rng, 0..self.last_neuron_id + 1, 2).unwrap()
             }
         };
-        self.add_connection(neuron_ids_to_connect[0], neuron_ids_to_connect[1]);
+        let gene = Gene::new(
+            neuron_ids_to_connect[0],
+            neuron_ids_to_connect[1],
+            Gene::generate_weight_in_range(config.weight_init_range),
+            true,
+            false,
+        );
+        self.add_gene(gene);
     }
 
     fn mutate_connection_weight(&mut self) {
+        self.mutate_connection_weight_with_config(
+            &crate::mutation_config::MutationConfig::default(),
+        );
+    }
+
+    fn mutate_connection_weight_with_config(
+        &mut self,
+        config: &crate::mutation_config::MutationConfig,
+    ) {
         for gene in &mut self.genes {
-            <dyn Mutation>::connection_weight(
-                gene,
-                rand::random::<f64>() < MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY,
-            );
+            if rand::random::<f64>() < config.weight_perturbation_rate {
+                // Perturbation: add small random value
+                let perturbation = Gene::generate_weight_in_range(config.weight_mutate_power);
+                gene.set_weight(gene.weight() + perturbation);
+            } else {
+                // Replace with new random weight
+                gene.set_weight(Gene::generate_weight_in_range(config.weight_init_range));
+            }
         }
     }
 
@@ -181,7 +274,12 @@ impl Genome {
     /// Compare another Genome for species equality
     // TODO This should be impl Eq
     pub fn is_same_specie(&self, other: &Genome) -> bool {
-        self.compatibility_distance(other) < 1f64
+        self.is_same_specie_with_threshold(other, COMPATIBILITY_THRESHOLD)
+    }
+
+    /// Compare another Genome for species equality using a custom threshold
+    pub fn is_same_specie_with_threshold(&self, other: &Genome, threshold: f64) -> bool {
+        self.compatibility_distance(other) < threshold
     }
 
     /// Total weigths of all genes
@@ -233,7 +331,11 @@ impl Genome {
         });
 
         // if no matching genes then are completely different
-        w = if n3 == 0 { 1f64 } else { w / n3 as f64 };
+        w = if n3 == 0 {
+            COMPATIBILITY_THRESHOLD
+        } else {
+            w / n3 as f64
+        };
 
         // compatibility distance
         (c2 * d as f64 / n as f64) + c3 * w
@@ -301,8 +403,8 @@ mod tests {
         genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
         genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(0, 0, 5f64, true, false));
-        genome2.add_gene(Gene::new(0, 1, 5f64, true, false));
+        genome2.add_gene(Gene::new(0, 0, 20f64, true, false));
+        genome2.add_gene(Gene::new(0, 1, 20f64, true, false));
         genome2.add_gene(Gene::new(0, 2, 1f64, true, false));
         genome2.add_gene(Gene::new(0, 3, 1f64, true, false));
         assert!(!genome1.is_same_specie(&genome2));
@@ -344,7 +446,7 @@ mod tests {
         let mut genome1 = Genome::default();
         genome1.add_gene(Gene::new(0, 0, 5f64, true, false));
         let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(0, 0, 15f64, true, false));
+        genome2.add_gene(Gene::new(0, 0, 25f64, true, false));
         assert!(!genome1.is_same_specie(&genome2));
     }
 
@@ -364,5 +466,34 @@ mod tests {
         assert_eq!(genome1.genes[4].out_neuron_id(), 3);
         assert_eq!(genome1.genes[5].in_neuron_id(), 1);
         assert_eq!(genome1.genes[5].out_neuron_id(), 4);
+    }
+
+    #[test]
+    fn crossover_disabled_gene_should_stay_disabled_25_percent() {
+        // Parent 1 has disabled gene, parent 2 has enabled gene
+        let mut genome1 = Genome::default();
+        genome1.add_gene(Gene::new(0, 1, 1.0, false, false)); // disabled
+
+        let mut genome2 = Genome::default();
+        genome2.add_gene(Gene::new(0, 1, 1.0, true, false)); // enabled
+
+        // Run many trials to check probability
+        let trials = 1000;
+        let mut disabled_count = 0;
+        for _ in 0..trials {
+            let child = genome1.mate(&genome2, true);
+            if !child.genes[0].enabled() {
+                disabled_count += 1;
+            }
+        }
+
+        // Should be approximately 25% disabled (allow ±10% margin)
+        // (reduced from NEAT's 75% to allow more gene reactivation)
+        let disabled_ratio = disabled_count as f64 / trials as f64;
+        assert!(
+            disabled_ratio > 0.15 && disabled_ratio < 0.35,
+            "Expected ~25% disabled, got {}%",
+            disabled_ratio * 100.0
+        );
     }
 }

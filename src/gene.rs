@@ -73,9 +73,14 @@ impl Gene {
         }
     }
 
-    /// Generate a weight
+    /// Generate a weight in [-1, 1]
     pub fn generate_weight() -> f64 {
         rand::random::<Closed01<f64>>().0 * 2f64 - 1f64
+    }
+
+    /// Generate a weight in [-range, range]
+    pub fn generate_weight_in_range(range: f64) -> f64 {
+        rand::random::<Closed01<f64>>().0 * 2.0 * range - range
     }
     /// Connection in ->
     pub fn in_neuron_id(&self) -> usize {

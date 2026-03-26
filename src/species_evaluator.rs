@@ -1,100 +1,106 @@
-use crossbeam::{self, Scope};
-use environment::Environment;
-use genome::Genome;
-use organism::Organism;
-use specie::Specie;
+use crate::environment::Environment;
+use crate::genome::Genome;
+use crate::organism::Organism;
+use crate::specie::Specie;
+use crossbeam;
 use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
 
-/// Calculate fitness and champions for a species
+/// Evaluates all organisms across species using the environment
 pub struct SpeciesEvaluator<'a> {
     threads: usize,
-    environment: &'a mut dyn Environment,
+    environment: &'a dyn Environment,
 }
 
 impl<'a> SpeciesEvaluator<'a> {
-    /// Take an environment that will test organisms.
-    pub fn new(environment: &mut dyn Environment) -> SpeciesEvaluator {
+    /// Create a new evaluator with the given environment.
+    pub fn new(environment: &'a dyn Environment) -> SpeciesEvaluator<'a> {
         SpeciesEvaluator {
             threads: environment.threads(),
-            environment: environment,
+            environment,
         }
     }
 
-    /// return champion fitness
+    /// Evaluate all organisms and return the champion
     pub fn evaluate(&self, species: &mut Vec<Specie>) -> Organism {
-        let mut champion: Organism = Organism::new(Genome::default());
+        if self.threads <= 1 {
+            // Single-threaded: iterate directly over species, no drain needed
+            self.evaluate_single(species)
+        } else {
+            // Multi-threaded: need to collect all organisms for parallel chunking
+            self.evaluate_parallel(species)
+        }
+    }
 
-        for specie in species {
-            if specie.organisms.is_empty() {
-                continue;
-            }
+    fn evaluate_single(&self, species: &mut Vec<Specie>) -> Organism {
+        let mut champion = Organism::new(Genome::default());
 
-            let organisms_by_thread = (specie.organisms.len() + self.threads - 1) / self.threads; // round up
-            let (tx, rx): (Sender<Organism>, Receiver<Organism>) = mpsc::channel();
-            crossbeam::scope(|scope| {
-                let threads_used = self.dispatch_organisms(
-                    specie.organisms.as_mut_slice(),
-                    organisms_by_thread,
-                    0,
-                    &tx,
-                    scope,
-                );
-                for _ in 0..threads_used {
-                    let champion_candidate = rx.recv().unwrap();
-                    if champion_candidate.fitness > champion.fitness {
-                        champion = champion_candidate;
+        for specie in species.iter_mut() {
+            if !specie.organisms.is_empty() {
+                self.environment.test_batch(&mut specie.organisms);
+                for org in &specie.organisms {
+                    if org.fitness > champion.fitness {
+                        champion = org.clone();
                     }
                 }
-            });
+            }
         }
+
         champion
     }
 
-    fn dispatch_organisms<'b>(
-        &'b self,
-        organisms: &'b mut [Organism],
-        organisms_by_thread: usize,
-        threads_used: usize,
-        tx: &Sender<Organism>,
-        scope: &Scope<'b>,
-    ) -> usize {
-        if organisms.len() <= organisms_by_thread {
-            self.evaluate_organisms(organisms, tx.clone(), scope);
-        } else {
-            match organisms.split_at_mut(organisms_by_thread) {
-                (thread_organisms, remaining_organisms) => {
-                    self.evaluate_organisms(thread_organisms, tx.clone(), scope);
-                    if remaining_organisms.len() > 0 {
-                        return self.dispatch_organisms(
-                            remaining_organisms,
-                            organisms_by_thread,
-                            threads_used + 1,
-                            tx,
-                            scope,
-                        );
+    fn evaluate_parallel(&self, species: &mut Vec<Specie>) -> Organism {
+        // Save original sizes to restore later
+        let original_sizes: Vec<usize> = species.iter().map(|s| s.organisms.len()).collect();
+
+        // Drain all organisms into a single vec for parallel chunking
+        let mut all_organisms: Vec<Organism> = species
+            .iter_mut()
+            .flat_map(|s| s.organisms.drain(..))
+            .collect();
+
+        if all_organisms.is_empty() {
+            return Organism::new(Genome::default());
+        }
+
+        let chunk_size = (all_organisms.len() + self.threads - 1) / self.threads;
+        let (tx, rx) = mpsc::channel();
+
+        crossbeam::scope(|scope| {
+            for chunk in all_organisms.chunks_mut(chunk_size) {
+                let tx = tx.clone();
+                let env = self.environment;
+
+                scope.spawn(move || {
+                    env.test_batch(chunk);
+
+                    // Find local champion
+                    let mut local_champion = Organism::new(Genome::default());
+                    for org in chunk.iter() {
+                        if org.fitness > local_champion.fitness {
+                            local_champion = org.clone();
+                        }
                     }
-                }
+                    tx.send(local_champion).unwrap();
+                });
+            }
+        });
+
+        // Find global champion
+        let num_chunks = (all_organisms.len() + chunk_size - 1) / chunk_size;
+        let mut champion = Organism::new(Genome::default());
+        for _ in 0..num_chunks {
+            let local_champion = rx.recv().unwrap();
+            if local_champion.fitness > champion.fitness {
+                champion = local_champion;
             }
         }
-        threads_used + 1
-    }
 
-    fn evaluate_organisms<'b>(
-        &'b self,
-        organisms: &'b mut [Organism],
-        tx: Sender<Organism>,
-        scope: &Scope<'b>,
-    ) {
-        scope.spawn(move || {
-            let mut champion = Organism::new(Genome::default());
-            for organism in &mut organisms.iter_mut() {
-                organism.fitness = self.environment.test(organism);
-                if organism.fitness > champion.fitness {
-                    champion = organism.clone();
-                }
-            }
-            tx.send(champion).unwrap();
-        });
+        // Restore organisms back to their species
+        let mut drain_iter = all_organisms.into_iter();
+        for (specie, &size) in species.iter_mut().zip(original_sizes.iter()) {
+            specie.organisms = drain_iter.by_ref().take(size).collect();
+        }
+
+        champion
     }
 }
