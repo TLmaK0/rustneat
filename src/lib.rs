@@ -30,10 +30,6 @@ extern crate rand;
 extern crate rulinalg;
 
 #[cfg(feature = "telemetry")]
-#[macro_use]
-extern crate serde_derive;
-
-#[cfg(feature = "telemetry")]
 extern crate serde_json;
 
 pub use self::ctrnn::Ctrnn;
