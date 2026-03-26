@@ -1,82 +1,87 @@
-Working-in-progress
-
 ### Rust NEAT
-[![travis-ci](https://img.shields.io/travis/TLmaK0/rustneat/master.svg)](https://travis-ci.org/TLmaK0/rustneat)
+[![CI](https://github.com/TLmaK0/rustneat/actions/workflows/ci.yml/badge.svg)](https://github.com/TLmaK0/rustneat/actions/workflows/ci.yml)
 [![Gitter](https://img.shields.io/gitter/room/nwjs/nw.js.svg)](https://gitter.im/rustneat/rustneat)
 
 Implementation of **NeuroEvolution of Augmenting Topologies NEAT** http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf
 
-This implementations uses a **CTRNN** based on**On the Dynamics of Small Continuous-Time Recurrent Neural Network** (Beer, 1995) http://www.cs.uvm.edu/~jbongard/2014_CS206/Beer_CTRNNs.pdf
+This implementation uses a **CTRNN** (Continuous-Time Recurrent Neural Network) based on **On the Dynamics of Small Continuous-Time Recurrent Neural Network** (Beer, 1995) http://www.cs.uvm.edu/~jbongard/2014_CS206/Beer_CTRNNs.pdf
+
+### CTRNN time constant (τ)
+
+The time constant τ controls neuron response speed — like biological membrane resistance time. What matters is the ratio `dt/τ` where `dt=0.01` is the simulation step. Configurable via `MutationConfig::tau`:
+
+- **Small τ** (e.g. 0.01): `dt/τ = 1.0` — neurons react instantly, state resets each step. Network behaves as **feedforward**. Use for stateless problems like XOR.
+- **Large τ** (e.g. 0.1): `dt/τ = 0.1` — neurons update only 10% per step, retaining 90% of previous state. Network has **temporal memory**. Use for control tasks like Lunar Lander where the agent integrates information over time.
+- **Very large τ** (e.g. 1.0): `dt/τ = 0.01` — neurons barely respond, very strong inertia. Needs many steps to react to new inputs.
+
+## Telemetry Dashboard
 
 ![telemetry](docs/img/rustneat.png)
 
-## Install Rust
+```bash
+cargo run --release --example simple_sample --features=telemetry
+```
 
-`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-`source $HOME/.cargo/env`
-
-## Run test
-
-To speed up tests, run them with `--release` (XOR classification/simple_sample should take less than a minute)
-
-`cargo test --release`
-## Run example
-
-`cargo run --release --example simple_sample --features=telemetry`
-
-then go to `http://localhost:3000` to see how neural network evolves
+Then go to `http://localhost:3000` to see how the neural network evolves.
 
 ![telemetry](docs/results/cart_pole_dashboard.gif)
 
-## Run openai tests
+## Cart Pole
 
-![telemetry](docs/results/cart_pole.gif)
+![cart pole](docs/results/cart_pole.gif)
 
-Install python dependencies
+## Lunar Lander
+
+NEAT+CTRNN agent evolved to land on the OpenAI Gym LunarLander-v3 environment using discrete actions with independent threshold-based output control.
+
+![lunar lander](docs/results/lunar_lander.gif)
+
+### Results
+- **Verified average reward**: +70 (fitness 570 with +500 offset)
+- **Peak reward**: +278 (fitness 778)
+- **Solved threshold**: average reward +200
+
+The agent uses 2 independent CTRNN outputs (main thruster, lateral direction) with lateral priority — a key insight for CTRNN control problems where argmax causes state lock-in.
+
+### Run
 
 ```bash
-sudo apt install python3
-sudo apt install python3-pip
-sudo apt install libpython3.8-dev
-sudo apt-get remove swig
-sudo apt-get install swig3.0
-sudo ln -s /usr/bin/swig3.0 /usr/bin/swig
-sudo pip3 install gym
-sudo pip3 install gym[box2d]
-sudo apt install python3-opengl
+cargo build --release --example openai_lunar_lander --features openai
+./target/release/examples/openai_lunar_lander
 ```
 
-Run test
+### Test champion
 
+```bash
+cargo build --release --example test_champion --features openai
+./target/release/examples/test_champion
 ```
-cargo run --release --example openai --features=openai,telemetry
-```
-    
-### Windows Openai
 
-https://github.com/openai/gym/issues/11#issuecomment-242950165
+## Install Rust
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
 ```
-Update to the latest version of Windows (>version 1607, "Anniversary Update")
-Enable Windows Subsystem for Linux (WSL)
-Open cmd, run bash
-Install python & gym (using sudo, and NOT PIP to install gym). So by now you should probably be able to run things and get really nasty graphics related errors. This is because WSL doesn't support any displays, so we need to fake it.
-Install vcXsrv, and run it (you should just have a little tray icon)
-In bash run "export DISPLAY=:0" Now when you run it you should get a display to pop-up, there may be issues related to graphics drivers. Sadly, this is where the instructions diverge if you don't have an NVIDIA graphics card.
-Get the drivers: "sudo apt-get install nvidia-319 nvidia-settings-319 nvidia-prime"
-Run!
+
+## Run tests
+
+To speed up tests, run them with `--release` (XOR classification/simple_sample should take less than a minute):
+
+```bash
+cargo test --release
 ```
 
 ## Sample usage
 
-Create a new cargo project:
+Create a new cargo project and add rustneat to Cargo.toml:
 
-Add rustneat to Cargo.toml
-```
+```toml
 [dependencies]
 rustneat = "0.2.1"
 ```
 
-Then use the library i.e. to implement the above example, use the library as follows:
+Then use the library to implement XOR classification:
 
 ```rust
 extern crate rustneat;
@@ -117,23 +122,23 @@ fn main() {
     }
     println!("{:?}", champion.unwrap().genome);
 }
-
 ```
 
-# Develop
+## Develop
+
 Check style guidelines with:
 
-`rustup component add rustfmt-preview`
-`cargo fmt`
+```bash
+rustup component add rustfmt-preview
+cargo fmt
+```
 
-# Thanks
+## References
+
+- **NeuroEvolution of Augmenting Topologies NEAT** http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf
+- **On the Dynamics of Small Continuous-Time Recurrent Neural Network** (Beer, 1995) http://www.cs.uvm.edu/~jbongard/2014_CS206/Beer_CTRNNs.pdf
+- **An Investigation into the Dynamics of a Continuous Time Recurrent Neural Network Node** http://www.tinyblueplanet.com/easy/FCSReport.pdf
+
+## Thanks
+
 Thanks for the icon nerves by Delwar Hossain from the Noun Project
-
-# References:
-**NeuroEvolution of Augmenting Topologies NEAT** http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf
-
-**On the Dynamics of Small Continuous-Time Recurrent Neural Network** (Beer, 1995) http://www.cs.uvm.edu/~jbongard/2014_CS206/Beer_CTRNNs.pdf
-
-**An Investigation into the Dynamics of a Continuous Time Recurrent Neural Network Node** http://www.tinyblueplanet.com/easy/FCSReport.pdf
-
-**http://indy9000.github.io/posts/analysis-of-a-simple-ctrnn.html** http://indy9000.github.io/posts/analysis-of-a-simple-ctrnn.html
