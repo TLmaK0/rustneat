@@ -2,11 +2,13 @@ var svg, paths = [];
 
 var lineChart;
 
+var register = true;
+
 function approximation_init(id){
   svg = d3.select('#' + id).append('svg');
   var width = $('#' + id).children().width() / 2;
   var rangeX = [-width, width];
-  var height = $('#' + id).children().height();
+  var height = $('#' + id).children().height() / 2;
   var rangeY = [0, height];
 
   for(var n=0; n<10; n++ ) {
@@ -31,6 +33,12 @@ function approximation(id, value){
   if (functionApproximations.length == 9) functionApproximations.shift();
 
   functionApproximations.push(value);
+
+  if (!register) return;
+  else {
+    register = false;
+    setTimeout(function() { register = true; }, 2000);
+  }
 
   paths[0].attr("d", lineChart(functionToApproximate));
 

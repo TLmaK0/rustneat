@@ -23,3 +23,13 @@ Cargo.lock
 
 # Fmt
 **/*.rs.bk
+
+# Local files
+CURRENT_FEATURE.md
+best_config.json
+champion.json
+champion_backup.json
+experiment_results.json
+plan.md
+CLAUDE.md
+AGENT.md

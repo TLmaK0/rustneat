@@ -40,6 +40,7 @@ pub use self::ctrnn::Ctrnn;
 pub use self::environment::Environment;
 pub use self::gene::Gene;
 pub use self::genome::Genome;
+pub use self::mutation_config::MutationConfig;
 pub use self::organism::Organism;
 pub use self::population::Population;
 pub use self::specie::Specie;
@@ -53,6 +54,8 @@ mod gene;
 /// A collection of genes
 pub mod genome;
 mod mutation;
+/// Configurable mutation rates
+pub mod mutation_config;
 /// A genome plus fitness
 pub mod organism;
 /// A collection of species with champion

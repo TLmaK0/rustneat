@@ -1,4 +1,4 @@
-use gene::Gene;
+use crate::gene::Gene;
 
 pub trait Mutation {}
 
@@ -56,7 +56,7 @@ impl dyn Mutation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gene::Gene;
+    use crate::gene::Gene;
 
     #[test]
     fn mutate_toggle_gene_should_toggle() {

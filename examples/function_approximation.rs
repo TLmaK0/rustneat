@@ -15,6 +15,12 @@ use rustneat::Population;
 static mut BEST_FITNESS: f64 = 0.0;
 struct FunctionApproximation;
 
+impl FunctionApproximation {
+    fn funct(&self, x: i64) -> i64 {
+        x.pow(3) - (3 * x) + 2
+    }
+}
+
 impl Environment for FunctionApproximation {
     fn test(&self, organism: &mut Organism) -> f64 {
         let mut output = vec![0f64];
@@ -24,7 +30,7 @@ impl Environment for FunctionApproximation {
 
         for x in -10..11 {
             organism.activate(vec![x as f64 / 10f64], &mut output);
-            distance += ((x as f64).powf(2f64) - (output[0] * 100f64)).abs();
+            distance += (self.funct(x) as f64 - (output[0] * 100f64)).abs();
             outputs.push([x, (output[0] * 100f64) as i64]);
         }
 
@@ -42,7 +48,7 @@ impl Environment for FunctionApproximation {
 
 fn main() {
     let mut population = Population::create_population(150);
-    let mut environment = FunctionApproximation;
+    let environment = FunctionApproximation;
     let mut champion: Option<Organism> = None;
 
     #[cfg(feature = "telemetry")]
@@ -55,7 +61,12 @@ fn main() {
     telemetry!(
         "approximation1",
         1.0,
-        format!("{:?}", (-10..11).map(|x| [x, x * x]).collect::<Vec<_>>())
+        format!(
+            "{:?}",
+            (-10..11)
+                .map(|x| [x, environment.funct(x)])
+                .collect::<Vec<_>>()
+        )
     );
 
     #[cfg(feature = "telemetry")]
@@ -63,7 +74,7 @@ fn main() {
 
     while champion.is_none() {
         population.evolve();
-        population.evaluate_in(&mut environment);
+        population.evaluate_in(&environment);
         for organism in &population.get_organisms() {
             if organism.fitness >= 96f64 {
                 champion = Some(organism.clone());

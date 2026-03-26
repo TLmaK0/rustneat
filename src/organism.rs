@@ -1,5 +1,5 @@
-use ctrnn::{Ctrnn, CtrnnNeuralNetwork};
-use genome::Genome;
+use crate::ctrnn::{Ctrnn, CtrnnNeuralNetwork};
+use crate::genome::Genome;
 use std::cmp;
 use std::cmp::Ordering;
 
@@ -10,6 +10,18 @@ use std::cmp::Ordering;
 pub struct Organism {
     pub genome: Genome,
     pub fitness: f64,
+    /// Fitness adjusted by species size (fitness sharing)
+    pub adjusted_fitness: f64,
+    /// If true, skip evaluation and preserve current fitness (used for elitism)
+    pub preserve_fitness: bool,
+    /// Persistent CTRNN state across activate() calls within an episode
+    ctrnn_state: Vec<f64>,
+    /// CTRNN neuron time constant τ (default 0.01).
+    /// Small τ = feedforward (instant response), large τ = temporal memory (slow response).
+    pub tau: f64,
+    /// Simulated time per activate() call in seconds (default 0.1).
+    /// Number of Euler steps = step_time / dt where dt=0.01.
+    pub step_time: f64,
 }
 
 impl Ord for Organism {
@@ -38,27 +50,52 @@ impl Organism {
         Organism {
             genome: genome,
             fitness: 0f64,
+            adjusted_fitness: 0f64,
+            preserve_fitness: false,
+            ctrnn_state: vec![],
+            tau: 0.01,
+            step_time: 0.1,
         }
     }
     /// Return a new Orgnaism by mutating this Genome and fitness of zero
     pub fn mutate(&self) -> Organism {
         let mut new_genome = self.genome.clone();
         new_genome.mutate();
-        Organism::new(new_genome)
+        let mut child = Organism::new(new_genome);
+        child.tau = self.tau;
+        child.step_time = self.step_time;
+        child
+    }
+    /// Return a new Organism by mutating with specific config
+    pub fn mutate_with_config(&self, config: &crate::mutation_config::MutationConfig) -> Organism {
+        let mut new_genome = self.genome.clone();
+        new_genome.mutate_with_config(config);
+        let mut child = Organism::new(new_genome);
+        child.tau = self.tau;
+        child.step_time = self.step_time;
+        child
     }
     /// Mate this organism with another
     pub fn mate(&self, other: &Organism) -> Organism {
-        Organism::new(
+        let mut child = Organism::new(
             self.genome
                 .mate(&other.genome, self.fitness < other.fitness),
-        )
+        );
+        child.tau = self.tau;
+        child.step_time = self.step_time;
+        child
     }
+    /// Reset the internal CTRNN state (call at the start of each episode)
+    pub fn reset_state(&mut self) {
+        self.ctrnn_state = vec![];
+    }
+
     /// Activate this organism in the NN
     pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
         let neurons_len = self.genome.len();
         let sensors_len = sensors.len();
 
-        let tau = vec![0.01; neurons_len];
+        let tau = vec![self.tau; neurons_len];
         let theta = self.get_bias();
 
         let mut i = sensors.clone();
@@ -71,17 +108,25 @@ impl Organism {
 
         let wji = self.get_weights();
 
+        // Initialize state if needed (first call or after reset_state())
+        if self.ctrnn_state.len() != neurons_len {
+            self.ctrnn_state = vec![0.0; neurons_len];
+        }
+
         let activations = Ctrnn::default().activate_nn(
-            0.1,
+            self.step_time,
             0.01,
             &CtrnnNeuralNetwork {
-                y: &vec![0.0; neurons_len],
+                y: &self.ctrnn_state.clone(),
                 tau: &tau,
                 wji: &wji,
                 theta: &theta,
                 i: &i,
             },
         );
+
+        // Persist state for next activate() call
+        self.ctrnn_state = activations.clone();
 
         if sensors_len < neurons_len {
             let outputs_activations = activations.split_at(sensors_len).1.to_vec();
@@ -116,12 +161,12 @@ impl Organism {
 }
 
 #[cfg(test)]
-use gene::Gene;
+use crate::gene::Gene;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use genome::Genome;
+    use crate::genome::Genome;
 
     #[test]
     fn should_propagate_signal_without_hidden_layers() {
