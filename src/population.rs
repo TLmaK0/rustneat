@@ -112,45 +112,6 @@ impl Population {
             .fold(0usize, |total, specie| total + specie.organisms.len())
     }
 
-    /// Compute adaptive mutation config based on population-level stagnation.
-    /// After 10 epochs without improvement, structural mutation rates scale up,
-    /// capped at 5x at 40 epochs.
-    fn adaptive_config(&self) -> MutationConfig {
-        const STAGNATION_START: usize = 5;
-        const STAGNATION_FULL: usize = 20;
-        const MAX_MULTIPLIER: f64 = 5.0;
-
-        let stagnation = self.epochs_without_improvements;
-        if stagnation <= STAGNATION_START {
-            return self.mutation_config;
-        }
-
-        let progress = ((stagnation - STAGNATION_START) as f64)
-            / ((STAGNATION_FULL - STAGNATION_START) as f64);
-        let multiplier = 1.0 + (MAX_MULTIPLIER - 1.0) * progress.min(1.0);
-
-        // Scale mutation_probability from base up to 0.8 when fully stagnant
-        let base_mut_prob = self.mutation_config.mutation_probability;
-        let adaptive_mut_prob =
-            (base_mut_prob + (0.8 - base_mut_prob) * progress.min(1.0)).min(0.8);
-
-        MutationConfig {
-            add_connection_rate: (self.mutation_config.add_connection_rate * multiplier).min(0.30),
-            add_neuron_rate: (self.mutation_config.add_neuron_rate * multiplier).min(0.20),
-            toggle_expression_rate: (self.mutation_config.toggle_expression_rate * multiplier)
-                .min(0.25),
-            toggle_bias_rate: (self.mutation_config.toggle_bias_rate * multiplier).min(0.10),
-            weight_mutation_rate: self.mutation_config.weight_mutation_rate,
-            weight_perturbation_rate: self.mutation_config.weight_perturbation_rate,
-            compatibility_threshold: self.mutation_config.compatibility_threshold,
-            mutation_probability: adaptive_mut_prob,
-            weight_init_range: self.mutation_config.weight_init_range,
-            weight_mutate_power: self.mutation_config.weight_mutate_power,
-            tau: self.mutation_config.tau,
-            step_time: self.mutation_config.step_time,
-        }
-    }
-
     /// Create offspring by mutation and mating. May create new species.
     pub fn evolve(&mut self) {
         self.generate_offspring();
@@ -237,7 +198,7 @@ impl Population {
 
         let num_of_organisms = self.size();
         let organisms = self.get_organisms();
-        let config = self.adaptive_config();
+        let config = self.mutation_config;
 
         if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
             let mut best_species = self.get_best_species();

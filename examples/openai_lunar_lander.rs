@@ -523,7 +523,7 @@ fn main() {
     let mut generations = 0;
     let mut best_fitness = 300.0; // Typical starting fitness (-200 + 500 offset)
     let mut last_verified_fitness = 0.0; // Track last fitness we verified to avoid re-verifying same champion
-    let improvement_threshold = 20.0; // Show render when fitness improves by at least 20 points
+    let improvement_threshold = 10.0; // Show render when fitness improves by at least 10 points
 
     println!("Starting evolution...");
     println!("Target fitness: {}", max_fitness);
@@ -561,14 +561,6 @@ fn main() {
 
             last_stats_time = Instant::now();
             last_stats_gen = generations;
-        }
-
-        // Log adaptive mutation status every 50 generations
-        if generations % 50 == 0 && population.epochs_without_improvements() > 10 {
-            println!(
-                "[Adaptive] Population stagnant for {} epochs, mutation rates boosted",
-                population.epochs_without_improvements()
-            );
         }
 
         match population.champion {
