@@ -299,7 +299,7 @@ fn run_once(bench: &Bench, seed: Option<u64>) -> RunResult {
         }
     }
     if let Some(mut c) = champ {
-        r.neurons = c.genome.len();
+        r.neurons = c.genome.neurons().len();
         r.genes = c.genome.total_genes();
         r.enabled = c.genome.get_genes().iter().filter(|g| g.enabled()).count();
         r.max_abs_w = c

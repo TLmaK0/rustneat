@@ -1,4 +1,5 @@
 use crate::genome::Genome;
+use crate::innovation::InnovationRegistry;
 use crate::mutation_config::MutationConfig;
 use crate::organism::Organism;
 use conv::prelude::*;
@@ -157,12 +158,50 @@ impl Specie {
     }
 
     /// Generate offspring with a specific mutation config, drawing every random
-    /// decision (selection, crossover, mutation) from `rng`
+    /// decision (selection, crossover, mutation) from `rng`. New neurons are
+    /// numbered by each genome on its own; `Population` uses
+    /// `generate_offspring_with_innovations`.
     pub fn generate_offspring_with_config_and_rng<R: Rng + ?Sized>(
         &mut self,
         num_of_organisms: usize,
         population_organisms: &[Organism],
         base_config: &MutationConfig,
+        rng: &mut R,
+    ) {
+        self.generate_offspring_with_registry(
+            num_of_organisms,
+            population_organisms,
+            base_config,
+            None,
+            rng,
+        );
+    }
+
+    /// Like `generate_offspring_with_config_and_rng`, taking the ids of new
+    /// neurons from `innovations`, the registry of the population.
+    pub fn generate_offspring_with_innovations<R: Rng + ?Sized>(
+        &mut self,
+        num_of_organisms: usize,
+        population_organisms: &[Organism],
+        base_config: &MutationConfig,
+        innovations: &mut InnovationRegistry,
+        rng: &mut R,
+    ) {
+        self.generate_offspring_with_registry(
+            num_of_organisms,
+            population_organisms,
+            base_config,
+            Some(innovations),
+            rng,
+        );
+    }
+
+    fn generate_offspring_with_registry<R: Rng + ?Sized>(
+        &mut self,
+        num_of_organisms: usize,
+        population_organisms: &[Organism],
+        base_config: &MutationConfig,
+        mut innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
     ) {
         self.age += 1;
@@ -212,6 +251,7 @@ impl Specie {
                         &self.organisms[*organism_pos],
                         population_organisms,
                         base_config,
+                        innovations.as_deref_mut(),
                         rng,
                     )
                 })
@@ -276,15 +316,20 @@ impl Specie {
         organism: &Organism,
         population_organisms: &[Organism],
         config: &MutationConfig,
+        innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
     ) -> Organism {
+        let mutate = |parent: &Organism, rng: &mut R| match innovations {
+            Some(registry) => parent.mutate_with_innovations(config, registry, rng),
+            None => parent.mutate_with_config_and_rng(config, rng),
+        };
         if rng.gen::<f64>() < config.mutation_probability || population_organisms.len() < 2 {
             // 25%: mutation only (asexual reproduction)
-            organism.mutate_with_config_and_rng(config, rng)
+            mutate(organism, rng)
         } else {
             // 75%: crossover then mutate
             let child = self.create_child_by_mate(organism, population_organisms, rng);
-            child.mutate_with_config_and_rng(config, rng)
+            mutate(&child, rng)
         }
     }
 

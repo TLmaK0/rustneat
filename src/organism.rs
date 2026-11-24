@@ -1,8 +1,8 @@
 use crate::ctrnn::{Ctrnn, CtrnnNeuralNetwork};
 use crate::genome::Genome;
+use crate::innovation::InnovationRegistry;
 use crate::mutation_config::MutationConfig;
 use rand::Rng;
-use std::cmp;
 use std::cmp::Ordering;
 
 /// How the value of an output neuron is returned by `Organism::activate`.
@@ -105,7 +105,23 @@ impl Organism {
     ) -> Organism {
         let mut new_genome = self.genome.clone();
         new_genome.mutate_with_config_and_rng(config, rng);
-        let mut child = Organism::new(new_genome);
+        self.child(new_genome)
+    }
+    /// Like `mutate_with_config_and_rng`, taking the ids of new neurons from
+    /// `innovations` (see `Genome::mutate_with_innovations`).
+    pub fn mutate_with_innovations<R: Rng + ?Sized>(
+        &self,
+        config: &MutationConfig,
+        innovations: &mut InnovationRegistry,
+        rng: &mut R,
+    ) -> Organism {
+        let mut new_genome = self.genome.clone();
+        new_genome.mutate_with_innovations(config, innovations, rng);
+        self.child(new_genome)
+    }
+    /// A new organism with `genome` and the CTRNN settings of `self`.
+    fn child(&self, genome: Genome) -> Organism {
+        let mut child = Organism::new(genome);
         child.tau = self.tau;
         child.step_time = self.step_time;
         child.output_activation = self.output_activation;
@@ -162,7 +178,9 @@ impl Organism {
     ///
     /// Neurons `0..sensors.len()` are the inputs and the next `outputs.len()`
     /// neurons are the outputs; both always exist, connected or not. Any
-    /// further neuron of the genome is hidden.
+    /// further neuron of the genome (`Genome::neurons`) is hidden; ids that
+    /// are not neurons of the genome (with an `InnovationRegistry` they
+    /// belong to other genomes) take no place in the network.
     ///
     /// Input neurons are sources: they are not integrated and their value
     /// enters as is, `w * x`, the neurons they are connected to (connections
@@ -172,11 +190,21 @@ impl Organism {
     /// `σ(y + θ)`, or as `y + θ` with `OutputActivation::Linear`.
     pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
         let inputs_len = sensors.len();
-        let neurons_len = cmp::max(self.genome.len(), inputs_len + outputs.len());
+        let fixed_len = inputs_len + outputs.len();
+        // Neuron ids of the network, in id order: inputs, outputs, hidden.
+        let ids: Vec<usize> = (0..fixed_len)
+            .chain(
+                self.genome
+                    .neurons()
+                    .into_iter()
+                    .filter(|&id| id >= fixed_len),
+            )
+            .collect();
+        let neurons_len = ids.len();
         // Integrated neurons: outputs and hidden, in neuron id order.
         let integrated_len = neurons_len - inputs_len;
 
-        let weights = self.get_weights(neurons_len);
+        let weights = self.get_weights(&ids);
         let mut wji = vec![0.0; integrated_len * integrated_len];
         let mut i = vec![0.0; integrated_len];
         for row in 0..integrated_len {
@@ -187,8 +215,9 @@ impl Organism {
             wji[row * integrated_len..(row + 1) * integrated_len]
                 .copy_from_slice(&weights[to + inputs_len..to + neurons_len]);
         }
-        let theta: Vec<f64> = (inputs_len..neurons_len)
-            .map(|id| self.genome.bias(id))
+        let theta: Vec<f64> = ids[inputs_len..]
+            .iter()
+            .map(|&id| self.genome.bias(id))
             .collect();
         let tau = vec![self.tau; integrated_len];
 
@@ -224,13 +253,21 @@ impl Organism {
         self.ctrnn_state = activations;
     }
 
-    /// Connection weights as a `neurons_len` x `neurons_len` matrix, row =
-    /// destination neuron, column = source neuron.
-    fn get_weights(&self, neurons_len: usize) -> Vec<f64> {
+    /// Connection weights as a square matrix over the neurons `ids` (sorted),
+    /// row = destination neuron, column = source neuron, both by position in
+    /// `ids`.
+    fn get_weights(&self, ids: &[usize]) -> Vec<f64> {
+        let neurons_len = ids.len();
+        let position = |id: usize| ids.binary_search(&id).ok();
         let mut matrix = vec![0.0; neurons_len * neurons_len];
         for gene in self.genome.get_genes() {
             if gene.enabled() {
-                matrix[(gene.out_neuron_id() * neurons_len) + gene.in_neuron_id()] = gene.weight()
+                if let (Some(from), Some(to)) = (
+                    position(gene.in_neuron_id()),
+                    position(gene.out_neuron_id()),
+                ) {
+                    matrix[to * neurons_len + from] = gene.weight()
+                }
             }
         }
         matrix
@@ -410,9 +447,47 @@ mod tests {
         organism.genome.add_gene(Gene::new(2, 2, 0.75f64, true));
         organism.genome.add_gene(Gene::new(1, 0, 1f64, true));
         assert_eq!(
-            organism.get_weights(organism.genome.len()),
+            organism.get_weights(&organism.genome.neurons()),
             vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]
         );
+    }
+
+    /// 2 inputs, 1 output and the hidden neurons `hidden`, wired the same way.
+    fn network_with_hidden(hidden: [usize; 2]) -> Organism {
+        let [h1, h2] = hidden;
+        let mut genome = Genome::new_unconnected(2, 1);
+        for (from, to, weight) in [
+            (0, h1, 3f64),
+            (1, h1, -2f64),
+            (1, h2, 1.5f64),
+            (h1, h2, 2f64),
+            (h2, 2, -4f64),
+            (h1, 2, 1f64),
+            (h2, h2, 0.5f64),
+        ] {
+            genome.add_gene(Gene::new(from, to, weight, true));
+        }
+        genome.set_bias(h1, 0.3);
+        genome.set_bias(h2, -0.7);
+        genome.set_bias(2, 0.1);
+        Organism::new(genome)
+    }
+
+    #[test]
+    fn hidden_neuron_ids_need_not_be_consecutive() {
+        // With ids from an innovation registry a genome can have hidden
+        // neurons 40 and 900 and nothing in between: the network is the same
+        // as with ids 3 and 4, and it does not grow with the ids.
+        let mut dense = network_with_hidden([3, 4]);
+        let mut sparse = network_with_hidden([40, 900]);
+        assert_eq!(sparse.genome.neurons(), vec![0, 1, 2, 40, 900]);
+        for sensors in [[0f64, 0f64], [1f64, 0f64], [0f64, 1f64], [1f64, 1f64]] {
+            let (mut a, mut b) = (vec![0f64], vec![0f64]);
+            dense.activate(sensors.to_vec(), &mut a);
+            sparse.activate(sensors.to_vec(), &mut b);
+            assert_eq!(a, b);
+        }
+        assert_eq!(sparse.ctrnn_state.len(), 3);
     }
 
     #[test]

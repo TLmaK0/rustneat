@@ -1,5 +1,6 @@
 use crate::environment::Environment;
 use crate::genome::Genome;
+use crate::innovation::InnovationRegistry;
 use crate::organism::Organism;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -38,6 +39,9 @@ pub struct Population {
     rng: ChaCha8Rng,
     /// How the initial organisms were built, so `with_seed` can rebuild them.
     initial: InitialPopulation,
+    /// Ids of the neurons created by splitting connections, shared by every
+    /// genome of the population.
+    innovations: InnovationRegistry,
 }
 
 /// Shape of the initial (minimal) population: inputs and outputs only.
@@ -157,6 +161,7 @@ impl Population {
             mutation_config: config,
             rng: ChaCha8Rng::from_entropy(),
             initial,
+            innovations: InnovationRegistry::default(),
         };
         population.create_initial_organisms();
         population
@@ -166,6 +171,12 @@ impl Population {
     /// size given to the constructor.
     pub fn target_size(&self) -> usize {
         self.initial.size
+    }
+
+    /// The innovation registry: the neuron id of every connection split so
+    /// far in the population.
+    pub fn innovations(&self) -> &InnovationRegistry {
+        &self.innovations
     }
 
     /// Find total of all organisms in the population
@@ -314,10 +325,11 @@ impl Population {
 
         for (specie, offspring_size) in self.species.iter_mut().zip(offspring_sizes) {
             if offspring_size > 0 {
-                specie.generate_offspring_with_config_and_rng(
+                specie.generate_offspring_with_innovations(
                     offspring_size,
                     &organisms,
                     &config,
+                    &mut self.innovations,
                     &mut self.rng,
                 );
             } else {
@@ -400,6 +412,7 @@ impl Population {
             connected,
         } = self.initial;
         self.species = vec![];
+        self.innovations = InnovationRegistry::new(input_neurons + output_neurons);
         let mut organisms = vec![];
 
         while organisms.len() < size {

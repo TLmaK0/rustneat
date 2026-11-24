@@ -1,11 +1,16 @@
 use crate::gene::Gene;
+use crate::innovation::InnovationRegistry;
 use crate::mutation::Mutation;
 use crate::mutation_config::MutationConfig;
 use rand::Rng;
 use std::cmp;
 
 /// Vector of Genes
-/// Holds a count of last neuron added, similar to Innovation number
+///
+/// Neuron ids are the historical markings: inside a `Population` the id of a
+/// new neuron comes from its `InnovationRegistry`, so a genome's hidden ids
+/// need not be consecutive. A genome mutated on its own (without registry)
+/// numbers its new neurons after its highest id.
 #[derive(Default, Debug, Clone)]
 pub struct Genome {
     genes: Vec<Gene>,
@@ -173,6 +178,30 @@ impl Genome {
         self.biases.get(neuron_id).copied().unwrap_or(0f64)
     }
 
+    /// Ids of the neurons of the genome, in increasing order: its inputs and
+    /// outputs, connected or not, and every neuron some gene connects.
+    pub fn neurons(&self) -> Vec<usize> {
+        let mut ids: Vec<usize> = (0..self.input_neurons + self.output_neurons)
+            .chain(
+                self.genes
+                    .iter()
+                    .flat_map(|gene| [gene.in_neuron_id(), gene.out_neuron_id()]),
+            )
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
+
+    /// True if `neuron_id` is one of `neurons()`.
+    pub fn has_neuron(&self, neuron_id: usize) -> bool {
+        neuron_id < self.input_neurons + self.output_neurons
+            || self
+                .genes
+                .iter()
+                .any(|gene| gene.in_neuron_id() == neuron_id || gene.out_neuron_id() == neuron_id)
+    }
+
     /// Set the bias θ of the neuron `neuron_id`.
     pub fn set_bias(&mut self, neuron_id: usize, bias: f64) {
         if self.biases.len() <= neuron_id {
@@ -199,12 +228,34 @@ impl Genome {
         config: &MutationConfig,
         rng: &mut R,
     ) {
+        self.mutate_with_registry(config, None, rng);
+    }
+
+    /// Like `mutate_with_config_and_rng`, but a new neuron takes its id from
+    /// `innovations`: splitting a connection gives the same id as the same
+    /// split anywhere else in the population. The random draws are the same
+    /// as without registry.
+    pub fn mutate_with_innovations<R: Rng + ?Sized>(
+        &mut self,
+        config: &MutationConfig,
+        innovations: &mut InnovationRegistry,
+        rng: &mut R,
+    ) {
+        self.mutate_with_registry(config, Some(innovations), rng);
+    }
+
+    fn mutate_with_registry<R: Rng + ?Sized>(
+        &mut self,
+        config: &MutationConfig,
+        innovations: Option<&mut InnovationRegistry>,
+        rng: &mut R,
+    ) {
         if rng.gen::<f64>() < config.add_connection_rate || self.genes.is_empty() {
             self.mutate_add_connection_with_config(config, rng);
         };
 
         if rng.gen::<f64>() < config.add_neuron_rate {
-            self.mutate_add_neuron(rng);
+            self.mutate_add_neuron_with_registry(innovations, rng);
         };
 
         if rng.gen::<f64>() < config.weight_mutation_rate {
@@ -337,18 +388,21 @@ impl Genome {
             }
         }
 
-        // Neuron genes: a neuron of both parents takes the bias of either at
-        // random (or their average when weights are averaged); a neuron of
-        // only one parent takes its bias.
-        genome.biases = (0..genome.len())
-            .map(|id| match (id < self.len(), id < other.len()) {
+        // Neuron genes: a neuron of both parents (the same id, so the same
+        // innovation) takes the bias of either at random (or their average
+        // when weights are averaged); a neuron of only one parent takes its
+        // bias.
+        let mut biases = vec![0f64; genome.len()];
+        for id in genome.neurons() {
+            biases[id] = match (self.has_neuron(id), other.has_neuron(id)) {
                 (true, true) if use_average_weights => (self.bias(id) + other.bias(id)) / 2.0,
                 (true, true) if rng.gen::<f64>() > 0.5 => self.bias(id),
                 (true, true) | (false, true) => other.bias(id),
                 (true, false) => self.bias(id),
                 (false, false) => 0f64,
-            })
-            .collect();
+            };
+        }
+        genome.biases = biases;
         genome
     }
     /// Get vector of all genes in this genome
@@ -362,7 +416,8 @@ impl Genome {
         let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true);
         self.add_gene(gene);
     }
-    /// Number of genes
+    /// Highest neuron id + 1. With ids from an `InnovationRegistry` it is not
+    /// the number of neurons: that is `neurons().len()`.
     pub fn len(&self) -> usize {
         self.last_neuron_id + 1 // first neuron id is 0
     }
@@ -401,23 +456,32 @@ impl Genome {
     /// on the ids (with 3 neurons, 1 -> 2 was never chosen), and the old
     /// behaviour of giving up when the drawn connection already existed.
     ///
+    /// Only neurons of the genome (`neurons()`) are connected: with ids from
+    /// an `InnovationRegistry` the ids in between belong to other genomes.
     /// A genome that does not know its inputs (`Genome::default`) with a
     /// single neuron can still connect it to itself, as before.
     fn new_connection_candidates(&self) -> Vec<(usize, usize)> {
-        let neurons = self.len();
         let exists = |from: usize, to: usize| {
             self.genes
                 .binary_search(&Gene::new_connection(from, to))
                 .is_ok()
         };
-        if self.input_neurons == 0 && neurons == 1 {
+        if self.input_neurons == 0 && self.len() == 1 {
             return if exists(0, 0) { vec![] } else { vec![(0, 0)] };
         }
-        (0..neurons)
-            .flat_map(|from| {
-                (self.input_neurons..neurons)
-                    .filter(move |&to| to != from)
-                    .map(move |to| (from, to))
+        let neurons = self.neurons();
+        let destinations: Vec<usize> = neurons
+            .iter()
+            .copied()
+            .filter(|&id| id >= self.input_neurons)
+            .collect();
+        neurons
+            .iter()
+            .flat_map(|&from| {
+                destinations
+                    .iter()
+                    .filter(move |&&to| to != from)
+                    .map(move |&to| (from, to))
             })
             .filter(|&(from, to)| !exists(from, to))
             .collect()
@@ -454,7 +518,11 @@ impl Genome {
     /// except those of the inputs, which are sources without bias.
     fn mutate_biases_with_config<R: Rng + ?Sized>(&mut self, config: &MutationConfig, rng: &mut R) {
         self.biases.resize(self.len(), 0f64);
-        for bias in self.biases.iter_mut().skip(self.input_neurons) {
+        for id in self.neurons() {
+            if id < self.input_neurons {
+                continue;
+            }
+            let bias = &mut self.biases[id];
             if rng.gen::<f64>() < config.bias_gene_mutation_rate {
                 let value = mutated_value(
                     *bias,
@@ -468,20 +536,41 @@ impl Genome {
         }
     }
 
+    #[cfg(test)]
     fn mutate_add_neuron<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+        self.mutate_add_neuron_with_registry(None, rng);
+    }
+
+    fn mutate_add_neuron_with_registry<R: Rng + ?Sized>(
+        &mut self,
+        innovations: Option<&mut InnovationRegistry>,
+        rng: &mut R,
+    ) {
         if self.genes.is_empty() {
             return;
         }
-        let (gene1, gene2) = {
-            let selected_gene = rng.gen_range(0..self.genes.len());
-            let gene = &mut self.genes[selected_gene];
-            self.last_neuron_id += 1;
-            <dyn Mutation>::add_neuron(gene, self.last_neuron_id)
+        let selected_gene = rng.gen_range(0..self.genes.len());
+        self.split_gene(selected_gene, innovations);
+    }
+
+    /// Split the gene at `index`: disable it and add a new neuron between its
+    /// ends. The neuron id comes from `innovations` or, without registry,
+    /// is the next one after the highest id of the genome. Returns the id.
+    fn split_gene(&mut self, index: usize, innovations: Option<&mut InnovationRegistry>) -> usize {
+        let (in_neuron_id, out_neuron_id) = (
+            self.genes[index].in_neuron_id(),
+            self.genes[index].out_neuron_id(),
+        );
+        let neuron_id = match innovations {
+            Some(registry) => registry.split_neuron_id(self, in_neuron_id, out_neuron_id),
+            None => self.last_neuron_id + 1,
         };
+        let (gene1, gene2) = <dyn Mutation>::add_neuron(&mut self.genes[index], neuron_id);
         // A new neuron is born neutral, even if its id held a bias before.
-        self.set_bias(self.last_neuron_id, 0f64);
+        self.set_bias(neuron_id, 0f64);
         self.add_gene(gene1);
         self.add_gene(gene2);
+        neuron_id
     }
 
     /// Add a new gene and checks if is allowd. Only can connect next neuron or already connected
@@ -554,12 +643,13 @@ impl Genome {
     ///
     /// `δ = c1·E/N + c2·D/N + c3·W̄ + c_bias·B̄`
     ///
-    /// Genes are aligned by `(in, out)`, the order they are kept in (there are
-    /// no innovation numbers yet). `E` counts the excess genes (beyond the
-    /// last gene of the other genome), `D` the disjoint ones (the rest of the
+    /// Genes are aligned by `(in, out)`, the order they are kept in: with
+    /// neuron ids from an `InnovationRegistry` the pair identifies the
+    /// innovation. `E` counts the excess genes (beyond the last gene of the
+    /// other genome in that order), `D` the disjoint ones (the rest of the
     /// unmatched genes), `W̄` is the average weight difference of the matching
     /// genes and `B̄` the average bias difference of the neurons both genomes
-    /// have, inputs excluded; each average is 0 when there is nothing to
+    /// have (same id), inputs excluded; each average is 0 when there is nothing to
     /// average. `N = 1` if both genomes have fewer genes than
     /// `compatibility_small_genome_genes`, otherwise the number of genes of
     /// the larger genome.
@@ -609,16 +699,23 @@ impl Genome {
             0f64
         };
 
-        // Neurons both genomes have (ids are shared), inputs excluded.
+        // Neurons both genomes have (same id, same innovation), inputs
+        // excluded.
         let first = cmp::max(self.input_neurons, other.input_neurons);
-        let common = cmp::min(self.len(), other.len());
-        let average_bias_difference = if common > first {
-            (first..common)
-                .map(|id| (self.bias(id) - other.bias(id)).abs())
-                .sum::<f64>()
-                / (common - first) as f64
-        } else {
+        let other_neurons = other.neurons();
+        let common: Vec<usize> = self
+            .neurons()
+            .into_iter()
+            .filter(|&id| id >= first && other_neurons.binary_search(&id).is_ok())
+            .collect();
+        let average_bias_difference = if common.is_empty() {
             0f64
+        } else {
+            common
+                .iter()
+                .map(|&id| (self.bias(id) - other.bias(id)).abs())
+                .sum::<f64>()
+                / common.len() as f64
         };
 
         config.compatibility_excess_coefficient * excess as f64 / n
@@ -1135,6 +1232,66 @@ mod tests {
         assert_eq!(genome.bias(1), -3f64);
     }
 
+    /// Split the connection `from -> to` of `genome` (it must exist).
+    fn split(
+        genome: &mut Genome,
+        from: usize,
+        to: usize,
+        innovations: Option<&mut InnovationRegistry>,
+    ) -> usize {
+        let index = genome
+            .genes
+            .binary_search(&Gene::new_connection(from, to))
+            .unwrap();
+        genome.split_gene(index, innovations)
+    }
+
+    #[test]
+    fn splitting_the_same_connection_twice_gives_two_neurons_shared_by_lineages() {
+        let mut registry = InnovationRegistry::new(3);
+        let mut a = Genome::new_initialized(2, 1);
+        let mut b = a.clone();
+        let first = split(&mut a, 0, 2, Some(&mut registry));
+        // 0 -> 2 is now disabled; splitting it again must not collide.
+        let second = split(&mut a, 0, 2, Some(&mut registry));
+        assert!(first != second);
+        assert!(a.has_neuron(first) && a.has_neuron(second));
+        for gene in [(0, first), (first, 2), (0, second), (second, 2)] {
+            assert!(connections(&a).contains(&gene), "{:?} missing", gene);
+        }
+        // Another lineage doing the same two splits gets the same two ids.
+        assert_eq!(split(&mut b, 0, 2, Some(&mut registry)), first);
+        assert_eq!(split(&mut b, 0, 2, Some(&mut registry)), second);
+        assert_eq!(connections(&a), connections(&b));
+        assert_eq!(registry.split_of(second), Some((0, 2)));
+        assert_eq!(registry.len(), 2);
+    }
+
+    #[test]
+    fn splitting_without_registry_numbers_after_the_highest_id() {
+        let mut genome = Genome::new_initialized(2, 1);
+        let mut registry = InnovationRegistry::new(3);
+        // Another genome takes id 3, so this one gets 4 and has no neuron 3.
+        let mut other = Genome::new_initialized(2, 1);
+        split(&mut other, 1, 2, Some(&mut registry));
+        let far = split(&mut genome, 0, 2, Some(&mut registry));
+        assert_eq!(far, 4);
+        assert_eq!(split(&mut genome, 1, 2, None), 5);
+        assert_eq!(split(&mut genome, 0, far, None), 6);
+        assert_eq!(genome.neurons(), vec![0, 1, 2, 4, 5, 6]);
+    }
+
+    #[test]
+    fn registry_never_gives_an_id_the_genome_already_has() {
+        let mut genome = Genome::new_initialized(2, 1);
+        // Neurons 3 and 4 numbered without registry.
+        split(&mut genome, 0, 2, None);
+        split(&mut genome, 1, 2, None);
+        let mut registry = InnovationRegistry::new(3);
+        let id = split(&mut genome, 0, 3, Some(&mut registry));
+        assert_eq!(id, 5);
+    }
+
     /// A: neurons 0, 1; B: neurons 0, 1, 2. Different biases on 1, B has
     /// its own bias on 2.
     fn bias_parents() -> (Genome, Genome) {
@@ -1188,7 +1345,7 @@ mod tests {
         for _ in 0..200 {
             assert_eq!(a.mate_with_rng(&b, false, &mut rng).bias(2), -4f64);
             let child = a.mate_equal_with_rng(&b, &mut rng);
-            if child.len() > 2 {
+            if child.has_neuron(2) {
                 assert_eq!(child.bias(2), -4f64);
             }
         }

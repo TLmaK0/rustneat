@@ -36,6 +36,7 @@ pub use self::ctrnn::Ctrnn;
 pub use self::environment::Environment;
 pub use self::gene::Gene;
 pub use self::genome::Genome;
+pub use self::innovation::InnovationRegistry;
 pub use self::mutation_config::MutationConfig;
 pub use self::organism::{Organism, OutputActivation};
 pub use self::population::{FitnessError, Population};
@@ -49,6 +50,7 @@ pub mod environment;
 mod gene;
 /// A collection of genes
 pub mod genome;
+mod innovation;
 mod mutation;
 /// Configurable mutation rates
 pub mod mutation_config;
