@@ -9,7 +9,9 @@ extern crate rusty_dashed;
 mod telemetry_helper;
 
 use rustneat::Environment;
+use rustneat::MutationConfig;
 use rustneat::Organism;
+use rustneat::OutputActivation;
 use rustneat::Population;
 
 static mut BEST_FITNESS: f64 = 0.0;
@@ -47,7 +49,11 @@ impl Environment for FunctionApproximation {
 }
 
 fn main() {
-    let mut population = Population::create_population(150);
+    // Regression: the target goes beyond (0, 1), so read the output linearly.
+    let config = MutationConfig::new()
+        .output_activation(OutputActivation::Linear)
+        .build();
+    let mut population = Population::create_population_initialized_with_config(150, 1, 1, config);
     let environment = FunctionApproximation;
     let mut champion: Option<Organism> = None;
 

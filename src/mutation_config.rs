@@ -2,6 +2,7 @@ use crate::genome::{
     COMPATIBILITY_THRESHOLD, MUTATE_ADD_CONNECTION, MUTATE_ADD_NEURON, MUTATE_CONNECTION_WEIGHT,
     MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY, MUTATE_TOGGLE_BIAS, MUTATE_TOGGLE_EXPRESSION,
 };
+use crate::organism::OutputActivation;
 
 /// Configuration for mutation rates in NEAT
 ///
@@ -39,6 +40,9 @@ pub struct MutationConfig {
     /// With dt=0.01, this means 10 Euler integration steps per activation.
     /// More time = more steps = more accurate convergence but slower execution.
     pub step_time: f64,
+    /// How output neurons are read: `σ(y + θ)` (default) or linear `y + θ`
+    /// for regression.
+    pub output_activation: OutputActivation,
 }
 
 impl Default for MutationConfig {
@@ -56,6 +60,7 @@ impl Default for MutationConfig {
             weight_mutate_power: 1.0,
             tau: 0.01,
             step_time: 0.1,
+            output_activation: OutputActivation::Sigmoid,
         }
     }
 }
@@ -151,6 +156,12 @@ impl MutationConfigBuilder {
     /// Set CTRNN integration time per activate() call
     pub fn step_time(mut self, step_time: f64) -> Self {
         self.config.step_time = step_time;
+        self
+    }
+
+    /// Set how output neurons are read (sigmoid or linear)
+    pub fn output_activation(mut self, output_activation: OutputActivation) -> Self {
+        self.config.output_activation = output_activation;
         self
     }
 

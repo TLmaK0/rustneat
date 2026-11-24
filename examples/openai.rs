@@ -7,7 +7,7 @@ use cpython::{NoArgs, ObjectProtocol, PyModule, PyObject, Python};
 use ffi::PySys_SetArgv;
 use rustneat::{Environment, Organism, Population};
 use std::ffi::CString;
-use std::{cmp, process};
+use std::process;
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
@@ -55,7 +55,8 @@ impl CartPole {
             if render {
                 env.call_method(py, "render", NoArgs, None).unwrap();
             }
-            let value = cmp::max(0, cmp::min(1, output[0] as i64));
+            // The output is σ(y + θ), in (0, 1): push right above 0.5.
+            let value = if output[0] > 0.5 { 1 } else { 0 };
             let (observation, reward, done) =
                 extract_step_result(py, env.call_method(py, "step", (value,), None).unwrap());
             total_reward += reward;

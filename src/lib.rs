@@ -37,7 +37,7 @@ pub use self::environment::Environment;
 pub use self::gene::Gene;
 pub use self::genome::Genome;
 pub use self::mutation_config::MutationConfig;
-pub use self::organism::Organism;
+pub use self::organism::{Organism, OutputActivation};
 pub use self::population::Population;
 pub use self::specie::Specie;
 pub use self::species_evaluator::SpeciesEvaluator;

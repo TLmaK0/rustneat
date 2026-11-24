@@ -5,6 +5,16 @@ use rand::Rng;
 use std::cmp;
 use std::cmp::Ordering;
 
+/// How the value of an output neuron is returned by `Organism::activate`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OutputActivation {
+    /// `σ(y + θ)`, always in (0, 1). Default.
+    #[default]
+    Sigmoid,
+    /// `y + θ`, unbounded (for regression).
+    Linear,
+}
+
 /// An organism is a Genome with fitness.
 /// Also maitain a fitenss measure of the organism
 #[allow(missing_docs)]
@@ -24,6 +34,8 @@ pub struct Organism {
     /// Simulated time per activate() call in seconds (default 0.1).
     /// Number of Euler steps = step_time / dt where dt=0.01.
     pub step_time: f64,
+    /// How output neurons are read (default `OutputActivation::Sigmoid`).
+    pub output_activation: OutputActivation,
 }
 
 impl Ord for Organism {
@@ -57,6 +69,7 @@ impl Organism {
             ctrnn_state: vec![],
             tau: 0.01,
             step_time: 0.1,
+            output_activation: OutputActivation::default(),
         }
     }
     /// Return a new Orgnaism by mutating this Genome and fitness of zero
@@ -66,6 +79,7 @@ impl Organism {
         let mut child = Organism::new(new_genome);
         child.tau = self.tau;
         child.step_time = self.step_time;
+        child.output_activation = self.output_activation;
         child
     }
     /// Return a new Organism by mutating with specific config
@@ -84,6 +98,7 @@ impl Organism {
         let mut child = Organism::new(new_genome);
         child.tau = self.tau;
         child.step_time = self.step_time;
+        child.output_activation = self.output_activation;
         child
     }
     /// Mate this organism with another
@@ -103,6 +118,7 @@ impl Organism {
         let mut child = Organism::new(genome);
         child.tau = self.tau;
         child.step_time = self.step_time;
+        child.output_activation = self.output_activation;
         child
     }
     /// Reset the internal CTRNN state (call at the start of each episode)
@@ -110,34 +126,50 @@ impl Organism {
         self.ctrnn_state = vec![];
     }
 
-    /// Activate this organism in the NN
+    /// Activate this organism in the NN.
+    ///
+    /// Neurons `0..sensors.len()` are the inputs and the next `outputs.len()`
+    /// neurons are the outputs; both always exist, connected or not. Any
+    /// further neuron of the genome is hidden.
+    ///
+    /// Input neurons are sources: they are not integrated and their value
+    /// enters as is, `w * x`, the neurons they are connected to (connections
+    /// into an input neuron have no effect). Output and hidden neurons are
+    /// CTRNN neurons, which see each other through `σ(y + θ)`. Each output is
+    /// returned as `σ(y + θ)`, or as `y + θ` with `OutputActivation::Linear`.
     pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
-        let neurons_len = self.genome.len();
-        let sensors_len = sensors.len();
+        let inputs_len = sensors.len();
+        let neurons_len = cmp::max(self.genome.len(), inputs_len + outputs.len());
+        // Integrated neurons: outputs and hidden, in neuron id order.
+        let integrated_len = neurons_len - inputs_len;
 
-        let tau = vec![self.tau; neurons_len];
-        let theta = self.get_bias();
-
-        let mut i = sensors.clone();
-
-        if neurons_len < sensors_len {
-            i.truncate(neurons_len);
-        } else {
-            i = [i, vec![0.0; neurons_len - sensors_len]].concat();
+        let weights = self.get_weights(neurons_len);
+        let mut wji = vec![0.0; integrated_len * integrated_len];
+        let mut i = vec![0.0; integrated_len];
+        for row in 0..integrated_len {
+            let to = (inputs_len + row) * neurons_len;
+            for (from, sensor) in sensors.iter().enumerate() {
+                i[row] += weights[to + from] * sensor;
+            }
+            wji[row * integrated_len..(row + 1) * integrated_len]
+                .copy_from_slice(&weights[to + inputs_len..to + neurons_len]);
         }
-
-        let wji = self.get_weights();
+        let theta = self.get_bias(neurons_len).split_off(inputs_len);
+        let tau = vec![self.tau; integrated_len];
 
         // Initialize state if needed (first call or after reset_state())
-        if self.ctrnn_state.len() != neurons_len {
-            self.ctrnn_state = vec![0.0; neurons_len];
+        if self.ctrnn_state.len() != integrated_len {
+            self.ctrnn_state = vec![0.0; integrated_len];
+        }
+        if integrated_len == 0 {
+            return;
         }
 
         let activations = Ctrnn::default().activate_nn(
             self.step_time,
             0.01,
             &CtrnnNeuralNetwork {
-                y: &self.ctrnn_state.clone(),
+                y: &self.ctrnn_state,
                 tau: &tau,
                 wji: &wji,
                 theta: &theta,
@@ -145,20 +177,21 @@ impl Organism {
             },
         );
 
-        // Persist state for next activate() call
-        self.ctrnn_state = activations.clone();
-
-        if sensors_len < neurons_len {
-            let outputs_activations = activations.split_at(sensors_len).1.to_vec();
-
-            for n in 0..cmp::min(outputs_activations.len(), outputs.len()) {
-                outputs[n] = outputs_activations[n];
-            }
+        for (n, output) in outputs.iter_mut().enumerate() {
+            let value = activations[n] + theta[n];
+            *output = match self.output_activation {
+                OutputActivation::Sigmoid => Ctrnn::sigmoid(value),
+                OutputActivation::Linear => value,
+            };
         }
+
+        // Persist state for next activate() call
+        self.ctrnn_state = activations;
     }
 
-    fn get_weights(&self) -> Vec<f64> {
-        let neurons_len = self.genome.len();
+    /// Connection weights as a `neurons_len` x `neurons_len` matrix, row =
+    /// destination neuron, column = source neuron.
+    fn get_weights(&self, neurons_len: usize) -> Vec<f64> {
         let mut matrix = vec![0.0; neurons_len * neurons_len];
         for gene in self.genome.get_genes() {
             if gene.enabled() {
@@ -168,8 +201,7 @@ impl Organism {
         matrix
     }
 
-    fn get_bias(&self) -> Vec<f64> {
-        let neurons_len = self.genome.len();
+    fn get_bias(&self, neurons_len: usize) -> Vec<f64> {
         let mut matrix = vec![0.0; neurons_len];
         for gene in self.genome.get_genes() {
             if gene.is_bias() {
@@ -286,7 +318,7 @@ mod tests {
         let mut organism = Organism::new(Genome::default());
         organism
             .genome
-            .add_gene(Gene::new(0, 1, -2f64, true, false));
+            .add_gene(Gene::new(0, 1, -3f64, true, false));
         let sensors = vec![1f64];
         let mut output = vec![0f64];
         organism.activate(sensors, &mut output);
@@ -367,7 +399,7 @@ mod tests {
             .add_gene(Gene::new(2, 2, 0.75f64, true, false));
         organism.genome.add_gene(Gene::new(1, 0, 1f64, true, false));
         assert_eq!(
-            organism.get_weights(),
+            organism.get_weights(organism.genome.len()),
             vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]
         );
     }
@@ -379,5 +411,144 @@ mod tests {
         let sensors = vec![0f64, 0f64, 0f64];
         let mut output = vec![0f64, 0f64, 0f64];
         organism.activate(sensors, &mut output);
+    }
+
+    fn single_connection(weight: f64, activation: OutputActivation) -> Organism {
+        let mut organism = Organism::new(Genome::default());
+        organism
+            .genome
+            .add_gene(Gene::new(0, 1, weight, true, false));
+        organism.output_activation = activation;
+        organism
+    }
+
+    fn activate_once(organism: &mut Organism, sensors: Vec<f64>, outputs: usize) -> Vec<f64> {
+        let mut output = vec![-1f64; outputs];
+        organism.reset_state();
+        organism.activate(sensors, &mut output);
+        output
+    }
+
+    #[test]
+    fn input_zero_contributes_nothing_to_target_neuron() {
+        for weight in [-30f64, -1.0, 0.3, 1.0, 7.0, 30.0] {
+            let mut linear = single_connection(weight, OutputActivation::Linear);
+            assert_eq!(activate_once(&mut linear, vec![0f64], 1), vec![0f64]);
+            let mut sigmoid = single_connection(weight, OutputActivation::Sigmoid);
+            assert_eq!(activate_once(&mut sigmoid, vec![0f64], 1), vec![0.5f64]);
+        }
+    }
+
+    #[test]
+    fn input_value_enters_target_neuron_as_is() {
+        // tau = 0.01 and dt = 0.01: the target neuron settles on w * x.
+        for input in [-100f64, -1.0, 0.5, 1.0, 10.0, 100.0] {
+            let mut organism = single_connection(2f64, OutputActivation::Linear);
+            let output = activate_once(&mut organism, vec![input], 1);
+            assert!(
+                (output[0] - 2f64 * input).abs() < 1e-9,
+                "input {} gave {}, expected {}",
+                input,
+                output[0],
+                2f64 * input
+            );
+        }
+    }
+
+    #[test]
+    fn sigmoid_output_is_in_open_unit_interval_with_any_weight() {
+        let mut organism = Organism::new(Genome::default());
+        organism.genome.add_gene(Gene::new(0, 2, 1f64, true, false));
+        organism.genome.add_gene(Gene::new(1, 2, 1f64, true, false));
+        organism.genome.add_gene(Gene::new(0, 3, 1f64, true, false));
+        organism.genome.add_gene(Gene::new(3, 2, 1f64, true, false));
+        organism.genome.add_gene(Gene::new(2, 2, 1f64, true, false));
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        for _ in 0..2000 {
+            for gene in organism.genome.get_genes().clone() {
+                let mut gene = gene;
+                // |y| stays below ~36, where σ is still distinguishable from 0 and 1 in f64
+                gene.set_weight(rng.gen_range(-8f64..8f64));
+                organism.genome.add_gene(gene);
+            }
+            let sensors = vec![rng.gen_range(-1f64..1f64), rng.gen_range(-1f64..1f64)];
+            let output = activate_once(&mut organism, sensors, 1);
+            assert!(
+                output[0] > 0f64 && output[0] < 1f64,
+                "output {} out of (0, 1)",
+                output[0]
+            );
+        }
+        for weight in [-30f64, -7.0, -1.0, 1.0, 7.0, 30.0] {
+            let mut organism = single_connection(weight, OutputActivation::Sigmoid);
+            let output = activate_once(&mut organism, vec![1f64], 1);
+            assert!(output[0] > 0f64 && output[0] < 1f64, "{}", output[0]);
+        }
+        // Far beyond that range f64 saturates to the closed bounds, never past them.
+        for weight in [-1e6f64, 1e6] {
+            let mut organism = single_connection(weight, OutputActivation::Sigmoid);
+            let output = activate_once(&mut organism, vec![1f64], 1);
+            assert!((0f64..=1f64).contains(&output[0]), "{}", output[0]);
+        }
+    }
+
+    #[test]
+    fn input_and_output_neurons_exist_without_connections() {
+        let mut organism = Organism::new(Genome::default());
+        assert_eq!(
+            activate_once(&mut organism, vec![1f64, 1f64], 2),
+            vec![0.5f64, 0.5]
+        );
+
+        let mut organism = Organism::new(Genome::default());
+        organism.genome.add_gene(Gene::new(0, 2, 3f64, true, false));
+        organism.output_activation = OutputActivation::Linear;
+        assert_eq!(
+            activate_once(&mut organism, vec![1f64, 1f64], 2),
+            vec![3f64, 0f64]
+        );
+    }
+
+    #[test]
+    fn connections_into_input_neurons_do_not_change_inputs() {
+        let mut organism = single_connection(1f64, OutputActivation::Linear);
+        organism
+            .genome
+            .add_gene(Gene::new(1, 0, 100f64, true, false));
+        let output = activate_once(&mut organism, vec![1f64], 1);
+        assert!((output[0] - 1f64).abs() < 1e-9, "{}", output[0]);
+    }
+
+    #[test]
+    fn hidden_neuron_receives_input_as_is() {
+        // 0 -> 2 (hidden) -> 1 (output): hidden settles on x, output on σ(x).
+        let mut organism = Organism::new(Genome::default());
+        organism.genome.add_gene(Gene::new(0, 2, 1f64, true, false));
+        organism.genome.add_gene(Gene::new(2, 1, 1f64, true, false));
+        organism.output_activation = OutputActivation::Linear;
+        organism.step_time = 1.0;
+        let output = activate_once(&mut organism, vec![-3f64], 1);
+        assert!(
+            (output[0] - Ctrnn::sigmoid(-3f64)).abs() < 1e-9,
+            "{}",
+            output[0]
+        );
+    }
+
+    #[test]
+    fn output_activation_is_inherited() {
+        let parent = single_connection(1f64, OutputActivation::Linear);
+        let config = MutationConfig::default();
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        assert_eq!(
+            parent
+                .mutate_with_config_and_rng(&config, &mut rng)
+                .output_activation,
+            OutputActivation::Linear
+        );
+        assert_eq!(
+            parent.mate_with_rng(&parent, &mut rng).output_activation,
+            OutputActivation::Linear
+        );
     }
 }

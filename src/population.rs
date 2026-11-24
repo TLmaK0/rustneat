@@ -118,8 +118,8 @@ impl Population {
     /// Make the population reproducible: reseed its random generator with
     /// `seed` and rebuild the initial organisms from it, with the same shape
     /// the constructor used and the current `mutation_config` (tau, step
-    /// time). Call it right after a constructor; any evolution done before is
-    /// discarded. The constructors without seed use a seed from entropy.
+    /// time, output activation). Call it right after a constructor; any
+    /// evolution done before is discarded. The constructors without seed use a seed from entropy.
     ///
     /// The same seed and the same (deterministic) environment always produce
     /// the same genomes, whatever `Environment::threads` returns.
@@ -377,6 +377,7 @@ impl Population {
             let mut org = Organism::new(genome);
             org.tau = self.mutation_config.tau;
             org.step_time = self.mutation_config.step_time;
+            org.output_activation = self.mutation_config.output_activation;
             organisms.push(org);
         }
 
@@ -422,5 +423,23 @@ mod tests {
             population.evolve();
         }
         assert!(population.size() == 150);
+    }
+
+    #[test]
+    fn initial_organisms_take_output_activation_from_config() {
+        use crate::organism::OutputActivation;
+        let config = MutationConfig::new()
+            .output_activation(OutputActivation::Linear)
+            .build();
+        let population = Population::create_population_initialized_with_config(10, 2, 1, config);
+        assert!(population
+            .get_organisms()
+            .iter()
+            .all(|o| o.output_activation == OutputActivation::Linear));
+        let population = Population::create_population_initialized(10, 2, 1);
+        assert!(population
+            .get_organisms()
+            .iter()
+            .all(|o| o.output_activation == OutputActivation::Sigmoid));
     }
 }
