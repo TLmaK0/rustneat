@@ -4,7 +4,8 @@
 //! usage: `xor_bench <runs> <max_gens> <mode> [key=value ...]`
 //!
 //! modes:
-//! * `default` - `create_population(pop)`, as `examples/simple_sample.rs`
+//! * `default` - deprecated `create_population(pop)` (a single neuron, no
+//!   inputs or outputs), kept only to compare with older measurements
 //! * `init`    - `create_population_initialized_with_config(pop, 2, 1, cfg)`
 //! * `initb`   - like `init` with 3 inputs (x1, x2, constant 1.0)
 //! * `uncon`   - `create_population_unconnected_with_config(pop, 2, 1, cfg)`
@@ -192,6 +193,7 @@ fn new_population(bench: &Bench, seed: Option<u64>) -> Population {
         None => p,
     };
     match bench.mode.as_str() {
+        #[allow(deprecated)]
         "default" => {
             // Seed before overriding the config so the initial organisms keep
             // the default tau, exactly as without seed.

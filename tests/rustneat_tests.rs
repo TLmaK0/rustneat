@@ -14,22 +14,22 @@ mod test {
 
     #[test]
     fn should_be_able_to_generate_a_population() {
-        let population = Population::create_population(150);
+        let population = Population::create_population_initialized(150, 2, 1);
         assert!(population.size() == 150);
     }
 
     #[test]
     fn population_can_evolve() {
-        let mut population = Population::create_population(1);
+        let mut population = Population::create_population_initialized(1, 2, 1);
         population.evolve();
         let genome = &population.get_organisms()[0].genome;
-        assert_eq!(genome.total_genes(), 1);
+        assert!(genome.total_genes() >= 2);
         assert_ne!(genome.total_weights(), 0f64);
     }
 
     #[test]
     fn population_can_be_tested_on_environment() {
-        let mut population = Population::create_population(10);
+        let mut population = Population::create_population_initialized(10, 2, 1);
         let environment = MyEnvironment;
         population.evaluate_in(&environment);
         assert!(population.get_organisms()[0].fitness == 0.1234f64);
@@ -59,7 +59,7 @@ mod test {
         let environment = XORClassification;
 
         for _attempt in 0..20 {
-            let mut population = Population::create_population(150);
+            let mut population = Population::create_population_initialized(150, 2, 1);
             let mut champion_option: Option<Organism> = None;
 
             for _gen in 0..1000 {

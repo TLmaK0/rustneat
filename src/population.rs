@@ -51,7 +51,11 @@ const STAGNATION_THRESHOLD: usize = 15; // Remove species after 15 generations w
 const SPECIES_ELITISM: usize = 2; // Protect top 2 species from stagnation removal
 
 impl Population {
-    /// Create a new population of size X.
+    /// Create a new population of size X whose genomes are a single neuron,
+    /// without inputs or outputs.
+    #[deprecated(
+        note = "declare the inputs and outputs: use `create_population_initialized(size, inputs, outputs)`"
+    )]
     pub fn create_population(population_size: usize) -> Population {
         Population::new(
             InitialPopulation {
@@ -64,7 +68,9 @@ impl Population {
         )
     }
 
-    /// Create a population of size X with where every organisms has initial input and output neurons
+    /// Create a population of size X with the minimal topology: every input
+    /// connected directly to every output, no hidden neurons. Each organism
+    /// draws its own initial weights.
     pub fn create_population_initialized(
         population_size: usize,
         input_neurons: usize,
@@ -406,7 +412,7 @@ mod tests {
         genome2.add_gene(Gene::new(1, 1, 1f64, true));
         genome2.add_gene(Gene::new(1, 0, 1f64, true));
 
-        let mut population = Population::create_population(2);
+        let mut population = Population::create_population_initialized(2, 1, 1);
         population.mutation_config.compatibility_threshold = 1.0;
         let organisms = vec![Organism::new(genome1), Organism::new(genome2)];
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
@@ -418,11 +424,42 @@ mod tests {
 
     #[test]
     fn after_population_evolve_population_should_be_the_same() {
-        let mut population = Population::create_population(150);
+        let mut population = Population::create_population_initialized(150, 2, 1);
         for _ in 0..150 {
             population.evolve();
         }
         assert!(population.size() == 150);
+    }
+
+    #[test]
+    fn initial_population_is_minimal_with_different_weights_per_organism() {
+        let population = Population::create_population_initialized(20, 2, 1).with_seed(1);
+        let mut weights: Vec<Vec<f64>> = vec![];
+        for organism in population.get_organisms() {
+            let genome = &organism.genome;
+            assert_eq!((genome.input_neurons(), genome.output_neurons()), (2, 1));
+            assert_eq!(genome.len(), 3);
+            let genes = genome.get_genes();
+            let topology: Vec<(usize, usize)> = genes
+                .iter()
+                .map(|g| (g.in_neuron_id(), g.out_neuron_id()))
+                .collect();
+            assert_eq!(topology, vec![(0, 2), (1, 2)]);
+            weights.push(genes.iter().map(|g| g.weight()).collect());
+        }
+        for (i, a) in weights.iter().enumerate() {
+            for b in &weights[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn deprecated_create_population_still_works() {
+        let mut population = Population::create_population(10);
+        population.evolve();
+        assert_eq!(population.size(), 10);
     }
 
     #[test]

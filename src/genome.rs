@@ -13,11 +13,16 @@ pub struct Genome {
     /// Neuron (node) genes: the bias θ of neuron `id` is `biases[id]`; a
     /// neuron past the end has bias 0.
     biases: Vec<f64>,
+    /// Neurons `0..input_neurons` are inputs.
+    input_neurons: usize,
+    /// Neurons `input_neurons..input_neurons + output_neurons` are outputs.
+    output_neurons: usize,
 }
 
 pub(crate) const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
-pub(crate) const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
-pub(crate) const MUTATE_ADD_NEURON: f64 = 0.004f64;
+// Structural rates of the NEAT paper (Stanley & Miikkulainen 2002).
+pub(crate) const MUTATE_ADD_CONNECTION: f64 = 0.05f64;
+pub(crate) const MUTATE_ADD_NEURON: f64 = 0.03f64;
 pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
 pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 pub(crate) const MUTATE_BIAS: f64 = 0.90f64;
@@ -29,7 +34,7 @@ impl Genome {
         let mut genome = Genome {
             genes: Vec::new(),
             last_neuron_id,
-            biases: Vec::new(),
+            ..Genome::default()
         };
         for gene in genes {
             // Directly add gene without validation since we're reconstructing
@@ -53,7 +58,7 @@ impl Genome {
         output_neurons: usize,
         rng: &mut R,
     ) -> Genome {
-        let mut genome = Genome::default();
+        let mut genome = Genome::new_unconnected(input_neurons, output_neurons);
         for i in 0..input_neurons {
             for o in 0..output_neurons {
                 let weight = Gene::generate_weight_with_rng(rng);
@@ -65,6 +70,10 @@ impl Genome {
 
     /// Create genome with input/output neuron IDs but NO connections.
     /// NEAT will discover connections through mutation.
+    ///
+    /// The genome remembers how many inputs and outputs it has: mutation
+    /// never adds a connection that ends in an input nor mutates the bias of
+    /// an input, and crossover keeps every input and output neuron.
     pub fn new_unconnected(input_neurons: usize, output_neurons: usize) -> Genome {
         Genome {
             genes: Vec::new(),
@@ -74,7 +83,19 @@ impl Genome {
                 0
             },
             biases: Vec::new(),
+            input_neurons,
+            output_neurons,
         }
+    }
+
+    /// Number of input neurons (ids `0..input_neurons()`), 0 if unknown.
+    pub fn input_neurons(&self) -> usize {
+        self.input_neurons
+    }
+
+    /// Number of output neurons (the ids right after the inputs), 0 if unknown.
+    pub fn output_neurons(&self) -> usize {
+        self.output_neurons
     }
 
     /// Bias θ of the neuron `neuron_id` (0 for a neuron without one).
@@ -167,7 +188,15 @@ impl Genome {
         equal_fitness: bool,
         rng: &mut R,
     ) -> Genome {
-        let mut genome = Genome::default();
+        let mut genome = Genome {
+            input_neurons: cmp::max(self.input_neurons, other.input_neurons),
+            output_neurons: cmp::max(self.output_neurons, other.output_neurons),
+            // The child keeps every neuron of the structure donor (inputs and
+            // outputs included, even unconnected), so a new neuron never
+            // reuses one of their ids.
+            last_neuron_id: self.last_neuron_id,
+            ..Genome::default()
+        };
         if equal_fitness {
             // Keep every neuron of both parents so a randomly inherited gene
             // never references a neuron the child lacks.
@@ -277,20 +306,50 @@ impl Genome {
         config: &MutationConfig,
         rng: &mut R,
     ) {
-        let neuron_ids_to_connect = {
-            if self.last_neuron_id == 0 {
-                vec![0, 0]
-            } else {
-                pick_two_neurons(rng, self.last_neuron_id + 1)
-            }
-        };
+        let candidates = self.new_connection_candidates();
+        if candidates.is_empty() {
+            return;
+        }
+        let (in_neuron_id, out_neuron_id) = candidates[rng.gen_range(0..candidates.len())];
         let gene = Gene::new(
-            neuron_ids_to_connect[0],
-            neuron_ids_to_connect[1],
+            in_neuron_id,
+            out_neuron_id,
             Gene::generate_weight_in_range_with_rng(config.weight_init_range, rng),
             true,
         );
         self.add_gene(gene);
+    }
+
+    /// Every connection the add-connection mutation may create, as
+    /// `(in_neuron_id, out_neuron_id)`: between two different neurons, not
+    /// ending in an input, and not already in the genome (enabled or not).
+    ///
+    /// Picking one of them uniformly is the same as drawing pairs uniformly
+    /// and retrying until the pair is new. This replaces the reservoir
+    /// sampling kept from rand 0.4 (`sample_iter`), whose pair order depended
+    /// on the ids (with 3 neurons, 1 -> 2 was never chosen), and the old
+    /// behaviour of giving up when the drawn connection already existed.
+    ///
+    /// A genome that does not know its inputs (`Genome::default`) with a
+    /// single neuron can still connect it to itself, as before.
+    fn new_connection_candidates(&self) -> Vec<(usize, usize)> {
+        let neurons = self.len();
+        let exists = |from: usize, to: usize| {
+            self.genes
+                .binary_search(&Gene::new_connection(from, to))
+                .is_ok()
+        };
+        if self.input_neurons == 0 && neurons == 1 {
+            return if exists(0, 0) { vec![] } else { vec![(0, 0)] };
+        }
+        (0..neurons)
+            .flat_map(|from| {
+                (self.input_neurons..neurons)
+                    .filter(move |&to| to != from)
+                    .map(move |to| (from, to))
+            })
+            .filter(|&(from, to)| !exists(from, to))
+            .collect()
     }
 
     fn mutate_connection_weight_with_config<R: Rng + ?Sized>(
@@ -315,20 +374,26 @@ impl Genome {
     }
 
     fn mutate_toggle_expression<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+        if self.genes.is_empty() {
+            return;
+        }
         let selected_gene = rng.gen_range(0..self.genes.len());
         <dyn Mutation>::toggle_expression(&mut self.genes[selected_gene]);
     }
 
-    /// Perturbs the bias of every neuron. Input neurons have one too, but
-    /// the phenotype ignores it (the genome does not know which are inputs).
+    /// Perturbs the bias of every neuron except the inputs, which are
+    /// sources without bias.
     fn mutate_biases_with_config<R: Rng + ?Sized>(&mut self, config: &MutationConfig, rng: &mut R) {
         self.biases.resize(self.len(), 0f64);
-        for bias in &mut self.biases {
+        for bias in self.biases.iter_mut().skip(self.input_neurons) {
             *bias += Gene::generate_weight_in_range_with_rng(config.bias_mutate_power, rng);
         }
     }
 
     fn mutate_add_neuron<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+        if self.genes.is_empty() {
+            return;
+        }
         let (gene1, gene2) = {
             let selected_gene = rng.gen_range(0..self.genes.len());
             let gene = &mut self.genes[selected_gene];
@@ -439,25 +504,6 @@ impl Genome {
     }
 }
 
-/// Two distinct neuron ids in `0..neurons` (`neurons >= 2`), as
-/// `[in_neuron_id, out_neuron_id]`.
-///
-/// Reservoir sampling exactly as `rand::seq::sample_iter(rng, 0..neurons, 2)`
-/// did in rand 0.4, so the upgrade keeps the same distribution of connection
-/// directions (the pair's order is not uniform: it depends on the ids).
-/// Changing it to a uniformly ordered pair changes the XOR results a lot,
-/// so it is left as it was.
-fn pick_two_neurons<R: Rng + ?Sized>(rng: &mut R, neurons: usize) -> Vec<usize> {
-    let mut reservoir = vec![0, 1];
-    for (i, neuron_id) in (2..neurons).enumerate() {
-        let k = rng.gen_range(0..i + 3);
-        if k < 2 {
-            reservoir[k] = neuron_id;
-        }
-    }
-    reservoir
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -484,21 +530,131 @@ mod tests {
         }
     }
 
+    fn connections(genome: &Genome) -> Vec<(usize, usize)> {
+        genome
+            .get_genes()
+            .iter()
+            .map(|g| (g.in_neuron_id(), g.out_neuron_id()))
+            .collect()
+    }
+
     #[test]
-    fn pick_two_neurons_keeps_rand_0_4_order_distribution() {
-        // rand 0.4 sample_iter(0..3, 2): [0,1] then 2 replaces slot k in 0..3
-        // if k < 2, so the only possible pairs are [2,1], [0,2], [0,1].
+    fn default_structural_rates_are_the_neat_paper_ones() {
+        let config = MutationConfig::default();
+        assert_eq!(config.add_connection_rate, 0.05);
+        assert_eq!(config.add_neuron_rate, 0.03);
+    }
+
+    #[test]
+    fn genome_knows_its_inputs_and_outputs() {
+        let genome = Genome::new_initialized(2, 3);
+        assert_eq!((genome.input_neurons(), genome.output_neurons()), (2, 3));
+        assert_eq!(genome.len(), 5);
+        let genome = Genome::new_unconnected(3, 1);
+        assert_eq!((genome.input_neurons(), genome.output_neurons()), (3, 1));
+        assert_eq!(genome.len(), 4);
+        let genome = Genome::default();
+        assert_eq!((genome.input_neurons(), genome.output_neurons()), (0, 0));
+    }
+
+    #[test]
+    fn add_connection_never_ends_in_an_input() {
+        let mut rng = rng();
+        for _ in 0..200 {
+            let mut genome = Genome::new_unconnected(3, 2);
+            for _ in 0..30 {
+                genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
+                if rng.gen::<f64>() < 0.2 {
+                    genome.mutate_add_neuron(&mut rng);
+                }
+            }
+            for (from, to) in connections(&genome) {
+                assert!(to >= 3, "connection {} -> {} ends in an input", from, to);
+            }
+        }
+    }
+
+    #[test]
+    fn add_connection_retries_until_a_new_connection_is_found() {
+        // Neurons 0 (input), 1 and 2 (outputs); 0->1 and 0->2 exist, so the
+        // only new connections are 1->2 and 2->1.
+        for seed in 0..50 {
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            let mut genome = Genome::new_initialized(1, 2);
+            genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
+            assert_eq!(genome.total_genes(), 3, "seed {}", seed);
+            genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
+            assert_eq!(
+                connections(&genome),
+                vec![(0, 1), (0, 2), (1, 2), (2, 1)],
+                "seed {}",
+                seed
+            );
+            // Nothing left to connect: no-op, no panic.
+            let before = connections(&genome);
+            genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
+            assert_eq!(connections(&genome), before);
+        }
+    }
+
+    #[test]
+    fn add_connection_picks_pairs_uniformly() {
+        // Neurons 0 (input), 1 and 2 (outputs), no connections: the possible
+        // ones are 0->1, 0->2, 1->2, 2->1, each with probability 1/4.
         let mut rng = rng();
         let mut seen = std::collections::BTreeMap::new();
-        for _ in 0..3000 {
-            *seen.entry(pick_two_neurons(&mut rng, 3)).or_insert(0) += 1;
+        for _ in 0..4000 {
+            let mut genome = Genome::new_unconnected(1, 2);
+            genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
+            *seen.entry(connections(&genome)).or_insert(0) += 1;
         }
-        let pairs: Vec<&Vec<usize>> = seen.keys().collect();
-        assert_eq!(pairs, vec![&vec![0, 1], &vec![0, 2], &vec![2, 1]]);
+        assert_eq!(seen.len(), 4, "{:?}", seen);
         for &count in seen.values() {
-            assert!(count > 800 && count < 1200, "{:?}", seen);
+            assert!(count > 850 && count < 1150, "{:?}", seen);
         }
-        assert_eq!(pick_two_neurons(&mut rng, 2), vec![0, 1]);
+    }
+
+    #[test]
+    fn bias_mutation_leaves_inputs_untouched() {
+        let mut genome = Genome::new_initialized(2, 1);
+        let mut rng = rng();
+        for _ in 0..20 {
+            genome.mutate_with_config_and_rng(&only_bias_mutation(1f64), &mut rng);
+        }
+        assert_eq!(genome.bias(0), 0f64);
+        assert_eq!(genome.bias(1), 0f64);
+        assert!(genome.bias(2) != 0f64);
+    }
+
+    /// Two genomes with inputs 0, 1 and outputs 2, 3, where only output 2
+    /// is connected.
+    fn io_parents() -> (Genome, Genome) {
+        let mut a = Genome::new_unconnected(2, 2);
+        a.add_gene(Gene::new(0, 2, 1f64, true));
+        let mut b = Genome::new_unconnected(2, 2);
+        b.add_gene(Gene::new(0, 2, -1f64, true));
+        b.add_gene(Gene::new(1, 2, 0.5f64, true));
+        (a, b)
+    }
+
+    #[test]
+    fn crossover_keeps_unconnected_inputs_and_outputs() {
+        let (a, b) = io_parents();
+        let mut rng = rng();
+        for _ in 0..50 {
+            for mut child in [
+                a.mate_with_rng(&b, true, &mut rng),
+                a.mate_with_rng(&b, false, &mut rng),
+                a.mate_equal_with_rng(&b, &mut rng),
+            ] {
+                assert_eq!((child.input_neurons(), child.output_neurons()), (2, 2));
+                assert_eq!(child.len(), 4);
+                // A new neuron never reuses the id of the unconnected output.
+                child.mutate_add_neuron(&mut rng);
+                assert_eq!(child.len(), 5);
+                assert!(connections(&child).iter().any(|&(f, t)| f == 4 || t == 4));
+            }
+        }
     }
 
     #[test]

@@ -76,6 +76,7 @@ fn same_seed_is_reproducible_with_parallel_evaluation() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn same_seed_is_reproducible_for_every_constructor() {
     let unconnected =
         || Population::create_population_unconnected_with_config(50, 2, 1, config()).with_seed(3);
