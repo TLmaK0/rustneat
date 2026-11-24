@@ -24,8 +24,39 @@ pub(crate) const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
 pub(crate) const MUTATE_ADD_CONNECTION: f64 = 0.05f64;
 pub(crate) const MUTATE_ADD_NEURON: f64 = 0.03f64;
 pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
-pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 pub(crate) const MUTATE_BIAS: f64 = 0.90f64;
+// Weight and bias mutation (issue #64). When a mutation touches the weights
+// (probability MUTATE_CONNECTION_WEIGHT) each gene mutates independently
+// with probability WEIGHT_GENE_MUTATION_RATE, so a mutation changes about
+// 45% of the weights instead of all of them; the same for the biases. A
+// mutated value gets a gaussian perturbation N(0, σ²) or, rarely, is
+// replaced, and is then clipped to [-max, max].
+//
+// Measured with bench A (`xor_bench 50 500 init reset=1`, solved runs and
+// median generations, seeds 1 / 101; develop before #64: 50/50 139 / 134):
+// * σ_w 0.5 (neat-python): 146 / 152; σ_w 1.0: 103 / 98; σ_w 1.5: 88 / 86
+//   (all with per-gene 0.5, replacement 0.1 of the mutated genes, max 30).
+// * Replacement is what hurts most: with σ_w = σ_b = 1.0, a replacement
+//   probability of 0.2 gives 168 / 157, 0.1 gives 103 / 98, 0.05 gives
+//   85 / 83, 0.02 gives 72 / 76, 0 gives 70 / 70. A replaced weight is drawn
+//   from [-1, 1] while useful XOR weights are around 10, so it mostly
+//   destroys; 0.02 keeps a small escape hatch.
+// * Per-gene rate (σ 1.0, no replacement): 0.3 gives 85 / 81, 0.5 gives
+//   70 / 70, 0.8 gives 65 / 61, 1.0 (old behaviour, unbounded) 122 / 111.
+// * Limit (σ 1.0, no replacement): 30 gives 70 / 70, 10 gives 73 / 76;
+//   5 is too tight (σ 1.0, replacement 0.1): 47/50 221, 50/50 256.
+// * σ_b 0.5 instead of 1.0 (no replacement): 64 / 65 instead of 70 / 70.
+// σ_w = 1.0 is the scale of the initial weights; 1.5 and 2.0 are faster in
+// XOR (56 / 56 without replacement) but make bigger jumps, so they are left
+// to the problems that want them.
+pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.98f64;
+pub(crate) const WEIGHT_GENE_MUTATION_RATE: f64 = 0.5f64;
+pub(crate) const WEIGHT_MUTATE_POWER: f64 = 1f64;
+pub(crate) const WEIGHT_MAX: f64 = 30f64;
+pub(crate) const BIAS_GENE_MUTATION_RATE: f64 = 0.5f64;
+pub(crate) const BIAS_PERTURBED_PROBABILITY: f64 = 0.98f64;
+pub(crate) const BIAS_MUTATE_POWER: f64 = 0.5f64;
+pub(crate) const BIAS_MAX: f64 = 30f64;
 // Initial compatibility threshold. The paper uses 3.0, but with N = 1 two
 // genomes without genes in common are at distance >= c1 + c2 = 2 (one gene
 // each), so 2.0 is the largest value that keeps them apart. With a
@@ -49,6 +80,23 @@ pub(crate) const COMPATIBILITY_SMALL_GENOME_GENES: usize = usize::MAX;
 pub(crate) const TARGET_SPECIES: usize = 10;
 pub(crate) const COMPATIBILITY_THRESHOLD_STEP: f64 = 0.3f64;
 pub(crate) const COMPATIBILITY_THRESHOLD_MIN: f64 = 0.3f64;
+
+/// A mutated weight or bias: with probability `perturbation_rate` the value
+/// plus a gaussian `N(0, power²)` perturbation, otherwise a new value drawn
+/// uniformly from `[-init_range, init_range]`.
+fn mutated_value<R: Rng + ?Sized>(
+    value: f64,
+    perturbation_rate: f64,
+    power: f64,
+    init_range: f64,
+    rng: &mut R,
+) -> f64 {
+    if rng.gen::<f64>() < perturbation_rate {
+        value + Gene::generate_gaussian_with_rng(power, rng)
+    } else {
+        Gene::generate_weight_in_range_with_rng(init_range, rng)
+    }
+}
 
 impl Genome {
     /// Create a genome from serialized gene data
@@ -333,10 +381,11 @@ impl Genome {
             return;
         }
         let (in_neuron_id, out_neuron_id) = candidates[rng.gen_range(0..candidates.len())];
+        let weight = Gene::generate_weight_in_range_with_rng(config.weight_init_range, rng);
         let gene = Gene::new(
             in_neuron_id,
             out_neuron_id,
-            Gene::generate_weight_in_range_with_rng(config.weight_init_range, rng),
+            weight.clamp(-config.weight_max, config.weight_max),
             true,
         );
         self.add_gene(gene);
@@ -380,17 +429,15 @@ impl Genome {
         rng: &mut R,
     ) {
         for gene in &mut self.genes {
-            if rng.gen::<f64>() < config.weight_perturbation_rate {
-                // Perturbation: add small random value
-                let perturbation =
-                    Gene::generate_weight_in_range_with_rng(config.weight_mutate_power, rng);
-                gene.set_weight(gene.weight() + perturbation);
-            } else {
-                // Replace with new random weight
-                gene.set_weight(Gene::generate_weight_in_range_with_rng(
+            if rng.gen::<f64>() < config.weight_gene_mutation_rate {
+                let weight = mutated_value(
+                    gene.weight(),
+                    config.weight_perturbation_rate,
+                    config.weight_mutate_power,
                     config.weight_init_range,
                     rng,
-                ));
+                );
+                gene.set_weight(weight.clamp(-config.weight_max, config.weight_max));
             }
         }
     }
@@ -403,12 +450,21 @@ impl Genome {
         <dyn Mutation>::toggle_expression(&mut self.genes[selected_gene]);
     }
 
-    /// Perturbs the bias of every neuron except the inputs, which are
-    /// sources without bias.
+    /// Mutates each neuron bias with probability `bias_gene_mutation_rate`,
+    /// except those of the inputs, which are sources without bias.
     fn mutate_biases_with_config<R: Rng + ?Sized>(&mut self, config: &MutationConfig, rng: &mut R) {
         self.biases.resize(self.len(), 0f64);
         for bias in self.biases.iter_mut().skip(self.input_neurons) {
-            *bias += Gene::generate_weight_in_range_with_rng(config.bias_mutate_power, rng);
+            if rng.gen::<f64>() < config.bias_gene_mutation_rate {
+                let value = mutated_value(
+                    *bias,
+                    config.bias_perturbation_rate,
+                    config.bias_mutate_power,
+                    config.weight_init_range,
+                    rng,
+                );
+                *bias = value.clamp(-config.bias_max, config.bias_max);
+            }
         }
     }
 
@@ -588,8 +644,12 @@ mod tests {
             self.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng());
         }
 
+        /// Mutates every weight (default config except the per-gene rate).
         fn mutate_connection_weight(&mut self) {
-            self.mutate_connection_weight_with_config(&MutationConfig::default(), &mut rng());
+            let config = MutationConfig::new()
+                .weight_gene_mutation_rate(1f64)
+                .build();
+            self.mutate_connection_weight_with_config(&config, &mut rng());
         }
 
         fn add_connection(&mut self, in_neuron_id: usize, out_neuron_id: usize) {
@@ -611,6 +671,19 @@ mod tests {
         let config = MutationConfig::default();
         assert_eq!(config.add_connection_rate, 0.05);
         assert_eq!(config.add_neuron_rate, 0.03);
+    }
+
+    #[test]
+    fn default_weight_and_bias_mutation_is_per_gene_gaussian_and_bounded() {
+        let config = MutationConfig::default();
+        assert_eq!(config.weight_gene_mutation_rate, 0.5);
+        assert_eq!(config.weight_mutate_power, 1.0);
+        assert_eq!(config.weight_perturbation_rate, 0.98);
+        assert_eq!(config.weight_max, 30.0);
+        assert_eq!(config.bias_gene_mutation_rate, 0.5);
+        assert_eq!(config.bias_mutate_power, 0.5);
+        assert_eq!(config.bias_perturbation_rate, 0.98);
+        assert_eq!(config.bias_max, 30.0);
     }
 
     #[test]
@@ -982,6 +1055,8 @@ mod tests {
             .weight_mutation_rate(0f64)
             .toggle_expression_rate(0f64)
             .bias_mutation_rate(rate)
+            .bias_gene_mutation_rate(1f64)
+            .bias_perturbation_rate(1f64)
             .build()
     }
 
@@ -998,7 +1073,7 @@ mod tests {
     }
 
     #[test]
-    fn bias_mutation_perturbs_every_bias_and_can_go_negative() {
+    fn bias_mutation_with_gene_rate_one_perturbs_every_bias_and_can_go_negative() {
         let mut genome = Genome::default();
         genome.add_gene(Gene::new(0, 1, 1f64, true));
         genome.add_gene(Gene::new(0, 2, 1f64, true));
@@ -1011,7 +1086,6 @@ mod tests {
             for (id, old) in before.iter().enumerate() {
                 let new = genome.bias(id);
                 assert!(new != *old, "bias of neuron {} not perturbed", id);
-                assert!((new - old).abs() <= config.bias_mutate_power);
                 seen_negative |= new < 0f64;
             }
         }
@@ -1147,5 +1221,145 @@ mod tests {
             "Expected ~25% disabled, got {}%",
             disabled_ratio * 100.0
         );
+    }
+
+    fn only_weight_mutation(gene_rate: f64) -> MutationConfig {
+        MutationConfig::new()
+            .add_connection_rate(0f64)
+            .add_neuron_rate(0f64)
+            .weight_mutation_rate(1f64)
+            .weight_gene_mutation_rate(gene_rate)
+            .toggle_expression_rate(0f64)
+            .bias_mutation_rate(0f64)
+            .build()
+    }
+
+    #[test]
+    fn weight_mutation_changes_the_configured_fraction_of_genes() {
+        let mut rng = rng();
+        for &rate in &[0.1, 0.5, 0.8] {
+            // 40 inputs x 25 outputs = 1000 connection genes.
+            let mut genome = Genome::new_initialized_with_rng(40, 25, &mut rng);
+            let before: Vec<f64> = genome.genes.iter().map(|g| g.weight()).collect();
+            genome.mutate_with_config_and_rng(&only_weight_mutation(rate), &mut rng);
+            let changed = genome
+                .genes
+                .iter()
+                .zip(before.iter())
+                .filter(|(g, w)| g.weight() != **w)
+                .count();
+            let fraction = changed as f64 / before.len() as f64;
+            assert!(
+                (fraction - rate).abs() <= 0.05,
+                "rate {}: {} of the weights changed",
+                rate,
+                fraction
+            );
+        }
+    }
+
+    #[test]
+    fn weights_never_exceed_weight_max() {
+        let config = MutationConfig::new()
+            .add_connection_rate(0.5)
+            .add_neuron_rate(0.2)
+            .weight_mutation_rate(1f64)
+            .weight_gene_mutation_rate(1f64)
+            .weight_mutate_power(5f64)
+            .weight_init_range(10f64)
+            .weight_perturbation_rate(0.8)
+            .weight_max(3f64)
+            .build();
+        let mut rng = rng();
+        let mut genome = Genome::new_initialized_with_rng(3, 2, &mut rng);
+        let mut seen_at_limit = false;
+        for _ in 0..500 {
+            genome.mutate_with_config_and_rng(&config, &mut rng);
+            for gene in &genome.genes {
+                assert!(gene.weight().abs() <= 3f64, "weight {}", gene.weight());
+                seen_at_limit |= gene.weight().abs() == 3f64;
+            }
+        }
+        assert!(seen_at_limit);
+    }
+
+    #[test]
+    fn weight_perturbation_is_gaussian_with_the_configured_deviation() {
+        let config = MutationConfig::new()
+            .weight_gene_mutation_rate(1f64)
+            .weight_perturbation_rate(1f64)
+            .weight_mutate_power(0.5)
+            .build();
+        let mut rng = rng();
+        let mut genome = Genome::new_initialized_with_rng(40, 25, &mut rng);
+        let before: Vec<f64> = genome.genes.iter().map(|g| g.weight()).collect();
+        genome.mutate_connection_weight_with_config(&config, &mut rng);
+        let deltas: Vec<f64> = genome
+            .genes
+            .iter()
+            .zip(before.iter())
+            .map(|(g, w)| g.weight() - w)
+            .collect();
+        let n = deltas.len() as f64;
+        let mean = deltas.iter().sum::<f64>() / n;
+        let sd = (deltas.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / n).sqrt();
+        assert!(mean.abs() < 0.05, "mean {}", mean);
+        assert!((sd - 0.5).abs() < 0.05, "sd {}", sd);
+        // Unbounded tails: a uniform perturbation of ±0.5 never exceeds 0.5.
+        assert!(deltas.iter().any(|d| d.abs() > 1f64));
+    }
+
+    #[test]
+    fn bias_mutation_changes_the_configured_fraction_of_biases() {
+        let mut rng = rng();
+        for &rate in &[0.1, 0.5, 0.8] {
+            let mut genome = Genome::new_unconnected(2, 1000);
+            let config = MutationConfig::new()
+                .add_connection_rate(0f64)
+                .add_neuron_rate(0f64)
+                .weight_mutation_rate(0f64)
+                .toggle_expression_rate(0f64)
+                .bias_mutation_rate(1f64)
+                .bias_gene_mutation_rate(rate)
+                .build();
+            genome.add_gene(Gene::new(0, 2, 1f64, true));
+            genome.mutate_with_config_and_rng(&config, &mut rng);
+            let changed = (2..1002).filter(|&id| genome.bias(id) != 0f64).count();
+            let fraction = changed as f64 / 1000f64;
+            assert!(
+                (fraction - rate).abs() <= 0.05,
+                "rate {}: {} of the biases changed",
+                rate,
+                fraction
+            );
+            assert_eq!((genome.bias(0), genome.bias(1)), (0f64, 0f64));
+        }
+    }
+
+    #[test]
+    fn biases_never_exceed_bias_max() {
+        let config = MutationConfig::new()
+            .add_connection_rate(0f64)
+            .add_neuron_rate(0f64)
+            .weight_mutation_rate(0f64)
+            .toggle_expression_rate(0f64)
+            .bias_mutation_rate(1f64)
+            .bias_gene_mutation_rate(1f64)
+            .bias_perturbation_rate(0.8)
+            .bias_mutate_power(5f64)
+            .weight_init_range(10f64)
+            .bias_max(2f64)
+            .build();
+        let mut rng = rng();
+        let mut genome = Genome::new_initialized_with_rng(2, 3, &mut rng);
+        let mut seen_at_limit = false;
+        for _ in 0..500 {
+            genome.mutate_with_config_and_rng(&config, &mut rng);
+            for id in 0..genome.len() {
+                assert!(genome.bias(id).abs() <= 2f64, "bias {}", genome.bias(id));
+                seen_at_limit |= genome.bias(id).abs() == 2f64;
+            }
+        }
+        assert!(seen_at_limit);
     }
 }

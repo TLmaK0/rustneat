@@ -1,4 +1,8 @@
 use crate::genome::{
+    BIAS_GENE_MUTATION_RATE, BIAS_MAX, BIAS_MUTATE_POWER, BIAS_PERTURBED_PROBABILITY,
+    WEIGHT_GENE_MUTATION_RATE, WEIGHT_MAX, WEIGHT_MUTATE_POWER,
+};
+use crate::genome::{
     COMPATIBILITY_BIAS_COEFFICIENT, COMPATIBILITY_DISJOINT_COEFFICIENT,
     COMPATIBILITY_EXCESS_COEFFICIENT, COMPATIBILITY_SMALL_GENOME_GENES, COMPATIBILITY_THRESHOLD,
     COMPATIBILITY_THRESHOLD_MIN, COMPATIBILITY_THRESHOLD_STEP, COMPATIBILITY_WEIGHT_COEFFICIENT,
@@ -13,21 +17,43 @@ use crate::organism::OutputActivation;
 /// Use `MutationConfig::default()` for standard NEAT values defined in `genome.rs`.
 #[derive(Debug, Clone, Copy)]
 pub struct MutationConfig {
-    /// Probability of mutating connection weights
+    /// Probability that a mutation touches the connection weights at all.
+    /// When it does, each gene is mutated independently with probability
+    /// `weight_gene_mutation_rate`.
     pub weight_mutation_rate: f64,
+    /// Probability that each connection gene is mutated when the weights
+    /// are mutated (so a mutation changes on average
+    /// `weight_mutation_rate · weight_gene_mutation_rate` of the weights).
+    pub weight_gene_mutation_rate: f64,
     /// Probability of adding a new connection
     pub add_connection_rate: f64,
     /// Probability of adding a new neuron
     pub add_neuron_rate: f64,
     /// Probability of toggling a connection's enabled state
     pub toggle_expression_rate: f64,
-    /// Probability of perturbing vs replacing weight
+    /// Probability that a mutated weight is perturbed rather than replaced:
+    /// the replacement probability is `1 - weight_perturbation_rate`. A
+    /// replaced weight is drawn uniformly from
+    /// `[-weight_init_range, weight_init_range]`.
     pub weight_perturbation_rate: f64,
-    /// Probability that a genome's neuron biases are mutated: when it
-    /// happens every bias is perturbed
+    /// Weights are clipped to `[-weight_max, weight_max]` after every
+    /// mutation (and when a connection is created).
+    pub weight_max: f64,
+    /// Probability that a mutation touches the neuron biases at all. When it
+    /// does, each bias (inputs excluded) is mutated independently with
+    /// probability `bias_gene_mutation_rate`.
     pub bias_mutation_rate: f64,
-    /// Power of bias perturbation: random value in [-bias_mutate_power, bias_mutate_power]
+    /// Probability that each neuron bias is mutated when the biases are
+    /// mutated.
+    pub bias_gene_mutation_rate: f64,
+    /// Probability that a mutated bias is perturbed rather than replaced
+    /// (replacement probability `1 - bias_perturbation_rate`); a replaced
+    /// bias is drawn uniformly from `[-weight_init_range, weight_init_range]`.
+    pub bias_perturbation_rate: f64,
+    /// Standard deviation σ of the gaussian bias perturbation `N(0, σ²)`.
     pub bias_mutate_power: f64,
+    /// Biases are clipped to `[-bias_max, bias_max]` after every mutation.
+    pub bias_max: f64,
     /// Compatibility threshold for speciation: two genomes are of the same
     /// species when their compatibility distance is below it. With
     /// `target_species` set this is only the initial value: the population
@@ -64,7 +90,7 @@ pub struct MutationConfig {
     pub mutation_probability: f64,
     /// Range for initial weight generation: [-weight_init_range, weight_init_range]
     pub weight_init_range: f64,
-    /// Power of weight perturbation: random value in [-weight_mutate_power, weight_mutate_power]
+    /// Standard deviation σ of the gaussian weight perturbation `N(0, σ²)`.
     pub weight_mutate_power: f64,
     /// CTRNN neuron time constant τ (default 0.01).
     /// Represents how fast neurons respond — like biological membrane resistance time.
@@ -85,12 +111,17 @@ impl Default for MutationConfig {
     fn default() -> Self {
         MutationConfig {
             weight_mutation_rate: MUTATE_CONNECTION_WEIGHT,
+            weight_gene_mutation_rate: WEIGHT_GENE_MUTATION_RATE,
             add_connection_rate: MUTATE_ADD_CONNECTION,
             add_neuron_rate: MUTATE_ADD_NEURON,
             toggle_expression_rate: MUTATE_TOGGLE_EXPRESSION,
             weight_perturbation_rate: MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY,
+            weight_max: WEIGHT_MAX,
             bias_mutation_rate: MUTATE_BIAS,
-            bias_mutate_power: 1.0,
+            bias_gene_mutation_rate: BIAS_GENE_MUTATION_RATE,
+            bias_perturbation_rate: BIAS_PERTURBED_PROBABILITY,
+            bias_mutate_power: BIAS_MUTATE_POWER,
+            bias_max: BIAS_MAX,
             compatibility_threshold: COMPATIBILITY_THRESHOLD,
             compatibility_excess_coefficient: COMPATIBILITY_EXCESS_COEFFICIENT,
             compatibility_disjoint_coefficient: COMPATIBILITY_DISJOINT_COEFFICIENT,
@@ -102,7 +133,7 @@ impl Default for MutationConfig {
             compatibility_threshold_min: COMPATIBILITY_THRESHOLD_MIN,
             mutation_probability: 0.4,
             weight_init_range: 1.0,
-            weight_mutate_power: 1.0,
+            weight_mutate_power: WEIGHT_MUTATE_POWER,
             tau: 0.01,
             step_time: 0.1,
             output_activation: OutputActivation::Sigmoid,
@@ -138,6 +169,19 @@ impl MutationConfigBuilder {
         self
     }
 
+    /// Set the probability that each connection gene is mutated when the
+    /// weights are mutated
+    pub fn weight_gene_mutation_rate(mut self, rate: f64) -> Self {
+        self.config.weight_gene_mutation_rate = rate;
+        self
+    }
+
+    /// Set the weight limit: weights stay in `[-weight_max, weight_max]`
+    pub fn weight_max(mut self, weight_max: f64) -> Self {
+        self.config.weight_max = weight_max;
+        self
+    }
+
     /// Set add connection rate
     pub fn add_connection_rate(mut self, rate: f64) -> Self {
         self.config.add_connection_rate = rate;
@@ -168,9 +212,29 @@ impl MutationConfigBuilder {
         self
     }
 
-    /// Set bias perturbation power [-power, power]
+    /// Set the probability that each neuron bias is mutated when the
+    /// biases are mutated
+    pub fn bias_gene_mutation_rate(mut self, rate: f64) -> Self {
+        self.config.bias_gene_mutation_rate = rate;
+        self
+    }
+
+    /// Set the probability that a mutated bias is perturbed rather than
+    /// replaced
+    pub fn bias_perturbation_rate(mut self, rate: f64) -> Self {
+        self.config.bias_perturbation_rate = rate;
+        self
+    }
+
+    /// Set the standard deviation of the gaussian bias perturbation
     pub fn bias_mutate_power(mut self, power: f64) -> Self {
         self.config.bias_mutate_power = power;
+        self
+    }
+
+    /// Set the bias limit: biases stay in `[-bias_max, bias_max]`
+    pub fn bias_max(mut self, bias_max: f64) -> Self {
+        self.config.bias_max = bias_max;
         self
     }
 
@@ -236,7 +300,7 @@ impl MutationConfigBuilder {
         self
     }
 
-    /// Set weight mutation perturbation power [-power, power]
+    /// Set the standard deviation of the gaussian weight perturbation
     pub fn weight_mutate_power(mut self, power: f64) -> Self {
         self.config.weight_mutate_power = power;
         self

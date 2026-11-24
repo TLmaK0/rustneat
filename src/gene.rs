@@ -82,6 +82,15 @@ impl Gene {
     pub fn generate_weight_in_range_with_rng<R: Rng + ?Sized>(range: f64, rng: &mut R) -> f64 {
         rng.gen::<f64>() * 2.0 * range - range
     }
+
+    /// Draw from the normal distribution `N(0, sigma²)` (Box-Muller), using
+    /// the given generator
+    pub fn generate_gaussian_with_rng<R: Rng + ?Sized>(sigma: f64, rng: &mut R) -> f64 {
+        // 1 - u is in (0, 1], so the logarithm is finite.
+        let u1 = 1f64 - rng.gen::<f64>();
+        let u2 = rng.gen::<f64>();
+        sigma * (-2f64 * u1.ln()).sqrt() * (2f64 * std::f64::consts::PI * u2).cos()
+    }
     /// Connection in ->
     pub fn in_neuron_id(&self) -> usize {
         self.in_neuron_id

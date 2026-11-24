@@ -11,7 +11,10 @@
 //! * `uncon`   - `create_population_unconnected_with_config(pop, 2, 1, cfg)`
 //!
 //! keys: `addc`, `addn`, `wpow`, `winit`, `wrate`, `thr`, `mutp`, `tog`,
-//! `bias` (bias mutation rate), `bpow` (bias mutate power), `tau` (MutationConfig), `pop` (population size, default 150),
+//! `bias` (bias mutation rate), `bpow` (bias mutate power), `tau` (MutationConfig),
+//! `wgene`, `bgene` (per-gene weight / bias mutation probability), `wpert`,
+//! `bpert` (perturbation vs replacement probability), `wmax`, `bmax`
+//! (weight / bias limit), `pop` (population size, default 150),
 //! `c1`, `c2`, `c3`, `cb` (compatibility coefficients: excess, disjoint,
 //! weights, biases), `nsmall` (N = 1 below this many genes; 20 = paper,
 //! `inf` = never normalize, the default), `tspec` (target
@@ -162,6 +165,12 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
             "tog" => b.toggle_expression_rate(v),
             "bias" => b.bias_mutation_rate(v),
             "bpow" => b.bias_mutate_power(v),
+            "wgene" => b.weight_gene_mutation_rate(v),
+            "bgene" => b.bias_gene_mutation_rate(v),
+            "wpert" => b.weight_perturbation_rate(v),
+            "bpert" => b.bias_perturbation_rate(v),
+            "wmax" => b.weight_max(v),
+            "bmax" => b.bias_max(v),
             "tau" => b.tau(v),
             "c1" | "c2" | "c3" | "cb" => {
                 let c = b.build();
