@@ -88,6 +88,15 @@ pub struct MutationConfig {
     pub compatibility_threshold_min: f64,
     /// Probability of mutating vs crossing over (0.0 = all crossover, 1.0 = all mutation)
     pub mutation_probability: f64,
+    /// Probability that a gene disabled in either parent is disabled in the
+    /// child (NEAT paper, section 4.1: 0.75). Otherwise it is enabled.
+    pub disabled_gene_inheritance: f64,
+    /// Probability that a crossover takes the second parent from another
+    /// species (NEAT paper, section 4.1: 0.001). That parent is drawn from
+    /// the organisms allowed to reproduce in the other species (their
+    /// fittest half); with a single species the mate is always from the
+    /// same species.
+    pub interspecies_mate_rate: f64,
     /// Range for initial weight generation: [-weight_init_range, weight_init_range]
     pub weight_init_range: f64,
     /// Standard deviation σ of the gaussian weight perturbation `N(0, σ²)`.
@@ -116,6 +125,10 @@ pub struct MutationConfig {
     pub species_elitism: usize,
 }
 
+/// Probability that a gene disabled in either parent stays disabled.
+const DISABLED_GENE_INHERITANCE: f64 = 0.75;
+/// Probability that a crossover is between two species.
+const INTERSPECIES_MATE_RATE: f64 = 0.001;
 /// Generations without improvement before a species is removed.
 const SPECIES_STAGNATION_GENERATIONS: usize = 15;
 /// Best species protected from the stagnation removal.
@@ -146,6 +159,8 @@ impl Default for MutationConfig {
             compatibility_threshold_step: COMPATIBILITY_THRESHOLD_STEP,
             compatibility_threshold_min: COMPATIBILITY_THRESHOLD_MIN,
             mutation_probability: 0.4,
+            disabled_gene_inheritance: DISABLED_GENE_INHERITANCE,
+            interspecies_mate_rate: INTERSPECIES_MATE_RATE,
             weight_init_range: 1.0,
             weight_mutate_power: WEIGHT_MUTATE_POWER,
             tau: 0.01,
@@ -179,6 +194,20 @@ impl Default for MutationConfigBuilder {
 }
 
 impl MutationConfigBuilder {
+    /// Set the probability that a gene disabled in either parent is
+    /// disabled in the child
+    pub fn disabled_gene_inheritance(mut self, probability: f64) -> Self {
+        self.config.disabled_gene_inheritance = probability;
+        self
+    }
+
+    /// Set the probability that a crossover takes its second parent from
+    /// another species
+    pub fn interspecies_mate_rate(mut self, rate: f64) -> Self {
+        self.config.interspecies_mate_rate = rate;
+        self
+    }
+
     /// Set weight mutation rate
     pub fn weight_mutation_rate(mut self, rate: f64) -> Self {
         self.config.weight_mutation_rate = rate;

@@ -23,7 +23,6 @@ pub struct Specie {
     pub id: i64,
 }
 
-const INTERSPECIE_MATE_PROBABILITY: f64 = 0.15f64; // Increased from 0.03 to escape local optima
 const BEST_ORGANISMS_THRESHOLD: f64 = 0.5f64; // Only top 50% can reproduce
 
 /// Weight of an organism in the roulette: its adjusted fitness, or 0 if it
@@ -129,7 +128,9 @@ impl Specie {
     }
 
     /// Mate and generate offspring, delete old organisms and use the children
-    /// as "new" species.
+    /// as "new" species. `population_organisms` are the candidates for an
+    /// interspecies crossover (see `MutationConfig::interspecies_mate_rate`):
+    /// the parents of the other species (`Specie::parents`).
     pub fn generate_offspring(
         &mut self,
         num_of_organisms: usize,
@@ -168,13 +169,8 @@ impl Specie {
         base_config: &MutationConfig,
         rng: &mut R,
     ) {
-        self.generate_offspring_with_registry(
-            num_of_organisms,
-            population_organisms,
-            base_config,
-            None,
-            rng,
-        );
+        let mates: Vec<&Organism> = population_organisms.iter().collect();
+        self.generate_offspring_with_mates(num_of_organisms, &mates, base_config, None, rng);
     }
 
     /// Like `generate_offspring_with_config_and_rng`, taking the ids of new
@@ -187,19 +183,35 @@ impl Specie {
         innovations: &mut InnovationRegistry,
         rng: &mut R,
     ) {
-        self.generate_offspring_with_registry(
+        let mates: Vec<&Organism> = population_organisms.iter().collect();
+        self.generate_offspring_with_mates(
             num_of_organisms,
-            population_organisms,
+            &mates,
             base_config,
             Some(innovations),
             rng,
         );
     }
 
-    fn generate_offspring_with_registry<R: Rng + ?Sized>(
+    /// Organisms allowed to reproduce: the fittest half (at least one),
+    /// the ones `generate_offspring` keeps as parents.
+    pub fn parents(&self) -> impl Iterator<Item = &Organism> {
+        let mut sorted: Vec<&Organism> = self.organisms.iter().collect();
+        sorted.sort();
+        sorted.truncate(self.parents_len());
+        sorted.into_iter()
+    }
+
+    fn parents_len(&self) -> usize {
+        ((self.organisms.len() as f64 * BEST_ORGANISMS_THRESHOLD) as usize).max(1)
+    }
+
+    /// Generates the offspring; `other_species_parents` are the candidates
+    /// for an interspecies crossover.
+    pub(crate) fn generate_offspring_with_mates<R: Rng + ?Sized>(
         &mut self,
         num_of_organisms: usize,
-        population_organisms: &[Organism],
+        other_species_parents: &[&Organism],
         base_config: &MutationConfig,
         mut innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
@@ -209,12 +221,7 @@ impl Specie {
         // Always copy champion (elitism)
         let copy_champion = if num_of_organisms > 1 { 1 } else { 0 };
 
-        let mut organisms_to_mate =
-            (self.organisms.len() as f64 * BEST_ORGANISMS_THRESHOLD) as usize;
-        if organisms_to_mate < 1 {
-            organisms_to_mate = 1;
-        }
-
+        let organisms_to_mate = self.parents_len();
         self.organisms.sort();
         self.organisms.truncate(organisms_to_mate);
 
@@ -249,7 +256,7 @@ impl Specie {
                 .map(|organism_pos| {
                     self.create_child(
                         &self.organisms[*organism_pos],
-                        population_organisms,
+                        other_species_parents,
                         base_config,
                         innovations.as_deref_mut(),
                         rng,
@@ -309,12 +316,13 @@ impl Specie {
         }
     }
 
-    /// Create a new child by crossover+mutation or mutation only.
-    /// Per NEAT paper: 75% crossover (then mutate), 25% mutation only.
+    /// Create a new child by mutation only (probability
+    /// `config.mutation_probability`, 0.4 by default; the NEAT paper uses
+    /// 0.25) or by crossover and then mutation.
     fn create_child<R: Rng + ?Sized>(
         &self,
         organism: &Organism,
-        population_organisms: &[Organism],
+        other_species_parents: &[&Organism],
         config: &MutationConfig,
         innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
@@ -323,29 +331,36 @@ impl Specie {
             Some(registry) => parent.mutate_with_innovations(config, registry, rng),
             None => parent.mutate_with_config_and_rng(config, rng),
         };
-        if rng.gen::<f64>() < config.mutation_probability || population_organisms.len() < 2 {
-            // 25%: mutation only (asexual reproduction)
+        if rng.gen::<f64>() < config.mutation_probability
+            || self.organisms.len() + other_species_parents.len() < 2
+        {
+            // Mutation only (asexual reproduction)
             mutate(organism, rng)
         } else {
-            // 75%: crossover then mutate
-            let child = self.create_child_by_mate(organism, population_organisms, rng);
+            // Crossover, then mutation
+            let child = self.create_child_by_mate(organism, other_species_parents, config, rng);
             mutate(&child, rng)
         }
     }
 
+    /// Crossover of `organism` with a parent of another species (probability
+    /// `config.interspecies_mate_rate`, if there is another species) or of
+    /// this one.
     fn create_child_by_mate<R: Rng + ?Sized>(
         &self,
         organism: &Organism,
-        population_organisms: &[Organism],
+        other_species_parents: &[&Organism],
+        config: &MutationConfig,
         rng: &mut R,
     ) -> Organism {
-        if rng.gen::<f64>() > INTERSPECIE_MATE_PROBABILITY {
-            let selected_mate = rng.gen_range(0..self.organisms.len());
-            organism.mate_with_rng(&self.organisms[selected_mate], rng)
+        let mate = if !other_species_parents.is_empty()
+            && rng.gen::<f64>() < config.interspecies_mate_rate
+        {
+            other_species_parents[rng.gen_range(0..other_species_parents.len())]
         } else {
-            let selected_mate = rng.gen_range(0..population_organisms.len());
-            organism.mate_with_rng(&population_organisms[selected_mate], rng)
-        }
+            &self.organisms[rng.gen_range(0..self.organisms.len())]
+        };
+        organism.mate_with_config_and_rng(mate, config, rng)
     }
 }
 
@@ -431,6 +446,101 @@ mod tests {
         specie.add(organism);
         assert!(specie.update_stagnation());
         assert_eq!(specie.best_fitness(), -5.0);
+    }
+
+    /// A species of 10 organisms with genes `0 -> 2`, `1 -> 2` (fitness
+    /// 1..=10) and, from another species, 4 fitter organisms that also have
+    /// `0 -> 3`, `3 -> 2`: a child with neuron 3 has a parent of the other
+    /// species.
+    fn two_species() -> (Specie, Vec<Organism>) {
+        let genome = Genome::new_initialized(2, 1);
+        let mut specie = Specie::new(genome.clone());
+        for fitness in 1..=10 {
+            let mut organism = Organism::new(genome.clone());
+            organism.fitness = fitness as f64;
+            specie.add(organism);
+        }
+        let mut other = genome;
+        other.add_gene(crate::Gene::new(0, 3, 1.0, true));
+        other.add_gene(crate::Gene::new(3, 2, 1.0, true));
+        let others = (0..4)
+            .map(|_| {
+                let mut organism = Organism::new(other.clone());
+                organism.fitness = 100.0;
+                organism
+            })
+            .collect();
+        (specie, others)
+    }
+
+    /// Only crossover, no mutation, the given interspecies rate.
+    fn crossover_only(interspecies: f64) -> MutationConfig {
+        MutationConfig::new()
+            .mutation_probability(0.0)
+            .add_connection_rate(0.0)
+            .add_neuron_rate(0.0)
+            .weight_mutation_rate(0.0)
+            .bias_mutation_rate(0.0)
+            .toggle_expression_rate(0.0)
+            .interspecies_mate_rate(interspecies)
+            .build()
+    }
+
+    fn children_with_foreign_parent(specie: &Specie) -> usize {
+        specie
+            .organisms
+            .iter()
+            .filter(|organism| organism.genome.has_neuron(3))
+            .count()
+    }
+
+    #[test]
+    fn default_interspecies_mate_rate_is_the_neat_paper_one() {
+        assert_eq!(MutationConfig::default().interspecies_mate_rate, 0.001);
+    }
+
+    #[test]
+    fn interspecies_mating_follows_the_configured_rate() {
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        for (rate, low, high) in [(0.0, 0, 0), (1.0, 999, 999), (0.3, 250, 350)] {
+            let (mut specie, others) = two_species();
+            specie.generate_offspring_with_config_and_rng(
+                1000,
+                &others,
+                &crossover_only(rate),
+                &mut rng,
+            );
+            // 999 children and the copy of the champion.
+            let foreign = children_with_foreign_parent(&specie);
+            assert!(
+                foreign >= low && foreign <= high,
+                "rate {}: {} children with a parent of another species",
+                rate,
+                foreign
+            );
+        }
+    }
+
+    #[test]
+    fn interspecies_mating_without_other_species_mates_inside() {
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        let (mut specie, _) = two_species();
+        specie.generate_offspring_with_config_and_rng(50, &[], &crossover_only(1.0), &mut rng);
+        assert_eq!(specie.organisms.len(), 50);
+        assert_eq!(children_with_foreign_parent(&specie), 0);
+    }
+
+    #[test]
+    fn parents_are_the_fittest_half() {
+        let (specie, _) = two_species();
+        let mut fitnesses: Vec<f64> = specie.parents().map(|o| o.fitness).collect();
+        fitnesses.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(fitnesses, vec![6.0, 7.0, 8.0, 9.0, 10.0]);
+        let mut single = Specie::new(Genome::default());
+        single.add(Organism::new(Genome::default()));
+        assert_eq!(single.parents().count(), 1);
     }
 
     #[test]

@@ -133,13 +133,31 @@ impl Organism {
     }
     /// Mate this organism with another, drawing every random decision from `rng`
     pub fn mate_with_rng<R: Rng + ?Sized>(&self, other: &Organism, rng: &mut R) -> Organism {
+        self.mate_with_config_and_rng(other, &MutationConfig::default(), rng)
+    }
+    /// Like `mate_with_rng`, with the crossover settings of `config`
+    /// (`MutationConfig::disabled_gene_inheritance`).
+    pub fn mate_with_config_and_rng<R: Rng + ?Sized>(
+        &self,
+        other: &Organism,
+        config: &MutationConfig,
+        rng: &mut R,
+    ) -> Organism {
         // NEAT paper, section 3.2: the child inherits the structure of the
         // fitter parent; with equal fitness, disjoint and excess genes come
         // from either parent at random.
         let genome = match self.fitness.partial_cmp(&other.fitness) {
-            Some(Ordering::Greater) => self.genome.mate_with_rng(&other.genome, true, rng),
-            Some(Ordering::Less) => self.genome.mate_with_rng(&other.genome, false, rng),
-            _ => self.genome.mate_equal_with_rng(&other.genome, rng),
+            Some(Ordering::Greater) => {
+                self.genome
+                    .mate_with_config_and_rng(&other.genome, true, config, rng)
+            }
+            Some(Ordering::Less) => {
+                self.genome
+                    .mate_with_config_and_rng(&other.genome, false, config, rng)
+            }
+            _ => self
+                .genome
+                .mate_equal_with_config_and_rng(&other.genome, config, rng),
         };
         let mut child = Organism::new(genome);
         child.tau = self.tau;

@@ -25,10 +25,12 @@ impl dyn Mutation {
         )
     }
 
-    pub fn add_neuron(gene: &mut Gene, new_neuron_id: usize) -> (Gene, Gene) {
+    /// Disables `gene` and returns `in -> new` (weight `input_weight`) and
+    /// `new -> out` (the weight of `gene`).
+    pub fn add_neuron(gene: &mut Gene, new_neuron_id: usize, input_weight: f64) -> (Gene, Gene) {
         gene.set_disabled();
 
-        let gen1 = Gene::new(gene.in_neuron_id(), new_neuron_id, 1f64, true);
+        let gen1 = Gene::new(gene.in_neuron_id(), new_neuron_id, input_weight, true);
 
         let gen2 = Gene::new(new_neuron_id, gene.out_neuron_id(), gene.weight(), true);
         (gen1, gen2)

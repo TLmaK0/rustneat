@@ -28,6 +28,24 @@ pub(crate) const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
 // Structural rates of the NEAT paper (Stanley & Miikkulainen 2002).
 pub(crate) const MUTATE_ADD_CONNECTION: f64 = 0.05f64;
 pub(crate) const MUTATE_ADD_NEURON: f64 = 0.03f64;
+// Splitting a connection `i -> o` of weight w adds `i -> new` with weight
+// SPLIT_INPUT_WEIGHT, a new neuron with bias SPLIT_BIAS and `new -> o` with
+// weight w. The new neuron relays σ(a·s + θ) where the old connection
+// carried s: σ(y + θ) of a CTRNN neuron, in (0, 1), or the raw value of an
+// input. a = 5, θ = -2.5 is the least-squares fit of σ(a·s - a/2) to the
+// identity on [0, 1] (a = 4.93; a = 4, θ = -2 is the tangent at 0.5), so
+// the new neuron changes the output little. The paper's choice (weight 1,
+// no bias) relays σ(s), in (0.5, 0.73), not s.
+//
+// Measured with the probe of issue #68 (every enabled gene of the
+// organisms of 5 seeds after 50 generations of bench A, XOR outputs):
+// mean |Δoutput| 0.062 (weight 1, bias 0), 0.019 (a = 4), 0.013 (a = 5);
+// splits that lower the fitness by more than 0.5: 25.7 %, 6.7 %, 3.5 %.
+// Bench A medians, seeds 1/101/201/301: 66/64/63/64, 53/52/57/54,
+// 50/52/52/53. (a = 7 is a bit faster in XOR, 48/51/52/52, but less
+// neutral: it makes the new neuron a step.)
+pub(crate) const SPLIT_INPUT_WEIGHT: f64 = 5f64;
+pub(crate) const SPLIT_BIAS: f64 = -2.5f64;
 pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
 pub(crate) const MUTATE_BIAS: f64 = 0.90f64;
 // Weight and bias mutation (issue #64). When a mutation touches the weights
@@ -286,10 +304,23 @@ impl Genome {
         self_is_fitter: bool,
         rng: &mut R,
     ) -> Genome {
+        self.mate_with_config_and_rng(other, self_is_fitter, &MutationConfig::default(), rng)
+    }
+
+    /// Like `mate_with_rng`, with the crossover settings of `config`
+    /// (`disabled_gene_inheritance`).
+    pub fn mate_with_config_and_rng<R: Rng + ?Sized>(
+        &self,
+        other: &Genome,
+        self_is_fitter: bool,
+        config: &MutationConfig,
+        rng: &mut R,
+    ) -> Genome {
+        let disabled = config.disabled_gene_inheritance;
         if self_is_fitter {
-            self.mate_genes(other, false, rng)
+            self.mate_genes(other, false, disabled, rng)
         } else {
-            other.mate_genes(self, false, rng)
+            other.mate_genes(self, false, disabled, rng)
         }
     }
 
@@ -297,16 +328,30 @@ impl Genome {
     /// `rng`: disjoint and excess genes are inherited from either parent at
     /// random (NEAT paper, section 3.2).
     pub fn mate_equal_with_rng<R: Rng + ?Sized>(&self, other: &Genome, rng: &mut R) -> Genome {
-        self.mate_genes(other, true, rng)
+        self.mate_equal_with_config_and_rng(other, &MutationConfig::default(), rng)
+    }
+
+    /// Like `mate_equal_with_rng`, with the crossover settings of `config`
+    /// (`disabled_gene_inheritance`).
+    pub fn mate_equal_with_config_and_rng<R: Rng + ?Sized>(
+        &self,
+        other: &Genome,
+        config: &MutationConfig,
+        rng: &mut R,
+    ) -> Genome {
+        self.mate_genes(other, true, config.disabled_gene_inheritance, rng)
     }
 
     /// Builds the child of `self` (structure donor) and `other`. With
     /// `equal_fitness`, every disjoint/excess gene of either parent is
     /// inherited with probability 0.5 instead of taking those of `self`.
+    /// A gene disabled in either parent is disabled in the child with
+    /// probability `disabled_inheritance`, otherwise enabled.
     fn mate_genes<R: Rng + ?Sized>(
         &self,
         other: &Genome,
         equal_fitness: bool,
+        disabled_inheritance: f64,
         rng: &mut R,
     ) -> Genome {
         let mut genome = Genome {
@@ -351,8 +396,8 @@ impl Genome {
                 }
             };
 
-            // NEAT rule: if gene is disabled in either parent, 25% chance offspring has it disabled
-            // (reduced from 75% to allow more gene reactivation)
+            // NEAT rule: a gene disabled in either parent is disabled in
+            // the child with probability `disabled_inheritance`.
             let other_gene_disabled = other
                 .genes
                 .binary_search(gene)
@@ -361,7 +406,7 @@ impl Genome {
                 .unwrap_or(false);
 
             if !gene.enabled() || other_gene_disabled {
-                if rng.gen::<f64>() < 0.25 {
+                if rng.gen::<f64>() < disabled_inheritance {
                     child_gene.set_disabled();
                 } else {
                     child_gene.set_enabled();
@@ -378,7 +423,7 @@ impl Genome {
                 }
                 let mut child_gene = *gene;
                 if !gene.enabled() {
-                    if rng.gen::<f64>() < 0.25 {
+                    if rng.gen::<f64>() < disabled_inheritance {
                         child_gene.set_disabled();
                     } else {
                         child_gene.set_enabled();
@@ -546,15 +591,20 @@ impl Genome {
         innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
     ) {
-        if self.genes.is_empty() {
+        // Only an expressed connection is split: splitting a disabled one
+        // would put back a path that evolution switched off.
+        let enabled: Vec<usize> = (0..self.genes.len())
+            .filter(|&index| self.genes[index].enabled())
+            .collect();
+        if enabled.is_empty() {
             return;
         }
-        let selected_gene = rng.gen_range(0..self.genes.len());
+        let selected_gene = enabled[rng.gen_range(0..enabled.len())];
         self.split_gene(selected_gene, innovations);
     }
 
     /// Split the gene at `index`: disable it and add a new neuron between its
-    /// ends. The neuron id comes from `innovations` or, without registry,
+    /// ends, nearly neutral (see SPLIT_INPUT_WEIGHT). The neuron id comes from `innovations` or, without registry,
     /// is the next one after the highest id of the genome. Returns the id.
     fn split_gene(&mut self, index: usize, innovations: Option<&mut InnovationRegistry>) -> usize {
         let (in_neuron_id, out_neuron_id) = (
@@ -565,9 +615,11 @@ impl Genome {
             Some(registry) => registry.split_neuron_id(self, in_neuron_id, out_neuron_id),
             None => self.last_neuron_id + 1,
         };
-        let (gene1, gene2) = <dyn Mutation>::add_neuron(&mut self.genes[index], neuron_id);
-        // A new neuron is born neutral, even if its id held a bias before.
-        self.set_bias(neuron_id, 0f64);
+        let (gene1, gene2) =
+            <dyn Mutation>::add_neuron(&mut self.genes[index], neuron_id, SPLIT_INPUT_WEIGHT);
+        // The new neuron is born with the split bias (see SPLIT_BIAS), even
+        // if its id held a bias before.
+        self.set_bias(neuron_id, SPLIT_BIAS);
         self.add_gene(gene1);
         self.add_gene(gene2);
         neuron_id
@@ -1218,7 +1270,7 @@ mod tests {
     }
 
     #[test]
-    fn new_neuron_is_born_with_neutral_bias() {
+    fn new_neuron_is_born_with_the_split_bias() {
         let mut genome = Genome::default();
         genome.add_gene(Gene::new(0, 1, 1f64, true));
         genome.set_bias(0, 3f64);
@@ -1227,9 +1279,74 @@ mod tests {
         genome.set_bias(2, 5f64);
         genome.mutate_add_neuron(&mut rng());
         assert_eq!(genome.len(), 3);
-        assert_eq!(genome.bias(2), 0f64);
+        assert_eq!(genome.bias(2), SPLIT_BIAS);
         assert_eq!(genome.bias(0), 3f64);
         assert_eq!(genome.bias(1), -3f64);
+    }
+
+    #[test]
+    fn split_neuron_is_close_to_the_identity_on_the_unit_interval() {
+        // in -> new has weight SPLIT_INPUT_WEIGHT, the new neuron has bias
+        // SPLIT_BIAS and new -> out keeps the old weight.
+        let mut genome = Genome::new_initialized(2, 1);
+        genome.genes[0].set_weight(-3.0);
+        let id = split(&mut genome, 0, 2, None);
+        let weight = |from, to| {
+            let pos = genome
+                .genes
+                .binary_search(&Gene::new_connection(from, to))
+                .unwrap();
+            genome.genes[pos].weight()
+        };
+        assert_eq!(weight(0, id), SPLIT_INPUT_WEIGHT);
+        assert_eq!(weight(id, 2), -3.0);
+        assert_eq!(genome.bias(id), SPLIT_BIAS);
+        // σ(a·s + θ) stays within 0.1 of s for s in [0, 1].
+        for k in 0..=100 {
+            let s = k as f64 / 100.0;
+            let relayed = crate::Ctrnn::sigmoid(SPLIT_INPUT_WEIGHT * s + SPLIT_BIAS);
+            assert!((relayed - s).abs() < 0.1, "s {}: {}", s, relayed);
+        }
+    }
+
+    #[test]
+    fn splitting_a_connection_barely_changes_the_output() {
+        use crate::Organism;
+        let output = |genome: &Genome, a: f64, b: f64| {
+            let mut organism = Organism::new(genome.clone());
+            let mut out = vec![0f64];
+            organism.activate(vec![a, b], &mut out);
+            out[0]
+        };
+        // Inputs 0, 1, hidden 3, output 2: split an input connection and a
+        // connection between CTRNN neurons.
+        let mut genome = Genome::new_initialized(2, 1);
+        genome.genes[0].set_weight(3.0);
+        genome.genes[1].set_weight(-2.0);
+        split(&mut genome, 1, 2, None);
+        genome.set_bias(3, 0.5);
+        let index = genome
+            .genes
+            .binary_search(&Gene::new_connection(3, 2))
+            .unwrap();
+        genome.genes[index].set_weight(4.0);
+        for (from, to) in [(0, 2), (3, 2)] {
+            let mut child = genome.clone();
+            split(&mut child, from, to, None);
+            for (a, b) in [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)] {
+                let (before, after) = (output(&genome, a, b), output(&child, a, b));
+                assert!(
+                    (before - after).abs() < 0.05,
+                    "split {} -> {}, input ({}, {}): {} before, {} after",
+                    from,
+                    to,
+                    a,
+                    b,
+                    before,
+                    after
+                );
+            }
+        }
     }
 
     /// Split the connection `from -> to` of `genome` (it must exist).
@@ -1351,33 +1468,143 @@ mod tests {
         }
     }
 
+    /// Fraction of `trials` children of `a` (fitter) and `b` whose gene
+    /// `0 -> 1` is disabled.
+    fn disabled_ratio(a: &Genome, b: &Genome, config: &MutationConfig, equal: bool) -> f64 {
+        let mut rng = rng();
+        let trials = 2000;
+        let disabled = (0..trials)
+            .filter(|_| {
+                let child = if equal {
+                    a.mate_equal_with_config_and_rng(b, config, &mut rng)
+                } else {
+                    a.mate_with_config_and_rng(b, true, config, &mut rng)
+                };
+                let gene = child
+                    .genes
+                    .binary_search(&Gene::new_connection(0, 1))
+                    .map(|pos| child.genes[pos]);
+                matches!(gene, Ok(g) if !g.enabled())
+            })
+            .count();
+        disabled as f64 / trials as f64
+    }
+
     #[test]
-    fn crossover_disabled_gene_should_stay_disabled_25_percent() {
-        // Parent 1 has disabled gene, parent 2 has enabled gene
-        let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 1, 1.0, false)); // disabled
+    fn default_disabled_gene_inheritance_is_the_neat_paper_one() {
+        assert_eq!(MutationConfig::default().disabled_gene_inheritance, 0.75);
+    }
 
-        let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(0, 1, 1.0, true)); // enabled
-
-        // Run many trials to check probability
-        let trials = 1000;
-        let mut disabled_count = 0;
-        for _ in 0..trials {
-            let child = genome1.mate(&genome2, true);
-            if !child.genes[0].enabled() {
-                disabled_count += 1;
+    #[test]
+    fn gene_disabled_in_either_parent_is_inherited_disabled_with_configured_probability() {
+        let mut disabled = Genome::default();
+        disabled.add_gene(Gene::new(0, 1, 1.0, false));
+        let mut enabled = Genome::default();
+        enabled.add_gene(Gene::new(0, 1, 1.0, true));
+        let default = MutationConfig::default();
+        // Disabled in the fitter parent, in the other one, or in both.
+        for (a, b) in [
+            (&disabled, &enabled),
+            (&enabled, &disabled),
+            (&disabled, &disabled),
+        ] {
+            let ratio = disabled_ratio(a, b, &default, false);
+            assert!(ratio > 0.71 && ratio < 0.79, "default: {}", ratio);
+            for p in [0.0, 0.3, 1.0] {
+                let config = MutationConfig::new().disabled_gene_inheritance(p).build();
+                let ratio = disabled_ratio(a, b, &config, false);
+                assert!((ratio - p).abs() < 0.04, "p {}: {}", p, ratio);
             }
         }
+        // Enabled in both parents: always enabled.
+        assert_eq!(disabled_ratio(&enabled, &enabled, &default, false), 0.0);
+        // The old entry points use the default probability.
+        let mut rng = rng();
+        let old = (0..2000)
+            .filter(|_| !disabled.mate_with_rng(&enabled, true, &mut rng).genes[0].enabled())
+            .count() as f64
+            / 2000.0;
+        assert!(old > 0.71 && old < 0.79, "mate_with_rng: {}", old);
+    }
 
-        // Should be approximately 25% disabled (allow ±10% margin)
-        // (reduced from NEAT's 75% to allow more gene reactivation)
-        let disabled_ratio = disabled_count as f64 / trials as f64;
-        assert!(
-            disabled_ratio > 0.15 && disabled_ratio < 0.35,
-            "Expected ~25% disabled, got {}%",
-            disabled_ratio * 100.0
-        );
+    #[test]
+    fn disabled_disjoint_gene_of_equal_parents_follows_configured_probability() {
+        // 0 -> 1 is only in `a` (disabled) and is inherited half of the
+        // time; when it is, it is disabled with probability p.
+        let mut a = Genome::default();
+        a.add_gene(Gene::new(0, 1, 1.0, false));
+        a.add_gene(Gene::new(0, 2, 1.0, true));
+        let mut b = Genome::default();
+        b.add_gene(Gene::new(0, 2, 1.0, true));
+        for p in [0.0, 0.75, 1.0] {
+            let config = MutationConfig::new().disabled_gene_inheritance(p).build();
+            let ratio = disabled_ratio(&a, &b, &config, true);
+            assert!(
+                (ratio - p / 2.0).abs() < 0.04,
+                "a first, p {}: {}",
+                p,
+                ratio
+            );
+            let ratio = disabled_ratio(&b, &a, &config, true);
+            assert!(
+                (ratio - p / 2.0).abs() < 0.04,
+                "b first, p {}: {}",
+                p,
+                ratio
+            );
+        }
+    }
+
+    #[test]
+    fn add_neuron_only_splits_enabled_genes() {
+        // Inputs 0, 1, output 2: 0 -> 2 is disabled, 1 -> 2 is enabled.
+        let mut genome = Genome::new_initialized(2, 1);
+        genome.genes[0].set_disabled();
+        let mut rng = rng();
+        for _ in 0..200 {
+            let mut child = genome.clone();
+            child.mutate_add_neuron(&mut rng);
+            assert_eq!(
+                connections(&child),
+                vec![(0, 2), (1, 2), (1, 3), (3, 2)],
+                "a disabled gene was split"
+            );
+            assert!(!child.genes[0].enabled(), "0 -> 2 was re-enabled");
+        }
+        // With every gene disabled there is nothing to split.
+        genome.genes[1].set_disabled();
+        let mut child = genome.clone();
+        child.mutate_add_neuron(&mut rng);
+        assert_eq!(connections(&child), connections(&genome));
+        assert!(child.genes.iter().all(|gene| !gene.enabled()));
+        assert_eq!(child.len(), genome.len());
+    }
+
+    #[test]
+    fn add_connection_never_reenables_a_disabled_gene() {
+        // Inputs 0, 1, output 2: 0 -> 2 disabled. The only new connections
+        // would end in an input or be 2 -> 2, so there is nothing to add.
+        let mut genome = Genome::new_initialized(2, 1);
+        genome.genes[0].set_disabled();
+        let mut rng = rng();
+        for _ in 0..100 {
+            genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
+        }
+        assert_eq!(connections(&genome), vec![(0, 2), (1, 2)]);
+        assert!(!genome.genes[0].enabled());
+        // With a hidden neuron there are new connections: they are added
+        // and the disabled gene stays disabled.
+        let mut genome = Genome::new_initialized(2, 1);
+        split(&mut genome, 0, 2, None);
+        for _ in 0..20 {
+            genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
+            let old = genome
+                .genes
+                .binary_search(&Gene::new_connection(0, 2))
+                .unwrap();
+            assert!(!genome.genes[old].enabled(), "0 -> 2 was re-enabled");
+        }
+        assert_eq!(genome.total_genes(), 6);
     }
 
     fn only_weight_mutation(gene_rate: f64) -> MutationConfig {

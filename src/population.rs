@@ -302,7 +302,10 @@ impl Population {
         self.speciate();
 
         let target_size = self.target_size();
-        let organisms = self.get_organisms();
+        // Candidates for an interspecies crossover: the organisms each
+        // species lets reproduce, taken before any species is replaced by
+        // its offspring.
+        let parents = species_parents(&self.species);
         let config = self.mutation_config;
 
         let average_fitnesses: Vec<f64> = self
@@ -323,13 +326,16 @@ impl Population {
         };
         let offspring_sizes = apportion(&weights, target_size);
 
-        for (specie, offspring_size) in self.species.iter_mut().zip(offspring_sizes) {
+        for (index, (specie, offspring_size)) in
+            self.species.iter_mut().zip(offspring_sizes).enumerate()
+        {
             if offspring_size > 0 {
-                specie.generate_offspring_with_innovations(
+                let other_species_parents = other_species_parents(&parents, index);
+                specie.generate_offspring_with_mates(
                     offspring_size,
-                    &organisms,
+                    &other_species_parents,
                     &config,
-                    &mut self.innovations,
+                    Some(&mut self.innovations),
                     &mut self.rng,
                 );
             } else {
@@ -435,6 +441,24 @@ impl Population {
     }
 }
 
+/// A copy of the parents (`Specie::parents`) of each species.
+fn species_parents(species: &[Specie]) -> Vec<Vec<Organism>> {
+    species
+        .iter()
+        .map(|specie| specie.parents().cloned().collect())
+        .collect()
+}
+
+/// The parents of every species except the one at `index`.
+fn other_species_parents(parents: &[Vec<Organism>], index: usize) -> Vec<&Organism> {
+    parents
+        .iter()
+        .enumerate()
+        .filter(|&(other, _)| other != index)
+        .flat_map(|(_, organisms)| organisms.iter())
+        .collect()
+}
+
 /// Shift `values` so that none is negative: if the lowest finite value is
 /// negative, subtract it from all of them (the lowest becomes 0); otherwise
 /// leave them as they are, so non negative fitness keeps the proportions it
@@ -536,6 +560,40 @@ mod tests {
     use crate::genome::Genome;
     use crate::organism::Organism;
     use crate::specie::Specie;
+
+    #[test]
+    fn interspecies_mates_are_the_parents_of_the_other_species() {
+        let organism = |fitness: f64| {
+            let mut organism = Organism::new(Genome::default());
+            organism.fitness = fitness;
+            organism
+        };
+        let mut species = vec![];
+        for fitnesses in [
+            [1.0, 2.0, 3.0, 4.0],
+            [10.0, 20.0, 30.0, 40.0],
+            [5.0, 6.0, 7.0, 8.0],
+        ] {
+            let mut specie = Specie::new(Genome::default());
+            for fitness in fitnesses {
+                specie.add(organism(fitness));
+            }
+            species.push(specie);
+        }
+        let parents = species_parents(&species);
+        let fitnesses = |index| {
+            let mut f: Vec<f64> = other_species_parents(&parents, index)
+                .iter()
+                .map(|o| o.fitness)
+                .collect();
+            f.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            f
+        };
+        assert_eq!(fitnesses(0), vec![7.0, 8.0, 30.0, 40.0]);
+        assert_eq!(fitnesses(1), vec![3.0, 4.0, 7.0, 8.0]);
+        assert_eq!(fitnesses(2), vec![3.0, 4.0, 30.0, 40.0]);
+        assert!(other_species_parents(&parents[..1], 0).is_empty());
+    }
 
     #[test]
     fn shift_to_non_negative_moves_negative_values_and_keeps_positive_ones() {

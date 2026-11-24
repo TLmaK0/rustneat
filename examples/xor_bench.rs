@@ -19,7 +19,8 @@
 //! weights, biases), `nsmall` (N = 1 below this many genes; 20 = paper,
 //! `inf` = never normalize, the default), `tspec` (target
 //! number of species; 0 = fixed threshold), `tstep`, `tmin` (dynamic
-//! threshold step and minimum),
+//! threshold step and minimum), `dis` (probability that a gene disabled in
+//! a parent is disabled in the child), `xsp` (interspecies crossover rate),
 //! `reset` (0/1: reset the CTRNN state before each pattern, default 0),
 //! `target` (fitness that counts as solved, default 15.5 of 16),
 //! `seed` (run `i` uses `Population::with_seed(seed + i)`, so every run is
@@ -172,6 +173,8 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
             "wmax" => b.weight_max(v),
             "bmax" => b.bias_max(v),
             "tau" => b.tau(v),
+            "dis" => b.disabled_gene_inheritance(v),
+            "xsp" => b.interspecies_mate_rate(v),
             "c1" | "c2" | "c3" | "cb" => {
                 let c = b.build();
                 let mut k4 = [
