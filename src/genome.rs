@@ -37,10 +37,13 @@ pub(crate) const MUTATE_ADD_NEURON: f64 = 0.03f64;
 // the new neuron changes the output little. The paper's choice (weight 1,
 // no bias) relays σ(s), in (0.5, 0.73), not s.
 //
-// Measured with the probe of issue #68 (every enabled gene of the
+// Measured with `split_probe 50 1 2 3 4 5` (every enabled gene of the
 // organisms of 5 seeds after 50 generations of bench A, XOR outputs):
-// mean |Δoutput| 0.062 (weight 1, bias 0), 0.019 (a = 4), 0.013 (a = 5);
-// splits that lower the fitness by more than 0.5: 25.7 %, 6.7 %, 3.5 %.
+// mean |Δoutput| 0.091 (weight 1, bias 0), 0.025 (a = 4), 0.016 (a = 5);
+// splits that lower the fitness by more than 0.5: 38 %, 12 %, 7 %.
+// Treating input sources apart (weight 1, new -> o weight 4w, bias of o
+// lowered by 2w) is not better on XOR inputs (0.026) and needs a weight 4
+// times larger.
 // Bench A medians, seeds 1/101/201/301: 66/64/63/64, 53/52/57/54,
 // 50/52/52/53. (a = 7 is a bit faster in XOR, 48/51/52/52, but less
 // neutral: it makes the new neuron a step.)
