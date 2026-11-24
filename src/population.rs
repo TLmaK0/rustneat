@@ -1,7 +1,6 @@
 use crate::environment::Environment;
 use crate::genome::Genome;
 use crate::organism::Organism;
-use conv::prelude::*;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::cmp::Ordering;
@@ -161,6 +160,12 @@ impl Population {
         population
     }
 
+    /// Number of organisms the population keeps in every generation: the
+    /// size given to the constructor.
+    pub fn target_size(&self) -> usize {
+        self.initial.size
+    }
+
     /// Find total of all organisms in the population
     pub fn size(&self) -> usize {
         self.species
@@ -177,14 +182,13 @@ impl Population {
     pub fn evaluate_in(&mut self, environment: &dyn Environment) {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
 
-        // Apply fitness sharing and update stagnation tracking
+        // Apply fitness sharing and update stagnation tracking. Stagnant
+        // species are removed in the next `evolve`, where their share of the
+        // offspring goes to the surviving species.
         for specie in &mut self.species {
             specie.adjust_fitness();
             specie.update_stagnation();
         }
-
-        // Remove stagnant species (but protect top 2 by fitness)
-        self.remove_stagnant_species(STAGNATION_THRESHOLD, SPECIES_ELITISM);
 
         #[cfg(feature = "telemetry")]
         telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
@@ -246,13 +250,12 @@ impl Population {
     }
 
     fn generate_offspring(&mut self) {
+        // Remove stagnant species (but protect top 2 by fitness); the
+        // survivors fill the population back to its target size below.
+        self.remove_stagnant_species(STAGNATION_THRESHOLD, SPECIES_ELITISM);
         self.speciate();
 
-        let total_average_fitness = self.species.iter_mut().fold(0f64, |total, specie| {
-            total + specie.calculate_average_fitness()
-        });
-
-        let num_of_organisms = self.size();
+        let target_size = self.target_size();
         let organisms = self.get_organisms();
         let config = self.mutation_config;
 
@@ -261,7 +264,7 @@ impl Population {
             let num_of_selected = best_species.len();
             for specie in &mut best_species {
                 specie.generate_offspring_with_config_and_rng(
-                    num_of_organisms.checked_div(num_of_selected).unwrap(),
+                    target_size.checked_div(num_of_selected).unwrap(),
                     &organisms,
                     &config,
                     &mut self.rng,
@@ -271,16 +274,24 @@ impl Population {
             return;
         }
 
-        let organisms_by_average_fitness =
-            num_of_organisms.value_as::<f64>().unwrap() / total_average_fitness;
+        let average_fitnesses: Vec<f64> = self
+            .species
+            .iter_mut()
+            .map(|specie| specie.calculate_average_fitness())
+            .collect();
+        let total_average_fitness: f64 = average_fitnesses.iter().sum();
+        // Without positive fitness, keep the current proportions.
+        let weights: Vec<f64> = if total_average_fitness > 0f64 {
+            average_fitnesses
+        } else {
+            self.species
+                .iter()
+                .map(|specie| specie.organisms.len() as f64)
+                .collect()
+        };
+        let offspring_sizes = apportion(&weights, target_size);
 
-        for specie in &mut self.species {
-            let specie_fitness = specie.calculate_average_fitness();
-            let offspring_size = if total_average_fitness <= 0f64 {
-                specie.organisms.len()
-            } else {
-                (specie_fitness * organisms_by_average_fitness).round() as usize
-            };
+        for (specie, offspring_size) in self.species.iter_mut().zip(offspring_sizes) {
             if offspring_size > 0 {
                 specie.generate_offspring_with_config_and_rng(
                     offspring_size,
@@ -393,6 +404,52 @@ impl Population {
     }
 }
 
+/// Split `total` into integer shares proportional to `weights` by the
+/// largest remainder method: every share gets the floor of its exact quota
+/// and the units still missing go to the largest fractional parts (ties to
+/// the first). The shares always add up to `total`. Negative or non finite
+/// weights count as zero; if no weight is positive, `total` is split evenly.
+fn apportion(weights: &[f64], total: usize) -> Vec<usize> {
+    if weights.is_empty() {
+        return vec![];
+    }
+    let weights: Vec<f64> = weights
+        .iter()
+        .map(|w| if w.is_finite() && *w > 0f64 { *w } else { 0f64 })
+        .collect();
+    let sum: f64 = weights.iter().sum();
+    let quotas: Vec<f64> = if sum > 0f64 {
+        weights.iter().map(|w| w * total as f64 / sum).collect()
+    } else {
+        vec![total as f64 / weights.len() as f64; weights.len()]
+    };
+    let mut shares: Vec<usize> = quotas.iter().map(|q| q.floor() as usize).collect();
+    let assigned: usize = shares.iter().sum();
+    // Floating point error could push the floors over `total`; never give
+    // more than asked.
+    let mut missing = total.saturating_sub(assigned);
+    let mut by_remainder: Vec<usize> = (0..quotas.len()).collect();
+    by_remainder.sort_by(|&a, &b| {
+        let ra = quotas[a] - quotas[a].floor();
+        let rb = quotas[b] - quotas[b].floor();
+        rb.partial_cmp(&ra).unwrap_or(Ordering::Equal)
+    });
+    let mut i = 0;
+    while missing > 0 {
+        shares[by_remainder[i % by_remainder.len()]] += 1;
+        missing -= 1;
+        i += 1;
+    }
+    let mut excess = shares.iter().sum::<usize>().saturating_sub(total);
+    for &j in by_remainder.iter().rev() {
+        while excess > 0 && shares[j] > 0 {
+            shares[j] -= 1;
+            excess -= 1;
+        }
+    }
+    shares
+}
+
 #[cfg(test)]
 use crate::gene::Gene;
 
@@ -420,6 +477,27 @@ mod tests {
         population.species = vec![specie];
         population.speciate();
         assert_eq!(population.species.len(), 2usize);
+    }
+
+    #[test]
+    fn apportion_by_largest_remainder_adds_up_exactly() {
+        assert_eq!(apportion(&[1.0, 1.0, 1.0], 10), vec![4, 3, 3]);
+        assert_eq!(apportion(&[1.0, 2.0], 150), vec![50, 100]);
+        // 150 * (0.3, 0.3, 0.4) = 45, 45, 60
+        assert_eq!(apportion(&[0.3, 0.3, 0.4], 150), vec![45, 45, 60]);
+        // 7 * (0.25, 0.35, 0.4) = 1.75, 2.45, 2.8 -> floors 1, 2, 2; the two
+        // largest remainders (0.8, 0.75) get the missing 2.
+        assert_eq!(apportion(&[0.25, 0.35, 0.4], 7), vec![2, 2, 3]);
+        let weights = [0.13, 7.0, 3.3, 0.001, 2.2, 9.9, 1.0];
+        for total in [0usize, 1, 2, 7, 149, 150, 151, 1000] {
+            assert_eq!(apportion(&weights, total).iter().sum::<usize>(), total);
+        }
+    }
+
+    #[test]
+    fn apportion_without_positive_weights_splits_evenly() {
+        assert_eq!(apportion(&[0.0, 0.0, 0.0], 10), vec![4, 3, 3]);
+        assert_eq!(apportion(&[0.0, -1.0], 3), vec![2, 1]);
     }
 
     #[test]
