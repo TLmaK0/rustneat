@@ -105,7 +105,21 @@ pub struct MutationConfig {
     /// How output neurons are read: `σ(y + θ)` (default) or linear `y + θ`
     /// for regression.
     pub output_activation: OutputActivation,
+    /// A species whose best fitness ever has not improved for this many
+    /// generations is stagnant and is removed at the start of the next
+    /// `evolve`; its share of the offspring goes to the other species
+    /// (NEAT paper: 15).
+    pub species_stagnation_generations: usize,
+    /// The species holding the best organisms of the population (this many
+    /// species, ranked by their current champion) are never removed for
+    /// stagnation, so the best solution found is never lost.
+    pub species_elitism: usize,
 }
+
+/// Generations without improvement before a species is removed.
+const SPECIES_STAGNATION_GENERATIONS: usize = 15;
+/// Best species protected from the stagnation removal.
+const SPECIES_ELITISM: usize = 2;
 
 impl Default for MutationConfig {
     fn default() -> Self {
@@ -137,6 +151,8 @@ impl Default for MutationConfig {
             tau: 0.01,
             step_time: 0.1,
             output_activation: OutputActivation::Sigmoid,
+            species_stagnation_generations: SPECIES_STAGNATION_GENERATIONS,
+            species_elitism: SPECIES_ELITISM,
         }
     }
 }
@@ -321,6 +337,15 @@ impl MutationConfigBuilder {
     /// Set how output neurons are read (sigmoid or linear)
     pub fn output_activation(mut self, output_activation: OutputActivation) -> Self {
         self.config.output_activation = output_activation;
+        self
+    }
+
+    /// Remove a species after `generations` generations without improving
+    /// its best fitness, except the `protected` species with the best
+    /// organisms
+    pub fn species_stagnation(mut self, generations: usize, protected: usize) -> Self {
+        self.config.species_stagnation_generations = generations;
+        self.config.species_elitism = protected;
         self
     }
 

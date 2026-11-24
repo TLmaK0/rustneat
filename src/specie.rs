@@ -9,9 +9,12 @@ use rand::Rng;
 #[derive(Debug, Clone)]
 pub struct Specie {
     representative: Genome,
-    average_fitness: f64,
-    champion_fitness: f64,
+    /// Best fitness any organism of this species ever had (-inf before the
+    /// first evaluation).
+    best_fitness: f64,
+    /// Generations this species has produced offspring.
     age: usize,
+    /// `age` when `best_fitness` last improved.
     age_last_improvement: usize,
     /// All orgnamisms in this species
     pub organisms: Vec<Organism>,
@@ -28,8 +31,7 @@ impl Specie {
         Specie {
             organisms: vec![],
             representative: genome,
-            average_fitness: 0f64,
-            champion_fitness: 0f64,
+            best_fitness: f64::NEG_INFINITY,
             age: 0,
             age_last_improvement: 0,
             id: 0,
@@ -70,12 +72,17 @@ impl Specie {
         })
     }
 
-    /// Update stagnation tracking. Call after evaluation.
-    /// Returns true if species improved this generation.
+    /// Update stagnation tracking. Call once after every evaluation: the
+    /// species improves only when its champion beats the best fitness the
+    /// species ever had. Returns true if it improved.
     pub fn update_stagnation(&mut self) -> bool {
-        let current_best = self.calculate_champion_fitness();
-        if current_best > self.champion_fitness {
-            self.champion_fitness = current_best;
+        let current_best = self
+            .organisms
+            .iter()
+            .map(|organism| organism.fitness)
+            .fold(f64::NEG_INFINITY, f64::max);
+        if current_best > self.best_fitness {
+            self.best_fitness = current_best;
             self.age_last_improvement = self.age;
             true
         } else {
@@ -83,9 +90,15 @@ impl Specie {
         }
     }
 
-    /// Check if species has stagnated (no improvement for max_generations)
+    /// Best fitness the species ever had, as seen by `update_stagnation`.
+    pub fn best_fitness(&self) -> f64 {
+        self.best_fitness
+    }
+
+    /// Check if species has stagnated: `max_generations` or more
+    /// generations without improving its best fitness
     pub fn is_stagnant(&self, max_generations: usize) -> bool {
-        self.age > self.age_last_improvement + max_generations
+        self.generations_without_improvement() >= max_generations
     }
 
     /// Get generations since last improvement
@@ -94,7 +107,7 @@ impl Specie {
     }
 
     /// Work out average fitness of this species
-    pub fn calculate_average_fitness(&mut self) -> f64 {
+    pub fn calculate_average_fitness(&self) -> f64 {
         let organisms_count = self.organisms.len().value_as::<f64>().unwrap();
         if organisms_count == 0f64 {
             return 0f64;
@@ -105,14 +118,7 @@ impl Specie {
             .iter()
             .fold(0f64, |total, organism| total + organism.fitness);
 
-        let new_fitness = total_fitness / organisms_count;
-
-        if new_fitness > self.average_fitness {
-            self.age_last_improvement = self.age;
-        }
-
-        self.average_fitness = new_fitness;
-        self.average_fitness
+        total_fitness / organisms_count
     }
 
     /// Mate and generate offspring, delete old organisms and use the children
@@ -324,6 +330,64 @@ mod tests {
         specie.add(organism3);
 
         assert!((specie.calculate_average_fitness() - 15f64).abs() < EPSILON);
+    }
+
+    fn set_fitnesses(specie: &mut Specie, fitnesses: &[f64]) {
+        for (organism, fitness) in specie.organisms.iter_mut().zip(fitnesses) {
+            organism.fitness = *fitness;
+        }
+    }
+
+    /// The average is only a getter: a rising average without a better
+    /// champion is not an improvement, so the species stagnates.
+    #[test]
+    fn stagnation_follows_the_best_fitness_not_the_average() {
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        let genome = Genome::new_initialized_with_rng(2, 1, &mut rng);
+        let mut specie = Specie::new(genome.clone());
+        for _ in 0..4 {
+            specie.add(Organism::new(genome.clone()));
+        }
+        set_fitnesses(&mut specie, &[10.0, 0.0, 0.0, 0.0]);
+        assert!(specie.update_stagnation());
+        assert_eq!(specie.best_fitness(), 10.0);
+
+        for generation in 1..=16 {
+            let organisms = specie.organisms.clone();
+            specie.generate_offspring_with_config_and_rng(
+                4,
+                &organisms,
+                &MutationConfig::default(),
+                &mut rng,
+            );
+            // The average rises every generation, the best stays below 10.
+            let fitness = (generation as f64 * 0.5).min(9.0);
+            set_fitnesses(&mut specie, &[fitness; 4]);
+            specie.calculate_average_fitness();
+            specie.calculate_average_fitness();
+            assert!(!specie.update_stagnation());
+            assert_eq!(specie.generations_without_improvement(), generation);
+        }
+        assert!(specie.is_stagnant(15));
+        assert_eq!(specie.best_fitness(), 10.0);
+
+        // A better champion resets the counter.
+        set_fitnesses(&mut specie, &[11.0, 0.0, 0.0, 0.0]);
+        assert!(specie.update_stagnation());
+        assert_eq!(specie.generations_without_improvement(), 0);
+        assert!(!specie.is_stagnant(15));
+    }
+
+    /// Negative fitnesses are an improvement over "never evaluated".
+    #[test]
+    fn first_evaluation_is_an_improvement_even_with_negative_fitness() {
+        let mut specie = Specie::new(Genome::default());
+        let mut organism = Organism::new(Genome::default());
+        organism.fitness = -5.0;
+        specie.add(organism);
+        assert!(specie.update_stagnation());
+        assert_eq!(specie.best_fitness(), -5.0);
     }
 
     #[test]

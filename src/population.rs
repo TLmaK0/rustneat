@@ -24,6 +24,9 @@ pub struct Population {
     pub species: Vec<Specie>,
     champion_fitness: f64,
     epochs_without_improvements: usize,
+    /// Id for the next new species: ids are never reused, so a species
+    /// keeps its id for its whole life.
+    next_species_id: i64,
     /// champion of the population
     pub champion: Option<Organism>,
     /// Mutation configuration
@@ -44,10 +47,6 @@ struct InitialPopulation {
     /// true: every input connected to every output; false: no connections.
     connected: bool,
 }
-
-const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 50;
-const STAGNATION_THRESHOLD: usize = 15; // Remove species after 15 generations without improvement
-const SPECIES_ELITISM: usize = 2; // Protect top 2 species from stagnation removal
 
 impl Population {
     /// Create a new population of size X whose genomes are a single neuron,
@@ -152,6 +151,7 @@ impl Population {
             champion_fitness: 0f64,
             champion: None,
             epochs_without_improvements: 0usize,
+            next_species_id: 0,
             mutation_config: config,
             rng: ChaCha8Rng::from_entropy(),
             initial,
@@ -209,31 +209,39 @@ impl Population {
         self.champion_fitness = champion.fitness;
     }
 
-    /// Remove species that haven't improved for too long
-    fn remove_stagnant_species(&mut self, max_generations: usize, protect_top_n: usize) {
-        if self.species.len() <= protect_top_n {
-            return;
-        }
-
-        // Sort by champion fitness descending to identify top species
-        self.species.sort_by(|a, b| {
-            b.calculate_champion_fitness()
-                .partial_cmp(&a.calculate_champion_fitness())
-                .unwrap_or(Ordering::Equal)
+    /// Remove the species that are stagnant (see
+    /// `MutationConfig::species_stagnation_generations`), except the
+    /// `species_elitism` species with the best current champion. The
+    /// survivors fill the population back to its target size.
+    fn remove_stagnant_species(&mut self) {
+        let max_generations = self.mutation_config.species_stagnation_generations;
+        let protected = self.protected_species(self.mutation_config.species_elitism);
+        let mut index = 0;
+        self.species.retain(|specie| {
+            let keep = protected.contains(&index) || !specie.is_stagnant(max_generations);
+            index += 1;
+            keep
         });
+    }
 
-        // Mark which species to keep (top N are protected)
-        let mut to_remove = vec![];
-        for (i, specie) in self.species.iter().enumerate() {
-            if i >= protect_top_n && specie.is_stagnant(max_generations) {
-                to_remove.push(i);
-            }
-        }
+    /// Positions in `self.species` of the `n` species with the best current
+    /// champion (ties: the first ones).
+    fn protected_species(&self, n: usize) -> Vec<usize> {
+        let mut ranking: Vec<usize> = (0..self.species.len()).collect();
+        ranking.sort_by(|&a, &b| {
+            let fa = self.species[a].calculate_champion_fitness();
+            let fb = self.species[b].calculate_champion_fitness();
+            fb.partial_cmp(&fa).unwrap_or(Ordering::Equal)
+        });
+        ranking.truncate(n);
+        ranking
+    }
 
-        // Remove stagnant species (in reverse order to preserve indices)
-        for i in to_remove.into_iter().rev() {
-            self.species.remove(i);
-        }
+    /// Add a species with a new id.
+    fn add_species(&mut self, mut specie: Specie) {
+        specie.id = self.next_species_id;
+        self.next_species_id += 1;
+        self.species.push(specie);
     }
 
     /// Return all organisms of the population
@@ -250,33 +258,19 @@ impl Population {
     }
 
     fn generate_offspring(&mut self) {
-        // Remove stagnant species (but protect top 2 by fitness); the
-        // survivors fill the population back to its target size below.
-        self.remove_stagnant_species(STAGNATION_THRESHOLD, SPECIES_ELITISM);
+        // There is no population-level "rescue" when the champion does not
+        // improve: the stagnation of each species frees the offspring of the
+        // species that do not progress, and the best ones are protected.
+        self.remove_stagnant_species();
         self.speciate();
 
         let target_size = self.target_size();
         let organisms = self.get_organisms();
         let config = self.mutation_config;
 
-        if self.epochs_without_improvements > MAX_EPOCHS_WITHOUT_IMPROVEMENTS {
-            let mut best_species = self.get_best_species();
-            let num_of_selected = best_species.len();
-            for specie in &mut best_species {
-                specie.generate_offspring_with_config_and_rng(
-                    target_size.checked_div(num_of_selected).unwrap(),
-                    &organisms,
-                    &config,
-                    &mut self.rng,
-                );
-            }
-            self.epochs_without_improvements = 0;
-            return;
-        }
-
         let average_fitnesses: Vec<f64> = self
             .species
-            .iter_mut()
+            .iter()
             .map(|specie| specie.calculate_average_fitness())
             .collect();
         let total_average_fitness: f64 = average_fitnesses.iter().sum();
@@ -305,28 +299,9 @@ impl Population {
         }
     }
 
-    fn get_best_species(&mut self) -> Vec<Specie> {
-        if self.species.len() <= 2 {
-            return self.species.clone();
-        }
-
-        // Sort by champion fitness descending (best first)
-        self.species.sort_by(|specie1, specie2| {
-            specie2
-                .calculate_champion_fitness()
-                .partial_cmp(&specie1.calculate_champion_fitness())
-                .unwrap_or(Ordering::Equal)
-        });
-
-        // Return the top 2 species
-        self.species[0..2].to_vec()
-    }
-
     fn speciate(&mut self) {
         let organisms = &self.get_organisms();
         self.species.retain(|specie| !specie.is_empty());
-
-        let mut next_specie_id = 0i64;
 
         #[cfg(feature = "telemetry")]
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
@@ -348,9 +323,6 @@ impl Population {
             specie.choose_new_representative_with_rng(&mut self.rng);
 
             specie.remove_organisms();
-
-            specie.id = next_specie_id;
-            next_specie_id += 1;
         }
 
         let config = self.mutation_config;
@@ -365,10 +337,8 @@ impl Population {
                 }
                 None => {
                     let mut specie = Specie::new(organism.genome.clone());
-                    specie.id = next_specie_id;
                     specie.add(organism.clone());
-                    next_specie_id += 1;
-                    self.species.push(specie);
+                    self.add_species(specie);
                 }
             };
         }
@@ -420,7 +390,8 @@ impl Population {
 
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
         specie.organisms = organisms;
-        self.species.push(specie);
+        self.next_species_id = 0;
+        self.add_species(specie);
     }
 }
 
@@ -586,6 +557,147 @@ mod tests {
     fn apportion_without_positive_weights_splits_evenly() {
         assert_eq!(apportion(&[0.0, 0.0, 0.0], 10), vec![4, 3, 3]);
         assert_eq!(apportion(&[0.0, -1.0], 3), vec![2, 1]);
+    }
+
+    /// Genome 2 inputs -> 1 output with both weights `w`: genomes with
+    /// weights 20 apart are 0.4 * 20 = 8 apart, far over the threshold 2.
+    fn genome_with_weights(w: f64) -> Genome {
+        let mut genome = Genome::new_unconnected(2, 1);
+        genome.add_gene(Gene::new(0, 2, w, true));
+        genome.add_gene(Gene::new(1, 2, w, true));
+        genome
+    }
+
+    /// Population of 30 split in three species (weights 20, -20, 0) whose
+    /// fitness only depends on the species: 10, 5 and 1, constant. Asexual
+    /// reproduction without any mutation (children are clones), so the
+    /// species stay apart.
+    fn three_species_population(protected: usize) -> (Population, [i64; 3]) {
+        let config = MutationConfig::new()
+            .fixed_compatibility_threshold()
+            .compatibility_threshold(2.0)
+            .weight_mutation_rate(0.0)
+            .bias_mutation_rate(0.0)
+            .add_connection_rate(0.0)
+            .add_neuron_rate(0.0)
+            .toggle_expression_rate(0.0)
+            .mutation_probability(1.0)
+            .species_stagnation(15, protected)
+            .build();
+        let mut population =
+            Population::create_population_initialized_with_config(30, 2, 1, config).with_seed(1);
+        population.species = vec![];
+        for w in [20.0, -20.0, 0.0] {
+            let genome = genome_with_weights(w);
+            let mut specie = Specie::new(genome.clone());
+            for _ in 0..10 {
+                specie.add(Organism::new(genome.clone()));
+            }
+            population.add_species(specie);
+        }
+        let ids = [
+            population.species[0].id,
+            population.species[1].id,
+            population.species[2].id,
+        ];
+        (population, ids)
+    }
+
+    /// Fitness by species: `fitness_of(id)`; then the same bookkeeping as
+    /// `evaluate_in`.
+    fn evaluate_by_species(population: &mut Population, fitness_of: &dyn Fn(i64) -> f64) {
+        for specie in &mut population.species {
+            let fitness = fitness_of(specie.id);
+            for organism in &mut specie.organisms {
+                organism.fitness = fitness;
+            }
+            specie.adjust_fitness();
+            specie.update_stagnation();
+        }
+    }
+
+    /// Generation (number of `evolve` calls) after which each of `ids` was
+    /// no longer in the population, checking the size every generation.
+    fn run_until_removed(
+        population: &mut Population,
+        ids: [i64; 3],
+        generations: usize,
+    ) -> [Option<usize>; 3] {
+        let fitness_of = move |id: i64| {
+            if id == ids[0] {
+                10.0
+            } else if id == ids[1] {
+                5.0
+            } else if id == ids[2] {
+                1.0
+            } else {
+                0.0
+            }
+        };
+        let mut removed = [None; 3];
+        evaluate_by_species(population, &fitness_of);
+        for generation in 1..=generations {
+            population.evolve();
+            assert_eq!(population.size(), 30, "generation {}", generation);
+            for (k, id) in ids.iter().enumerate() {
+                if removed[k].is_none() && population.species.iter().all(|s| s.id != *id) {
+                    removed[k] = Some(generation);
+                }
+            }
+            evaluate_by_species(population, &fitness_of);
+        }
+        removed
+    }
+
+    #[test]
+    fn species_without_improvement_for_15_generations_are_removed() {
+        let (mut population, ids) = three_species_population(1);
+        let removed = run_until_removed(&mut population, ids, 25);
+        // Best fitness found in the first evaluation, never improved after:
+        // stagnant once 15 generations went by without improvement, removed
+        // in the next evolve; the species with the best organism is kept.
+        assert_eq!(removed, [None, Some(16), Some(16)]);
+        assert_eq!(population.size(), 30);
+        assert_eq!(population.species.len(), 1);
+        assert_eq!(population.species[0].id, ids[0]);
+    }
+
+    #[test]
+    fn the_n_best_species_are_protected_from_stagnation() {
+        let (mut population, ids) = three_species_population(2);
+        let removed = run_until_removed(&mut population, ids, 25);
+        assert_eq!(removed, [None, None, Some(16)]);
+        assert_eq!(population.size(), 30);
+    }
+
+    #[test]
+    fn species_keep_their_id_across_generations() {
+        let (mut population, ids) = three_species_population(3);
+        let removed = run_until_removed(&mut population, ids, 10);
+        assert_eq!(removed, [None, None, None]);
+        let mut current: Vec<i64> = population.species.iter().map(|s| s.id).collect();
+        current.sort();
+        assert_eq!(current, ids.to_vec());
+        // A new species never takes an id already used.
+        let mut organism = Organism::new(genome_with_weights(-40.0));
+        organism.fitness = 1.0;
+        population.species[0].add(organism);
+        population.speciate();
+        let new_ids: Vec<i64> = population
+            .species
+            .iter()
+            .map(|s| s.id)
+            .filter(|id| !ids.contains(id))
+            .collect();
+        assert_eq!(new_ids.len(), 1);
+        assert!(new_ids[0] > *ids.iter().max().unwrap());
+    }
+
+    #[test]
+    fn default_config_species_stagnation() {
+        let config = MutationConfig::default();
+        assert_eq!(config.species_stagnation_generations, 15);
+        assert_eq!(config.species_elitism, 2);
     }
 
     #[test]
