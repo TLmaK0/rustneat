@@ -53,3 +53,6 @@ name = "ctrnn"
 [[example]]
 name = "test_champion"
 required-features = ["openai"]
+
+[[example]]
+name = "xor_bench"
