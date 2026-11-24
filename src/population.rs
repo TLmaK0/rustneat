@@ -429,6 +429,7 @@ impl Population {
             };
             let mut org = Organism::new(genome);
             org.tau = self.mutation_config.tau;
+            org.dt = self.mutation_config.dt;
             org.step_time = self.mutation_config.step_time;
             org.output_activation = self.mutation_config.output_activation;
             organisms.push(org);
@@ -921,5 +922,29 @@ mod tests {
             .get_organisms()
             .iter()
             .all(|o| o.output_activation == OutputActivation::Sigmoid));
+    }
+
+    #[test]
+    fn initial_organisms_take_ctrnn_settings_from_config() {
+        let config = MutationConfig::new()
+            .tau(0.2)
+            .dt(0.005)
+            .step_time(0.3)
+            .build();
+        let population = Population::create_population_initialized_with_config(10, 2, 1, config);
+        assert!(population
+            .get_organisms()
+            .iter()
+            .all(|o| (o.tau, o.dt, o.step_time) == (0.2, 0.005, 0.3)));
+    }
+
+    #[test]
+    fn tau_defaults_keep_tau_fixed_and_out_of_the_distance() {
+        let config = MutationConfig::default();
+        assert_eq!((config.tau, config.dt, config.step_time), (0.01, 0.01, 0.1));
+        assert_eq!(config.tau_mutation_rate, 0.0);
+        assert_eq!(config.compatibility_tau_coefficient, 0.0);
+        assert_eq!((config.tau_min, config.tau_max), (0.001, 1.0));
+        assert_eq!(config.tau_mutate_power, 0.25);
     }
 }

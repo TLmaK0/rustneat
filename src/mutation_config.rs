@@ -1,12 +1,14 @@
 use crate::genome::{
-    BIAS_GENE_MUTATION_RATE, BIAS_MAX, BIAS_MUTATE_POWER, BIAS_PERTURBED_PROBABILITY,
-    WEIGHT_GENE_MUTATION_RATE, WEIGHT_MAX, WEIGHT_MUTATE_POWER,
+    BIAS_GENE_MUTATION_RATE, BIAS_MAX, BIAS_MUTATE_POWER, BIAS_PERTURBED_PROBABILITY, MUTATE_TAU,
+    TAU_GENE_MUTATION_RATE, TAU_MAX, TAU_MIN, TAU_MUTATE_POWER, WEIGHT_GENE_MUTATION_RATE,
+    WEIGHT_MAX, WEIGHT_MUTATE_POWER,
 };
 use crate::genome::{
     COMPATIBILITY_BIAS_COEFFICIENT, COMPATIBILITY_DISJOINT_COEFFICIENT,
-    COMPATIBILITY_EXCESS_COEFFICIENT, COMPATIBILITY_SMALL_GENOME_GENES, COMPATIBILITY_THRESHOLD,
-    COMPATIBILITY_THRESHOLD_MIN, COMPATIBILITY_THRESHOLD_STEP, COMPATIBILITY_WEIGHT_COEFFICIENT,
-    MUTATE_ADD_CONNECTION, MUTATE_ADD_NEURON, MUTATE_BIAS, MUTATE_CONNECTION_WEIGHT,
+    COMPATIBILITY_EXCESS_COEFFICIENT, COMPATIBILITY_SMALL_GENOME_GENES,
+    COMPATIBILITY_TAU_COEFFICIENT, COMPATIBILITY_THRESHOLD, COMPATIBILITY_THRESHOLD_MIN,
+    COMPATIBILITY_THRESHOLD_STEP, COMPATIBILITY_WEIGHT_COEFFICIENT, MUTATE_ADD_CONNECTION,
+    MUTATE_ADD_NEURON, MUTATE_BIAS, MUTATE_CONNECTION_WEIGHT,
     MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY, MUTATE_TOGGLE_EXPRESSION, TARGET_SPECIES,
 };
 use crate::organism::OutputActivation;
@@ -70,6 +72,10 @@ pub struct MutationConfig {
     /// Weight of `B̄`, the average bias difference of the neurons both
     /// genomes have (inputs excluded; 0 when there are none).
     pub compatibility_bias_coefficient: f64,
+    /// Weight of `T̄`, the average `|ln τa - ln τb|` of the neurons both
+    /// genomes have (inputs excluded). Default 0: τ does not separate
+    /// species (see `genome.rs` for the measurements).
+    pub compatibility_tau_coefficient: f64,
     /// `N` criterion: if both genomes have fewer genes than this, `N = 1`;
     /// otherwise `N` is the number of genes of the larger genome. The paper
     /// uses 20; 0 always normalizes. Default `usize::MAX`: never normalize
@@ -101,16 +107,37 @@ pub struct MutationConfig {
     pub weight_init_range: f64,
     /// Standard deviation σ of the gaussian weight perturbation `N(0, σ²)`.
     pub weight_mutate_power: f64,
-    /// CTRNN neuron time constant τ (default 0.01).
-    /// Represents how fast neurons respond — like biological membrane resistance time.
-    /// Small τ (e.g. 0.01): neurons react instantly, network behaves as feedforward.
-    /// Large τ (e.g. 0.1-1.0): neurons have inertia, network retains temporal memory.
-    /// What matters is the ratio dt/τ where dt=0.01 is the simulation step.
+    /// Default CTRNN time constant τ (default 0.01), that of every neuron
+    /// without τ gene (`Genome::tau`): new neurons and, while τ has not
+    /// mutated, all of them. It is how fast a neuron follows its input:
+    /// each integration step it moves `1 - e^(-dt/τ)` of the way to its
+    /// target (63 % with dt = τ; see `Integrator::ExponentialEuler`).
+    /// Small τ (τ ≤ dt/10): the neuron jumps to its target every step and
+    /// the network behaves as a discrete map. Large τ (e.g. 0.1-1.0 with
+    /// dt = 0.01): neurons have inertia and the network keeps temporal
+    /// memory. Any τ > 0 is stable.
     pub tau: f64,
+    /// Integration step dt of the CTRNN in seconds (default 0.01).
+    pub dt: f64,
     /// Simulated time per activate() call in seconds (default 0.1).
-    /// With dt=0.01, this means 10 Euler integration steps per activation.
-    /// More time = more steps = more accurate convergence but slower execution.
+    /// With dt = 0.01, this means `round(step_time / dt)` = 10 integration
+    /// steps per activation. A change travels one connection per step, so
+    /// a signal crosses at most that many connections in one activation.
     pub step_time: f64,
+    /// Probability that a mutation touches the time constants at all
+    /// (default 0: τ does not evolve unless asked). When it does, each τ
+    /// (inputs excluded) is mutated with probability
+    /// `tau_gene_mutation_rate`: `τ ← τ·e^N(0, σ²)` with
+    /// `σ = tau_mutate_power`, clipped to `[tau_min, tau_max]`.
+    pub tau_mutation_rate: f64,
+    /// Probability that each neuron τ is mutated when the τ are mutated.
+    pub tau_gene_mutation_rate: f64,
+    /// Standard deviation σ of the log-normal τ perturbation.
+    pub tau_mutate_power: f64,
+    /// Mutated τ never go below this value (default 0.001, must be > 0).
+    pub tau_min: f64,
+    /// Mutated τ never go above this value (default 1.0).
+    pub tau_max: f64,
     /// How output neurons are read: `σ(y + θ)` (default) or linear `y + θ`
     /// for regression.
     pub output_activation: OutputActivation,
@@ -154,6 +181,7 @@ impl Default for MutationConfig {
             compatibility_disjoint_coefficient: COMPATIBILITY_DISJOINT_COEFFICIENT,
             compatibility_weight_coefficient: COMPATIBILITY_WEIGHT_COEFFICIENT,
             compatibility_bias_coefficient: COMPATIBILITY_BIAS_COEFFICIENT,
+            compatibility_tau_coefficient: COMPATIBILITY_TAU_COEFFICIENT,
             compatibility_small_genome_genes: COMPATIBILITY_SMALL_GENOME_GENES,
             target_species: Some(TARGET_SPECIES),
             compatibility_threshold_step: COMPATIBILITY_THRESHOLD_STEP,
@@ -164,7 +192,13 @@ impl Default for MutationConfig {
             weight_init_range: 1.0,
             weight_mutate_power: WEIGHT_MUTATE_POWER,
             tau: 0.01,
+            dt: 0.01,
             step_time: 0.1,
+            tau_mutation_rate: MUTATE_TAU,
+            tau_gene_mutation_rate: TAU_GENE_MUTATION_RATE,
+            tau_mutate_power: TAU_MUTATE_POWER,
+            tau_min: TAU_MIN,
+            tau_max: TAU_MAX,
             output_activation: OutputActivation::Sigmoid,
             species_stagnation_generations: SPECIES_STAGNATION_GENERATIONS,
             species_elitism: SPECIES_ELITISM,
@@ -354,6 +388,50 @@ impl MutationConfigBuilder {
     /// Set CTRNN time constant
     pub fn tau(mut self, tau: f64) -> Self {
         self.config.tau = tau;
+        self
+    }
+
+    /// Set the CTRNN integration step dt
+    pub fn dt(mut self, dt: f64) -> Self {
+        self.config.dt = dt;
+        self
+    }
+
+    /// Set the probability of mutating the neuron time constants τ
+    pub fn tau_mutation_rate(mut self, rate: f64) -> Self {
+        self.config.tau_mutation_rate = rate;
+        self
+    }
+
+    /// Set the probability that each neuron τ is mutated when the τ are
+    /// mutated
+    pub fn tau_gene_mutation_rate(mut self, rate: f64) -> Self {
+        self.config.tau_gene_mutation_rate = rate;
+        self
+    }
+
+    /// Set σ of the log-normal τ perturbation `τ·e^N(0, σ²)`
+    pub fn tau_mutate_power(mut self, power: f64) -> Self {
+        self.config.tau_mutate_power = power;
+        self
+    }
+
+    /// Set the range mutated τ are clipped to, `0 < min <= max`
+    pub fn tau_range(mut self, min: f64, max: f64) -> Self {
+        assert!(
+            min > 0f64 && min <= max,
+            "tau range must satisfy 0 < min <= max, got [{}, {}]",
+            min,
+            max
+        );
+        self.config.tau_min = min;
+        self.config.tau_max = max;
+        self
+    }
+
+    /// Set the weight of the τ differences in the compatibility distance
+    pub fn compatibility_tau_coefficient(mut self, coefficient: f64) -> Self {
+        self.config.compatibility_tau_coefficient = coefficient;
         self
     }
 

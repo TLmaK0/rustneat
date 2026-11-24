@@ -32,7 +32,7 @@ extern crate rulinalg;
 #[cfg(feature = "telemetry")]
 extern crate serde_json;
 
-pub use self::ctrnn::Ctrnn;
+pub use self::ctrnn::{Ctrnn, Integrator};
 pub use self::environment::Environment;
 pub use self::gene::Gene;
 pub use self::genome::Genome;

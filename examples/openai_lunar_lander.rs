@@ -58,6 +58,10 @@ struct ChampionFile {
     /// Bias of each neuron, by neuron id
     #[serde(default)]
     biases: Vec<f64>,
+    /// Time constant τ of each neuron, by neuron id; `null` = default τ.
+    /// Missing in champions saved before τ was a gene (all default).
+    #[serde(default)]
+    taus: Vec<Option<f64>>,
 }
 
 impl ChampionFile {
@@ -80,6 +84,7 @@ impl ChampionFile {
             neurons_len: organism.genome.len(),
             genes,
             biases: neuron_biases(organism),
+            taus: neuron_taus(organism),
         }
     }
 }
@@ -122,6 +127,13 @@ fn default_bias_mutate_power() -> f64 {
 fn neuron_biases(organism: &Organism) -> Vec<f64> {
     (0..organism.genome.len())
         .map(|id| organism.genome.bias(id))
+        .collect()
+}
+
+/// τ gene of every neuron of the organism, by neuron id (`None` = default τ)
+fn neuron_taus(organism: &Organism) -> Vec<Option<f64>> {
+    (0..organism.genome.len())
+        .map(|id| organism.genome.tau(id))
         .collect()
 }
 
@@ -179,10 +191,12 @@ impl PyOrganism {
 }
 
 #[pyfunction]
+#[pyo3(signature = (genes, neurons_len, biases, taus=Vec::new()))]
 fn create_organism(
     genes: Vec<(usize, usize, f64, bool)>,
     neurons_len: usize,
     biases: Vec<f64>,
+    taus: Vec<Option<f64>>,
 ) -> PyResult<PyOrganism> {
     // Reconstruct genes from serialized data
     let gene_vec: Vec<Gene> = genes
@@ -195,6 +209,11 @@ fn create_organism(
     let mut genome = Genome::from_genes(gene_vec, last_neuron_id);
     for (id, bias) in biases.into_iter().enumerate() {
         genome.set_bias(id, bias);
+    }
+    for (id, tau) in taus.into_iter().enumerate() {
+        if let Some(tau) = tau {
+            genome.set_tau(id, tau);
+        }
     }
     let organism = Organism::new(genome);
 
@@ -315,6 +334,7 @@ impl LunarLanderMultiprocess {
             dict.set_item("genes", genes_list).unwrap();
             dict.set_item("neurons_len", neurons_len).unwrap();
             dict.set_item("biases", neuron_biases(organism)).unwrap();
+            dict.set_item("taus", neuron_taus(organism)).unwrap();
 
             let worker_fn = self
                 .worker_module
@@ -394,6 +414,7 @@ impl Environment for LunarLanderMultiprocess {
                     dict.set_item("genes", &genes_list).unwrap();
                     dict.set_item("neurons_len", neurons_len).unwrap();
                     dict.set_item("biases", neuron_biases(organism)).unwrap();
+                    dict.set_item("taus", neuron_taus(organism)).unwrap();
                     batch_data.push((dict, false));
                 }
             }

@@ -18,6 +18,10 @@ pub struct Genome {
     /// Neuron (node) genes: the bias θ of neuron `id` is `biases[id]`; a
     /// neuron past the end has bias 0.
     biases: Vec<f64>,
+    /// Neuron genes too: the time constant τ of neuron `id` is `taus[id]`;
+    /// `None` (or past the end) means the default τ of the organism
+    /// (`MutationConfig::tau`).
+    taus: Vec<Option<f64>>,
     /// Neurons `0..input_neurons` are inputs.
     input_neurons: usize,
     /// Neurons `input_neurons..input_neurons + output_neurons` are outputs.
@@ -83,6 +87,37 @@ pub(crate) const BIAS_GENE_MUTATION_RATE: f64 = 0.5f64;
 pub(crate) const BIAS_PERTURBED_PROBABILITY: f64 = 0.98f64;
 pub(crate) const BIAS_MUTATE_POWER: f64 = 0.5f64;
 pub(crate) const BIAS_MAX: f64 = 30f64;
+// Time constant τ per neuron (issue #69). A mutated τ is multiplied by
+// e^N(0, σ²) (τ > 0 and its effect depends on dt/τ, so it is perturbed in
+// log scale) and clipped to [TAU_MIN, TAU_MAX]. TAU_MIN = dt/10: with
+// exponential Euler a neuron with dt/τ = 10 reaches 99.995 % of its target
+// in one step, so a smaller τ changes nothing. TAU_MAX = 10 times the
+// default step_time: such a neuron moves about 10 % of the way per
+// activation.
+//
+// Measured with bench A (`xor_bench 50 500 init reset=1`), medians of seeds
+// 1/101/201/301/401/501/601/701 (develop before #69, explicit Euler:
+// 50 52 52 53 56 52 55 52, mean 52.8):
+// * exponential Euler, τ = dt = 0.01, τ not mutated (the defaults):
+//   54 54 55 55 55 51 56 53 (54.1). τ = 0.001 (dt/τ = 10, the old
+//   discrete map y ← W·σ(y + θ) + I): 50 52 52 54 55 52 54 52 (52.6), so the
+//   integrator itself costs nothing; the 1.3 generations are the price of
+//   real dynamics with τ = dt (63 % of the way per step).
+// * τ mutation 0.1 (per neuron 0.5): σ 0.5 56 55 56 55 56 53 52 54 (54.6),
+//   σ 0.25 53 53 55 53 55 55 55 54 (54.1); 0.3 and 0.9 (4 seeds) 54-58.
+//   With σ 0.25 and a τ term in the distance (c_τ 0.2): 56 54 53 54 56 52
+//   56 57 (54.75); 4 seeds with c_τ 0.5: 53-58.
+// XOR with the state reset before every pattern has no use for τ, so τ
+// mutation is neutral there at best: it is off by default (no random draw
+// either, so seeds reproduce) and so is its distance term. Turn it on for
+// tasks with memory (e.g. `tau_mutation_rate(0.1)`).
+pub(crate) const MUTATE_TAU: f64 = 0f64;
+pub(crate) const TAU_GENE_MUTATION_RATE: f64 = 0.5f64;
+pub(crate) const TAU_MUTATE_POWER: f64 = 0.25f64;
+pub(crate) const TAU_MIN: f64 = 0.001f64;
+pub(crate) const TAU_MAX: f64 = 1f64;
+// τ in the compatibility distance: off by default (see MutationConfig).
+pub(crate) const COMPATIBILITY_TAU_COEFFICIENT: f64 = 0f64;
 // Initial compatibility threshold. The paper uses 3.0, but with N = 1 two
 // genomes without genes in common are at distance >= c1 + c2 = 2 (one gene
 // each), so 2.0 is the largest value that keeps them apart. With a
@@ -179,6 +214,7 @@ impl Genome {
                 0
             },
             biases: Vec::new(),
+            taus: Vec::new(),
             input_neurons,
             output_neurons,
         }
@@ -221,6 +257,24 @@ impl Genome {
                 .genes
                 .iter()
                 .any(|gene| gene.in_neuron_id() == neuron_id || gene.out_neuron_id() == neuron_id)
+    }
+
+    /// Time constant τ of the neuron `neuron_id`, `None` if it has no τ
+    /// gene and uses the default τ of the organism.
+    pub fn tau(&self, neuron_id: usize) -> Option<f64> {
+        self.taus.get(neuron_id).copied().flatten()
+    }
+
+    /// Set the time constant τ of the neuron `neuron_id`.
+    pub fn set_tau(&mut self, neuron_id: usize, tau: f64) {
+        self.store_tau(neuron_id, Some(tau));
+    }
+
+    fn store_tau(&mut self, neuron_id: usize, tau: Option<f64>) {
+        if self.taus.len() <= neuron_id {
+            self.taus.resize(neuron_id + 1, None);
+        }
+        self.taus[neuron_id] = tau;
     }
 
     /// Set the bias θ of the neuron `neuron_id`.
@@ -289,6 +343,12 @@ impl Genome {
 
         if rng.gen::<f64>() < config.bias_mutation_rate {
             self.mutate_biases_with_config(config, rng);
+        };
+
+        // No draw at all when τ does not evolve, so the random sequence is
+        // the same as before τ genes existed.
+        if config.tau_mutation_rate > 0f64 && rng.gen::<f64>() < config.tau_mutation_rate {
+            self.mutate_taus_with_config(config, rng);
         };
     }
 
@@ -451,6 +511,30 @@ impl Genome {
             };
         }
         genome.biases = biases;
+
+        // τ genes, the same way; `None` (default τ) is inherited as is. Equal
+        // τ draw nothing, so without τ mutation the random sequence is the
+        // same as before τ genes existed.
+        let mut taus = vec![None; genome.len()];
+        for id in genome.neurons() {
+            taus[id] = match (self.has_neuron(id), other.has_neuron(id)) {
+                (true, true) => match (self.tau(id), other.tau(id)) {
+                    (a, b) if a == b => a,
+                    (Some(a), Some(b)) if use_average_weights => Some((a + b) / 2.0),
+                    (a, b) => {
+                        if rng.gen::<f64>() > 0.5 {
+                            a
+                        } else {
+                            b
+                        }
+                    }
+                },
+                (false, true) => other.tau(id),
+                (true, false) => self.tau(id),
+                (false, false) => None,
+            };
+        }
+        genome.taus = taus;
         genome
     }
     /// Get vector of all genes in this genome
@@ -584,6 +668,23 @@ impl Genome {
         }
     }
 
+    /// Mutates each neuron τ with probability `tau_gene_mutation_rate`,
+    /// except those of the inputs: `τ ← τ·e^N(0, σ²)`, clipped to
+    /// `[tau_min, tau_max]`. A neuron without τ gene starts from the
+    /// default `config.tau`.
+    fn mutate_taus_with_config<R: Rng + ?Sized>(&mut self, config: &MutationConfig, rng: &mut R) {
+        for id in self.neurons() {
+            if id < self.input_neurons {
+                continue;
+            }
+            if rng.gen::<f64>() < config.tau_gene_mutation_rate {
+                let tau = self.tau(id).unwrap_or(config.tau);
+                let factor = Gene::generate_gaussian_with_rng(config.tau_mutate_power, rng).exp();
+                self.set_tau(id, (tau * factor).clamp(config.tau_min, config.tau_max));
+            }
+        }
+    }
+
     #[cfg(test)]
     fn mutate_add_neuron<R: Rng + ?Sized>(&mut self, rng: &mut R) {
         self.mutate_add_neuron_with_registry(None, rng);
@@ -623,6 +724,8 @@ impl Genome {
         // The new neuron is born with the split bias (see SPLIT_BIAS), even
         // if its id held a bias before.
         self.set_bias(neuron_id, SPLIT_BIAS);
+        // ... and with the default τ.
+        self.store_tau(neuron_id, None);
         self.add_gene(gene1);
         self.add_gene(gene2);
         neuron_id
@@ -696,7 +799,7 @@ impl Genome {
     /// Compatibility distance with the coefficients of `config` (NEAT paper,
     /// Stanley & Miikkulainen 2002, eq. 1, plus a bias term):
     ///
-    /// `δ = c1·E/N + c2·D/N + c3·W̄ + c_bias·B̄`
+    /// `δ = c1·E/N + c2·D/N + c3·W̄ + c_bias·B̄ + c_τ·T̄`
     ///
     /// Genes are aligned by `(in, out)`, the order they are kept in: with
     /// neuron ids from an `InnovationRegistry` the pair identifies the
@@ -704,8 +807,9 @@ impl Genome {
     /// other genome in that order), `D` the disjoint ones (the rest of the
     /// unmatched genes), `W̄` is the average weight difference of the matching
     /// genes and `B̄` the average bias difference of the neurons both genomes
-    /// have (same id), inputs excluded; each average is 0 when there is nothing to
-    /// average. `N = 1` if both genomes have fewer genes than
+    /// have (same id), inputs excluded; `T̄` is the average `|ln τa - ln τb|`
+    /// of those neurons (the default τ of `config` for a neuron without τ
+    /// gene). Each average is 0 when there is nothing to average. `N = 1` if both genomes have fewer genes than
     /// `compatibility_small_genome_genes`, otherwise the number of genes of
     /// the larger genome.
     pub fn compatibility_distance_with_config(
@@ -773,10 +877,23 @@ impl Genome {
                 / common.len() as f64
         };
 
+        // τ acts through dt/τ, so its differences count in log scale.
+        let average_tau_difference = if common.is_empty() {
+            0f64
+        } else {
+            let log_tau = |genome: &Genome, id| genome.tau(id).unwrap_or(config.tau).ln();
+            common
+                .iter()
+                .map(|&id| (log_tau(self, id) - log_tau(other, id)).abs())
+                .sum::<f64>()
+                / common.len() as f64
+        };
+
         config.compatibility_excess_coefficient * excess as f64 / n
             + config.compatibility_disjoint_coefficient * disjoint as f64 / n
             + config.compatibility_weight_coefficient * average_weight_difference
             + config.compatibility_bias_coefficient * average_bias_difference
+            + config.compatibility_tau_coefficient * average_tau_difference
     }
 }
 
@@ -1748,5 +1865,205 @@ mod tests {
             }
         }
         assert!(seen_at_limit);
+    }
+
+    // Time constant τ per neuron (issue #69).
+
+    fn only_tau_mutation(rate: f64) -> MutationConfig {
+        MutationConfig::new()
+            .add_connection_rate(0f64)
+            .add_neuron_rate(0f64)
+            .weight_mutation_rate(0f64)
+            .toggle_expression_rate(0f64)
+            .bias_mutation_rate(0f64)
+            .tau_mutation_rate(rate)
+            .tau_gene_mutation_rate(1f64)
+            .build()
+    }
+
+    #[test]
+    fn neuron_without_tau_gene_uses_the_default_tau() {
+        let mut genome = Genome::new_initialized(2, 1);
+        for id in 0..10 {
+            assert_eq!(genome.tau(id), None);
+        }
+        genome.set_tau(2, 0.3);
+        assert_eq!(genome.tau(2), Some(0.3));
+        assert_eq!(genome.tau(3), None);
+    }
+
+    #[test]
+    fn tau_mutation_perturbs_every_tau_within_bounds_except_inputs() {
+        let config = MutationConfig::new().tau_range(0.005, 0.05).build();
+        let config = MutationConfig {
+            tau_mutation_rate: 1f64,
+            tau_gene_mutation_rate: 1f64,
+            tau_mutate_power: 2f64,
+            ..only_tau_mutation_fields(config)
+        };
+        let mut genome = Genome::new_initialized(2, 1);
+        let id = split(&mut genome, 0, 2, None);
+        let mut rng = rng();
+        let (mut seen_min, mut seen_max) = (false, false);
+        for _ in 0..200 {
+            let before = [genome.tau(2), genome.tau(id)];
+            genome.mutate_with_config_and_rng(&config, &mut rng);
+            assert_eq!(genome.tau(0), None);
+            assert_eq!(genome.tau(1), None);
+            for (n, &neuron) in [2, id].iter().enumerate() {
+                let tau = genome.tau(neuron).expect("mutated tau");
+                let at_bound = matches!(before[n], Some(t) if t == 0.005 || t == 0.05);
+                assert!(
+                    at_bound || Some(tau) != before[n],
+                    "tau of {} not perturbed",
+                    neuron
+                );
+                assert!((0.005..=0.05).contains(&tau), "tau {} out of range", tau);
+                seen_min |= tau == 0.005;
+                seen_max |= tau == 0.05;
+            }
+        }
+        assert!(seen_min && seen_max);
+    }
+
+    /// `config` with every mutation but τ switched off.
+    fn only_tau_mutation_fields(config: MutationConfig) -> MutationConfig {
+        MutationConfig {
+            add_connection_rate: 0f64,
+            add_neuron_rate: 0f64,
+            weight_mutation_rate: 0f64,
+            toggle_expression_rate: 0f64,
+            bias_mutation_rate: 0f64,
+            ..config
+        }
+    }
+
+    #[test]
+    fn first_tau_mutation_starts_from_the_default_tau() {
+        // A small perturbation of a neuron without τ gene lands near the
+        // default τ, not near 0.
+        let config = MutationConfig {
+            tau: 0.2,
+            tau_mutate_power: 0.01,
+            ..only_tau_mutation(1f64)
+        };
+        let mut genome = Genome::new_initialized(1, 1);
+        genome.mutate_with_config_and_rng(&config, &mut rng());
+        let tau = genome.tau(1).unwrap();
+        assert!((tau - 0.2).abs() < 0.02, "{}", tau);
+    }
+
+    #[test]
+    fn tau_mutation_rate_zero_draws_nothing_and_changes_nothing() {
+        // With τ mutation off the random draws are those of a genome
+        // without τ genes (one per kind of mutation), so older seeds
+        // reproduce.
+        let mut genome = Genome::new_initialized(2, 1);
+        genome.set_tau(2, 0.3);
+        let mut used = rng();
+        genome.mutate_with_config_and_rng(&only_tau_mutation(0f64), &mut used);
+        assert_eq!(genome.tau(2), Some(0.3));
+        assert_eq!(genome.tau(1), None);
+        let mut expected = rng();
+        for _ in 0..5 {
+            expected.gen::<f64>();
+        }
+        assert_eq!(used.gen::<u64>(), expected.gen::<u64>());
+    }
+
+    #[test]
+    fn tau_mutation_is_reproducible_with_same_seed() {
+        let run = |seed| {
+            let mut genome = Genome::new_initialized(2, 2);
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            for _ in 0..20 {
+                genome.mutate_with_config_and_rng(&only_tau_mutation(1f64), &mut rng);
+            }
+            (genome.tau(2), genome.tau(3))
+        };
+        assert_eq!(run(3), run(3));
+        assert!(run(3) != run(4));
+    }
+
+    #[test]
+    fn new_neuron_is_born_with_the_default_tau() {
+        let mut genome = Genome::default();
+        genome.add_gene(Gene::new(0, 1, 1f64, true));
+        genome.set_tau(1, 0.5);
+        // A stale τ stored for the id the new neuron will take.
+        genome.set_tau(2, 0.7);
+        genome.mutate_add_neuron(&mut rng());
+        assert_eq!(genome.len(), 3);
+        assert_eq!(genome.tau(2), None);
+        assert_eq!(genome.tau(1), Some(0.5));
+    }
+
+    /// A: neurons 0, 1; B: neurons 0, 1, 2. Different τ on 1, B has its own
+    /// τ on 2.
+    fn tau_parents() -> (Genome, Genome) {
+        let (mut a, mut b) = bias_parents();
+        a.set_tau(1, 0.1);
+        b.set_tau(1, 0.3);
+        b.set_tau(2, 0.7);
+        (a, b)
+    }
+
+    #[test]
+    fn crossover_inherits_tau_of_matching_neurons_from_both_parents() {
+        let (a, b) = tau_parents();
+        let mut rng = rng();
+        let mut seen = std::collections::BTreeMap::new();
+        for i in 0..1000 {
+            let child = a.mate_with_rng(&b, i % 2 == 0, &mut rng);
+            let tau = child.tau(1).unwrap();
+            assert!(
+                tau == 0.1 || tau == 0.3 || (tau - 0.2).abs() < 1e-12,
+                "tau {} not inherited",
+                tau
+            );
+            *seen.entry(format!("{:.3}", tau)).or_insert(0) += 1;
+            assert_eq!(child.tau(2), b.tau(2).filter(|_| child.has_neuron(2)));
+        }
+        assert!(seen["0.100"] > 100 && seen["0.300"] > 100, "{:?}", seen);
+    }
+
+    #[test]
+    fn crossover_keeps_tau_of_neuron_only_in_one_parent_or_default() {
+        let (mut a, b) = tau_parents();
+        a.set_tau(1, 0.1);
+        let mut rng = rng();
+        for _ in 0..200 {
+            assert_eq!(a.mate_with_rng(&b, false, &mut rng).tau(2), Some(0.7));
+            let child = a.mate_equal_with_rng(&b, &mut rng);
+            if child.has_neuron(2) {
+                assert_eq!(child.tau(2), Some(0.7));
+            }
+        }
+        // A neuron without τ gene in both parents keeps the default.
+        let (c, d) = bias_parents();
+        assert_eq!(c.mate_with_rng(&d, false, &mut rng).tau(1), None);
+    }
+
+    #[test]
+    fn compatibility_distance_counts_log_tau_differences_only_with_its_coefficient() {
+        let mut a = genome_with(2, &[(0, 2), (1, 3), (3, 2)], 1f64);
+        let mut b = a.clone();
+        a.set_tau(2, 0.1);
+        b.set_tau(2, 0.01);
+        // Neuron 3 has the default τ in b.
+        a.set_tau(3, 0.04);
+        // Input τ never counts.
+        a.set_tau(0, 100f64);
+        assert_close(a.compatibility_distance(&b), 0f64);
+        let config = MutationConfig {
+            compatibility_tau_coefficient: 0.5,
+            tau: 0.01,
+            ..MutationConfig::default()
+        };
+        // T = (|ln 0.1 - ln 0.01| + |ln 0.04 - ln 0.01|) / 2 = (ln 10 + ln 4) / 2
+        assert_close(
+            a.compatibility_distance_with_config(&b, &config),
+            0.5 * (10f64.ln() + 4f64.ln()) / 2f64,
+        );
     }
 }

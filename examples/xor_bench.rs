@@ -11,7 +11,10 @@
 //! * `uncon`   - `create_population_unconnected_with_config(pop, 2, 1, cfg)`
 //!
 //! keys: `addc`, `addn`, `wpow`, `winit`, `wrate`, `thr`, `mutp`, `tog`,
-//! `bias` (bias mutation rate), `bpow` (bias mutate power), `tau` (MutationConfig),
+//! `bias` (bias mutation rate), `bpow` (bias mutate power), `tau` (default
+//! τ), `dt` (integration step), `taurate`, `taugene`, `taupow` (τ mutation
+//! rate, per-neuron rate and log-normal σ), `taumin`, `taumax` (τ range),
+//! `ct` (τ coefficient of the compatibility distance),
 //! `wgene`, `bgene` (per-gene weight / bias mutation probability), `wpert`,
 //! `bpert` (perturbation vs replacement probability), `wmax`, `bmax`
 //! (weight / bias limit), `pop` (population size, default 150),
@@ -173,6 +176,19 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
             "wmax" => b.weight_max(v),
             "bmax" => b.bias_max(v),
             "tau" => b.tau(v),
+            "dt" => b.dt(v),
+            "taurate" => b.tau_mutation_rate(v),
+            "taugene" => b.tau_gene_mutation_rate(v),
+            "taupow" => b.tau_mutate_power(v),
+            "taumin" => {
+                let c = b.build();
+                b.tau_range(v, c.tau_max)
+            }
+            "taumax" => {
+                let c = b.build();
+                b.tau_range(c.tau_min, v)
+            }
+            "ct" => b.compatibility_tau_coefficient(v),
             "dis" => b.disabled_gene_inheritance(v),
             "xsp" => b.interspecies_mate_rate(v),
             "c1" | "c2" | "c3" | "cb" => {

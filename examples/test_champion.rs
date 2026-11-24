@@ -20,6 +20,9 @@ struct ChampionFile {
     /// Bias of each neuron, by neuron id
     #[serde(default)]
     biases: Vec<f64>,
+    /// Time constant τ of each neuron, by neuron id; `null` = default τ
+    #[serde(default)]
+    taus: Vec<Option<f64>>,
 }
 
 impl ChampionFile {
@@ -42,6 +45,11 @@ impl ChampionFile {
         let mut genome = Genome::from_genes(gene_vec, last_neuron_id);
         for (id, bias) in self.biases.iter().enumerate() {
             genome.set_bias(id, *bias);
+        }
+        for (id, tau) in self.taus.iter().enumerate() {
+            if let Some(tau) = tau {
+                genome.set_tau(id, *tau);
+            }
         }
         let mut org = Organism::new(genome);
         org.tau = 0.1;

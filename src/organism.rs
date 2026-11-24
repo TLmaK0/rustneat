@@ -30,11 +30,13 @@ pub struct Organism {
     evaluated: bool,
     /// Persistent CTRNN state across activate() calls within an episode
     ctrnn_state: Vec<f64>,
-    /// CTRNN neuron time constant τ (default 0.01).
-    /// Small τ = feedforward (instant response), large τ = temporal memory (slow response).
+    /// Default CTRNN time constant τ (default 0.01): that of the neurons
+    /// without τ gene (`Genome::tau`). See `MutationConfig::tau`.
     pub tau: f64,
-    /// Simulated time per activate() call in seconds (default 0.1).
-    /// Number of Euler steps = step_time / dt where dt=0.01.
+    /// Integration step dt in seconds (default 0.01).
+    pub dt: f64,
+    /// Simulated time per activate() call in seconds (default 0.1), in
+    /// `round(step_time / dt)` integration steps.
     pub step_time: f64,
     /// How output neurons are read (default `OutputActivation::Sigmoid`).
     pub output_activation: OutputActivation,
@@ -78,6 +80,7 @@ impl Organism {
             evaluated: false,
             ctrnn_state: vec![],
             tau: 0.01,
+            dt: 0.01,
             step_time: 0.1,
             output_activation: OutputActivation::default(),
         }
@@ -86,11 +89,7 @@ impl Organism {
     pub fn mutate(&self) -> Organism {
         let mut new_genome = self.genome.clone();
         new_genome.mutate();
-        let mut child = Organism::new(new_genome);
-        child.tau = self.tau;
-        child.step_time = self.step_time;
-        child.output_activation = self.output_activation;
-        child
+        self.child(new_genome)
     }
     /// Return a new Organism by mutating with specific config
     pub fn mutate_with_config(&self, config: &MutationConfig) -> Organism {
@@ -119,10 +118,12 @@ impl Organism {
         new_genome.mutate_with_innovations(config, innovations, rng);
         self.child(new_genome)
     }
-    /// A new organism with `genome` and the CTRNN settings of `self`.
+    /// A new organism with `genome` and the CTRNN settings of `self`
+    /// (default τ, dt, step time and output activation).
     fn child(&self, genome: Genome) -> Organism {
         let mut child = Organism::new(genome);
         child.tau = self.tau;
+        child.dt = self.dt;
         child.step_time = self.step_time;
         child.output_activation = self.output_activation;
         child
@@ -145,25 +146,27 @@ impl Organism {
     ) -> Organism {
         // NEAT paper, section 3.2: the child inherits the structure of the
         // fitter parent; with equal fitness, disjoint and excess genes come
-        // from either parent at random.
-        let genome = match self.fitness.partial_cmp(&other.fitness) {
+        // from either parent at random. The CTRNN settings come from the
+        // fitter parent (`self` on a tie); the τ of each neuron is a gene
+        // and is inherited with it.
+        match self.fitness.partial_cmp(&other.fitness) {
             Some(Ordering::Greater) => {
-                self.genome
-                    .mate_with_config_and_rng(&other.genome, true, config, rng)
+                self.child(
+                    self.genome
+                        .mate_with_config_and_rng(&other.genome, true, config, rng),
+                )
             }
             Some(Ordering::Less) => {
-                self.genome
-                    .mate_with_config_and_rng(&other.genome, false, config, rng)
+                other.child(
+                    self.genome
+                        .mate_with_config_and_rng(&other.genome, false, config, rng),
+                )
             }
-            _ => self
-                .genome
-                .mate_equal_with_config_and_rng(&other.genome, config, rng),
-        };
-        let mut child = Organism::new(genome);
-        child.tau = self.tau;
-        child.step_time = self.step_time;
-        child.output_activation = self.output_activation;
-        child
+            _ => self.child(
+                self.genome
+                    .mate_equal_with_config_and_rng(&other.genome, config, rng),
+            ),
+        }
     }
     /// True once the population has evaluated this organism (its `fitness`
     /// comes from the environment).
@@ -206,6 +209,13 @@ impl Organism {
     /// CTRNN neurons, which see each other through `σ(y + θ)`, where θ is the
     /// neuron's own bias (`Genome::bias`). Each output is returned as
     /// `σ(y + θ)`, or as `y + θ` with `OutputActivation::Linear`.
+    ///
+    /// Each call integrates `step_time` seconds in steps of `dt`
+    /// (exponential Euler, stable for any τ > 0; each neuron uses its τ gene
+    /// or the default `tau`). The state persists between calls until
+    /// `reset_state`. A change travels one connection per step, so with
+    /// the defaults (10 steps) the output of one call only sees inputs at
+    /// most 10 connections upstream; longer paths act on later calls.
     pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
         let inputs_len = sensors.len();
         let fixed_len = inputs_len + outputs.len();
@@ -237,7 +247,10 @@ impl Organism {
             .iter()
             .map(|&id| self.genome.bias(id))
             .collect();
-        let tau = vec![self.tau; integrated_len];
+        let tau: Vec<f64> = ids[inputs_len..]
+            .iter()
+            .map(|&id| self.genome.tau(id).unwrap_or(self.tau))
+            .collect();
 
         // Initialize state if needed (first call or after reset_state())
         if self.ctrnn_state.len() != integrated_len {
@@ -249,7 +262,7 @@ impl Organism {
 
         let activations = Ctrnn::default().activate_nn(
             self.step_time,
-            0.01,
+            self.dt,
             &CtrnnNeuralNetwork {
                 y: &self.ctrnn_state,
                 tau: &tau,
@@ -524,8 +537,11 @@ mod tests {
         organism
     }
 
+    /// One activation long enough (1 s, 100 steps of τ) for the network to
+    /// settle: these tests are about where it settles, not how fast.
     fn activate_once(organism: &mut Organism, sensors: Vec<f64>, outputs: usize) -> Vec<f64> {
         let mut output = vec![-1f64; outputs];
+        organism.step_time = 1.0;
         organism.reset_state();
         organism.activate(sensors, &mut output);
         output
@@ -543,7 +559,6 @@ mod tests {
 
     #[test]
     fn input_value_enters_target_neuron_as_is() {
-        // tau = 0.01 and dt = 0.01: the target neuron settles on w * x.
         for input in [-100f64, -1.0, 0.5, 1.0, 10.0, 100.0] {
             let mut organism = single_connection(2f64, OutputActivation::Linear);
             let output = activate_once(&mut organism, vec![input], 1);
@@ -692,5 +707,117 @@ mod tests {
             parent.mate_with_rng(&parent, &mut rng).output_activation,
             OutputActivation::Linear
         );
+    }
+
+    /// Network of the audit of issue #69: 0 -> 1 (w = 1) and 1 -> 1
+    /// (w = 0.5), linear output; its output after `activations` calls with
+    /// input 1.
+    fn audit_output(tau: f64, activations: usize) -> f64 {
+        let mut organism = single_connection(1f64, OutputActivation::Linear);
+        organism.genome.add_gene(Gene::new(1, 1, 0.5, true));
+        organism.tau = tau;
+        let mut output = vec![0f64];
+        for _ in 0..activations {
+            organism.activate(vec![1f64], &mut output);
+        }
+        output[0]
+    }
+
+    #[test]
+    fn small_tau_stays_finite_and_converges_to_the_same_fixed_point() {
+        // Fixed point: y = 1 + 0.5·σ(y).
+        let mut fixed_point = 1f64;
+        for _ in 0..200 {
+            fixed_point = 1f64 + 0.5 * Ctrnn::sigmoid(fixed_point);
+        }
+        let reference = audit_output(0.02, 40);
+        assert!((reference - fixed_point).abs() < 1e-3, "{}", reference);
+        for tau in [0.004, 0.001] {
+            for activations in [1, 5, 40] {
+                assert!(audit_output(tau, activations).is_finite());
+            }
+            let output = audit_output(tau, 40);
+            assert!(
+                (output - reference).abs() < 1e-3,
+                "tau {}: {} vs {}",
+                tau,
+                output,
+                reference
+            );
+        }
+    }
+
+    #[test]
+    fn each_neuron_uses_its_own_tau() {
+        // Same network, the output neuron is slow only through its τ gene.
+        let mut fast = single_connection(1f64, OutputActivation::Linear);
+        let mut slow = fast.clone();
+        slow.genome.set_tau(1, 1.0);
+        let (mut a, mut b) = (vec![0f64], vec![0f64]);
+        fast.activate(vec![1f64], &mut a);
+        slow.activate(vec![1f64], &mut b);
+        assert!((a[0] - 1f64).abs() < 1e-3, "{}", a[0]);
+        // τ = 1: 1 - e^(-0.1) of the way in 0.1 s.
+        assert!((b[0] - (1f64 - (-0.1f64).exp())).abs() < 1e-9, "{}", b[0]);
+    }
+
+    /// A chain of `connections` connections from the input to the output
+    /// (through `connections - 1` hidden neurons), weight 4.
+    fn chain(connections: usize) -> Organism {
+        let mut organism = Organism::new(Genome::new_unconnected(1, 1));
+        let mut from = 0;
+        for k in 0..connections - 1 {
+            organism.genome.add_gene(Gene::new(from, 2 + k, 4f64, true));
+            from = 2 + k;
+        }
+        organism.genome.add_gene(Gene::new(from, 1, 4f64, true));
+        organism.output_activation = OutputActivation::Linear;
+        organism
+    }
+
+    /// True if one activation of `organism` (fresh state) depends on the input.
+    fn sees_input(organism: &Organism) -> bool {
+        let run = |input| {
+            let mut organism = organism.clone();
+            let mut output = vec![0f64];
+            organism.activate(vec![input], &mut output);
+            output[0]
+        };
+        run(5f64) != run(-5f64)
+    }
+
+    #[test]
+    fn one_activation_propagates_one_connection_per_step() {
+        // Default: dt = 0.01, step_time = 0.1, 10 steps per activation.
+        assert!(sees_input(&chain(10)));
+        assert!(!sees_input(&chain(11)));
+        // dt is configurable: 0.05 gives 2 steps.
+        let mut two_steps = chain(2);
+        two_steps.dt = 0.05;
+        assert!(sees_input(&two_steps));
+        let mut two_steps = chain(3);
+        two_steps.dt = 0.05;
+        assert!(!sees_input(&two_steps));
+    }
+
+    #[test]
+    fn child_takes_ctrnn_settings_of_the_fitter_parent() {
+        let mut a = single_connection(1f64, OutputActivation::Linear);
+        a.tau = 0.5;
+        a.dt = 0.02;
+        a.step_time = 0.4;
+        a.fitness = 1f64;
+        let mut b = single_connection(1f64, OutputActivation::Sigmoid);
+        b.fitness = 10f64;
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        for (first, second) in [(&a, &b), (&b, &a)] {
+            let child = first.mate_with_rng(second, &mut rng);
+            assert_eq!(child.tau, b.tau);
+            assert_eq!(child.dt, b.dt);
+            assert_eq!(child.step_time, b.step_time);
+            assert_eq!(child.output_activation, b.output_activation);
+        }
+        let child = a.mutate_with_config_and_rng(&MutationConfig::default(), &mut rng);
+        assert_eq!((child.tau, child.dt, child.step_time), (0.5, 0.02, 0.4));
     }
 }
