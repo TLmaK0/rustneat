@@ -2,7 +2,7 @@ use crate::genome::Genome;
 use crate::mutation_config::MutationConfig;
 use crate::organism::Organism;
 use conv::prelude::*;
-use rand;
+use rand::seq::SliceRandom;
 use rand::Rng;
 
 /// A species (several organisms) and associated fitnesses
@@ -129,6 +129,23 @@ impl Specie {
         population_organisms: &[Organism],
         base_config: &MutationConfig,
     ) {
+        self.generate_offspring_with_config_and_rng(
+            num_of_organisms,
+            population_organisms,
+            base_config,
+            &mut rand::thread_rng(),
+        );
+    }
+
+    /// Generate offspring with a specific mutation config, drawing every random
+    /// decision (selection, crossover, mutation) from `rng`
+    pub fn generate_offspring_with_config_and_rng<R: Rng + ?Sized>(
+        &mut self,
+        num_of_organisms: usize,
+        population_organisms: &[Organism],
+        base_config: &MutationConfig,
+        rng: &mut R,
+    ) {
         self.age += 1;
 
         // Always copy champion (elitism)
@@ -145,7 +162,6 @@ impl Specie {
 
         let mut offspring: Vec<Organism> = {
             // Fitness-proportionate selection (roulette wheel) using adjusted_fitness
-            let mut rng = rand::thread_rng();
 
             // Calculate total adjusted fitness for roulette wheel
             let total_adjusted_fitness: f64 = self
@@ -158,10 +174,10 @@ impl Specie {
             for _ in 0..num_of_organisms - copy_champion {
                 if total_adjusted_fitness <= 0.0 {
                     // Fallback to uniform selection if no positive fitness
-                    selected_organisms.push(rng.gen_range(0, self.organisms.len()));
+                    selected_organisms.push(rng.gen_range(0..self.organisms.len()));
                 } else {
                     // Roulette wheel selection
-                    let spin = rng.gen_range(0.0, total_adjusted_fitness);
+                    let spin = rng.gen_range(0.0..total_adjusted_fitness);
                     let mut cumulative = 0.0;
                     let mut selected = 0;
                     for (i, organism) in self.organisms.iter().enumerate() {
@@ -181,6 +197,7 @@ impl Specie {
                         &self.organisms[*organism_pos],
                         population_organisms,
                         base_config,
+                        rng,
                     )
                 })
                 .collect::<Vec<Organism>>()
@@ -206,11 +223,12 @@ impl Specie {
 
     /// Choice a new representative of the specie at random
     pub fn choose_new_representative(&mut self) {
-        self.representative = rand::thread_rng()
-            .choose(&self.organisms)
-            .unwrap()
-            .genome
-            .clone();
+        self.choose_new_representative_with_rng(&mut rand::thread_rng());
+    }
+
+    /// Choice a new representative of the specie at random from `rng`
+    pub fn choose_new_representative_with_rng<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+        self.representative = self.organisms.choose(rng).unwrap().genome.clone();
     }
 
     /// Get a genome representitive of this species.
@@ -242,36 +260,35 @@ impl Specie {
 
     /// Create a new child by crossover+mutation or mutation only.
     /// Per NEAT paper: 75% crossover (then mutate), 25% mutation only.
-    fn create_child(
+    fn create_child<R: Rng + ?Sized>(
         &self,
         organism: &Organism,
         population_organisms: &[Organism],
         config: &MutationConfig,
+        rng: &mut R,
     ) -> Organism {
-        if rand::random::<f64>() < config.mutation_probability || population_organisms.len() < 2 {
+        if rng.gen::<f64>() < config.mutation_probability || population_organisms.len() < 2 {
             // 25%: mutation only (asexual reproduction)
-            organism.mutate_with_config(config)
+            organism.mutate_with_config_and_rng(config, rng)
         } else {
             // 75%: crossover then mutate
-            let child = self.create_child_by_mate(organism, population_organisms);
-            child.mutate_with_config(config)
+            let child = self.create_child_by_mate(organism, population_organisms, rng);
+            child.mutate_with_config_and_rng(config, rng)
         }
     }
 
-    fn create_child_by_mate(
+    fn create_child_by_mate<R: Rng + ?Sized>(
         &self,
         organism: &Organism,
         population_organisms: &[Organism],
+        rng: &mut R,
     ) -> Organism {
-        let mut rng = rand::thread_rng();
-        if rand::random::<f64>() > INTERSPECIE_MATE_PROBABILITY {
-            let selected_mate =
-                rand::seq::sample_iter(&mut rng, 0..self.organisms.len(), 1).unwrap()[0];
-            organism.mate(&self.organisms[selected_mate])
+        if rng.gen::<f64>() > INTERSPECIE_MATE_PROBABILITY {
+            let selected_mate = rng.gen_range(0..self.organisms.len());
+            organism.mate_with_rng(&self.organisms[selected_mate], rng)
         } else {
-            let selected_mate =
-                rand::seq::sample_iter(&mut rng, 0..population_organisms.len(), 1).unwrap()[0];
-            organism.mate(&population_organisms[selected_mate])
+            let selected_mate = rng.gen_range(0..population_organisms.len());
+            organism.mate_with_rng(&population_organisms[selected_mate], rng)
         }
     }
 }

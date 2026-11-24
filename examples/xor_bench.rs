@@ -12,7 +12,9 @@
 //! keys: `addc`, `addn`, `wpow`, `winit`, `wrate`, `thr`, `mutp`, `tog`,
 //! `bias`, `tau` (MutationConfig), `pop` (population size, default 150),
 //! `reset` (0/1: reset the CTRNN state before each pattern, default 0),
-//! `target` (fitness that counts as solved, default 15.5 of 16).
+//! `target` (fitness that counts as solved, default 15.5 of 16),
+//! `seed` (run `i` uses `Population::with_seed(seed + i)`, so every run is
+//! reproducible and independent; without it each run seeds from entropy).
 //!
 //! The environment variable `BENCH_THREADS` sets how many runs go in
 //! parallel (default 6).
@@ -100,6 +102,7 @@ struct Bench {
     mode: String,
     pop_size: usize,
     target: f64,
+    seed: Option<u64>,
     cfg: MutationConfig,
     env: Xor,
     extra: Vec<String>,
@@ -123,10 +126,19 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
     let mut pop_size = 150usize;
     let mut reset = false;
     let mut target = 15.5f64;
+    let mut seed = None;
     for kv in &args[4..] {
         let (k, v) = kv
             .split_once('=')
             .ok_or_else(|| format!("expected key=value, got {}", kv))?;
+        if k == "seed" {
+            // Parsed as an integer: going through f64 would round big seeds.
+            seed = Some(
+                v.parse::<u64>()
+                    .map_err(|_| format!("bad value for seed: {}", v))?,
+            );
+            continue;
+        }
         let v: f64 = v
             .parse()
             .map_err(|_| format!("bad value for {}: {}", k, v))?;
@@ -166,30 +178,43 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
         mode,
         pop_size,
         target,
+        seed,
         cfg: b.build(),
         extra: args[4..].to_vec(),
     })
 }
 
-fn new_population(bench: &Bench) -> Population {
+fn new_population(bench: &Bench, seed: Option<u64>) -> Population {
     let (n, cfg) = (bench.pop_size, bench.cfg);
+    let seeded = |p: Population| match seed {
+        Some(s) => p.with_seed(s),
+        None => p,
+    };
     match bench.mode.as_str() {
         "default" => {
-            let mut p = Population::create_population(n);
+            // Seed before overriding the config so the initial organisms keep
+            // the default tau, exactly as without seed.
+            let mut p = seeded(Population::create_population(n));
             p.mutation_config = cfg;
             p
         }
-        "init" => Population::create_population_initialized_with_config(n, 2, 1, cfg),
-        "initb" => Population::create_population_initialized_with_config(n, 3, 1, cfg),
-        "uncon" => Population::create_population_unconnected_with_config(n, 2, 1, cfg),
+        "init" => seeded(Population::create_population_initialized_with_config(
+            n, 2, 1, cfg,
+        )),
+        "initb" => seeded(Population::create_population_initialized_with_config(
+            n, 3, 1, cfg,
+        )),
+        "uncon" => seeded(Population::create_population_unconnected_with_config(
+            n, 2, 1, cfg,
+        )),
         _ => unreachable!("mode validated in parse_args"),
     }
 }
 
-fn run_once(bench: &Bench) -> RunResult {
+fn run_once(bench: &Bench, seed: Option<u64>) -> RunResult {
     let t0 = Instant::now();
     let env = bench.env;
-    let mut pop = new_population(bench);
+    let mut pop = new_population(bench, seed);
     let mut r = RunResult {
         pop_min: usize::MAX,
         ..Default::default()
@@ -320,15 +345,17 @@ fn main() {
         .map(|_| {
             let (bench, results, next) = (bench.clone(), results.clone(), next.clone());
             std::thread::spawn(move || loop {
-                {
+                let run = {
                     let mut n = next.lock().unwrap();
                     if *n >= bench.runs {
                         break;
                     }
                     *n += 1;
-                }
-                let r = run_once(&bench);
-                println!("{:?}", r);
+                    *n - 1
+                };
+                let seed = bench.seed.map(|s| s.wrapping_add(run as u64));
+                let r = run_once(&bench, seed);
+                println!("run={} seed={:?} {:?}", run, seed, r);
                 results.lock().unwrap().push(r);
             })
         })

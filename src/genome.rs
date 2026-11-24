@@ -1,6 +1,7 @@
 use crate::gene::Gene;
 use crate::mutation::Mutation;
-use rand::{self, Closed01};
+use crate::mutation_config::MutationConfig;
+use rand::Rng;
 use std::cmp;
 
 /// Vector of Genes
@@ -39,10 +40,20 @@ impl Genome {
 
     ///Add initial input and output neurons interconnected
     pub fn new_initialized(input_neurons: usize, output_neurons: usize) -> Genome {
+        Genome::new_initialized_with_rng(input_neurons, output_neurons, &mut rand::thread_rng())
+    }
+
+    /// Like `new_initialized`, drawing the initial weights in [-1, 1] from `rng`
+    pub fn new_initialized_with_rng<R: Rng + ?Sized>(
+        input_neurons: usize,
+        output_neurons: usize,
+        rng: &mut R,
+    ) -> Genome {
         let mut genome = Genome::default();
         for i in 0..input_neurons {
             for o in 0..output_neurons {
-                genome.add_gene(Gene::new_connection(i, input_neurons + o));
+                let weight = Gene::generate_weight_with_rng(rng);
+                genome.add_gene(Gene::new(i, input_neurons + o, weight, true, false));
             }
         }
         genome
@@ -64,45 +75,65 @@ impl Genome {
     /// May add a connection &| neuron &| mutat connection weight &|
     /// enable/disable connection
     pub fn mutate(&mut self) {
-        self.mutate_with_config(&crate::mutation_config::MutationConfig::default());
+        self.mutate_with_config(&MutationConfig::default());
     }
 
     /// Mutate using specific mutation rates from config
-    pub fn mutate_with_config(&mut self, config: &crate::mutation_config::MutationConfig) {
-        if rand::random::<Closed01<f64>>().0 < config.add_connection_rate || self.genes.is_empty() {
-            self.mutate_add_connection_with_config(config);
+    pub fn mutate_with_config(&mut self, config: &MutationConfig) {
+        self.mutate_with_config_and_rng(config, &mut rand::thread_rng());
+    }
+
+    /// Mutate using specific mutation rates from config, drawing every random
+    /// decision from `rng`
+    pub fn mutate_with_config_and_rng<R: Rng + ?Sized>(
+        &mut self,
+        config: &MutationConfig,
+        rng: &mut R,
+    ) {
+        if rng.gen::<f64>() < config.add_connection_rate || self.genes.is_empty() {
+            self.mutate_add_connection_with_config(config, rng);
         };
 
-        if rand::random::<Closed01<f64>>().0 < config.add_neuron_rate {
-            self.mutate_add_neuron();
+        if rng.gen::<f64>() < config.add_neuron_rate {
+            self.mutate_add_neuron(rng);
         };
 
-        if rand::random::<Closed01<f64>>().0 < config.weight_mutation_rate {
-            self.mutate_connection_weight_with_config(config);
+        if rng.gen::<f64>() < config.weight_mutation_rate {
+            self.mutate_connection_weight_with_config(config, rng);
         };
 
-        if rand::random::<Closed01<f64>>().0 < config.toggle_expression_rate {
-            self.mutate_toggle_expression();
+        if rng.gen::<f64>() < config.toggle_expression_rate {
+            self.mutate_toggle_expression(rng);
         };
 
-        if rand::random::<Closed01<f64>>().0 < config.toggle_bias_rate {
-            self.mutate_toggle_bias();
+        if rng.gen::<f64>() < config.toggle_bias_rate {
+            self.mutate_toggle_bias(rng);
         };
     }
 
     /// Mate two genes
     pub fn mate(&self, other: &Genome, fittest: bool) -> Genome {
+        self.mate_with_rng(other, fittest, &mut rand::thread_rng())
+    }
+
+    /// Mate two genes, drawing every random decision from `rng`
+    pub fn mate_with_rng<R: Rng + ?Sized>(
+        &self,
+        other: &Genome,
+        fittest: bool,
+        rng: &mut R,
+    ) -> Genome {
         if fittest {
-            self.mate_genes(other)
+            self.mate_genes(other, rng)
         } else {
-            other.mate_genes(self)
+            other.mate_genes(self, rng)
         }
     }
 
-    fn mate_genes(&self, other: &Genome) -> Genome {
+    fn mate_genes<R: Rng + ?Sized>(&self, other: &Genome, rng: &mut R) -> Genome {
         let mut genome = Genome::default();
         // NEAT paper: 40% of crossovers use average weights for matching genes
-        let use_average_weights = rand::random::<f64>() < 0.4;
+        let use_average_weights = rng.gen::<f64>() < 0.4;
 
         for gene in &self.genes {
             let mut child_gene = match other.genes.binary_search(gene) {
@@ -113,7 +144,7 @@ impl Genome {
                         let mut avg_gene = *gene;
                         avg_gene.set_weight((gene.weight() + other.genes[position].weight()) / 2.0);
                         avg_gene
-                    } else if rand::random::<f64>() > 0.5 {
+                    } else if rng.gen::<f64>() > 0.5 {
                         *gene
                     } else {
                         other.genes[position]
@@ -135,7 +166,7 @@ impl Genome {
                 .unwrap_or(false);
 
             if !gene.enabled() || other_gene_disabled {
-                if rand::random::<f64>() < 0.25 {
+                if rng.gen::<f64>() < 0.25 {
                     child_gene.set_disabled();
                 } else {
                     child_gene.set_enabled();
@@ -166,82 +197,68 @@ impl Genome {
         self.len() == 0
     }
 
-    fn mutate_add_connection(&mut self) {
-        self.mutate_add_connection_with_config(&crate::mutation_config::MutationConfig::default());
-    }
-
-    fn mutate_add_connection_with_config(
+    fn mutate_add_connection_with_config<R: Rng + ?Sized>(
         &mut self,
-        config: &crate::mutation_config::MutationConfig,
+        config: &MutationConfig,
+        rng: &mut R,
     ) {
-        let mut rng = rand::thread_rng();
         let neuron_ids_to_connect = {
             if self.last_neuron_id == 0 {
                 vec![0, 0]
             } else {
-                rand::seq::sample_iter(&mut rng, 0..self.last_neuron_id + 1, 2).unwrap()
+                pick_two_neurons(rng, self.last_neuron_id + 1)
             }
         };
         let gene = Gene::new(
             neuron_ids_to_connect[0],
             neuron_ids_to_connect[1],
-            Gene::generate_weight_in_range(config.weight_init_range),
+            Gene::generate_weight_in_range_with_rng(config.weight_init_range, rng),
             true,
             false,
         );
         self.add_gene(gene);
     }
 
-    fn mutate_connection_weight(&mut self) {
-        self.mutate_connection_weight_with_config(
-            &crate::mutation_config::MutationConfig::default(),
-        );
-    }
-
-    fn mutate_connection_weight_with_config(
+    fn mutate_connection_weight_with_config<R: Rng + ?Sized>(
         &mut self,
-        config: &crate::mutation_config::MutationConfig,
+        config: &MutationConfig,
+        rng: &mut R,
     ) {
         for gene in &mut self.genes {
-            if rand::random::<f64>() < config.weight_perturbation_rate {
+            if rng.gen::<f64>() < config.weight_perturbation_rate {
                 // Perturbation: add small random value
-                let perturbation = Gene::generate_weight_in_range(config.weight_mutate_power);
+                let perturbation =
+                    Gene::generate_weight_in_range_with_rng(config.weight_mutate_power, rng);
                 gene.set_weight(gene.weight() + perturbation);
             } else {
                 // Replace with new random weight
-                gene.set_weight(Gene::generate_weight_in_range(config.weight_init_range));
+                gene.set_weight(Gene::generate_weight_in_range_with_rng(
+                    config.weight_init_range,
+                    rng,
+                ));
             }
         }
     }
 
-    fn mutate_toggle_expression(&mut self) {
-        let mut rng = rand::thread_rng();
-        let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+    fn mutate_toggle_expression<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+        let selected_gene = rng.gen_range(0..self.genes.len());
         <dyn Mutation>::toggle_expression(&mut self.genes[selected_gene]);
     }
 
-    fn mutate_toggle_bias(&mut self) {
-        let mut rng = rand::thread_rng();
-        let selected_gene = rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+    fn mutate_toggle_bias<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+        let selected_gene = rng.gen_range(0..self.genes.len());
         <dyn Mutation>::toggle_bias(&mut self.genes[selected_gene]);
     }
 
-    fn mutate_add_neuron(&mut self) {
+    fn mutate_add_neuron<R: Rng + ?Sized>(&mut self, rng: &mut R) {
         let (gene1, gene2) = {
-            let mut rng = rand::thread_rng();
-            let selected_gene =
-                rand::seq::sample_iter(&mut rng, 0..self.genes.len(), 1).unwrap()[0];
+            let selected_gene = rng.gen_range(0..self.genes.len());
             let gene = &mut self.genes[selected_gene];
             self.last_neuron_id += 1;
             <dyn Mutation>::add_neuron(gene, self.last_neuron_id)
         };
         self.add_gene(gene1);
         self.add_gene(gene2);
-    }
-
-    fn add_connection(&mut self, in_neuron_id: usize, out_neuron_id: usize) {
-        let gene = <dyn Mutation>::add_connection(in_neuron_id, out_neuron_id);
-        self.add_gene(gene);
     }
 
     /// Add a new gene and checks if is allowd. Only can connect next neuron or already connected
@@ -342,10 +359,67 @@ impl Genome {
     }
 }
 
+/// Two distinct neuron ids in `0..neurons` (`neurons >= 2`), as
+/// `[in_neuron_id, out_neuron_id]`.
+///
+/// Reservoir sampling exactly as `rand::seq::sample_iter(rng, 0..neurons, 2)`
+/// did in rand 0.4, so the upgrade keeps the same distribution of connection
+/// directions (the pair's order is not uniform: it depends on the ids).
+/// Changing it to a uniformly ordered pair changes the XOR results a lot,
+/// so it is left as it was.
+fn pick_two_neurons<R: Rng + ?Sized>(rng: &mut R, neurons: usize) -> Vec<usize> {
+    let mut reservoir = vec![0, 1];
+    for (i, neuron_id) in (2..neurons).enumerate() {
+        let k = rng.gen_range(0..i + 3);
+        if k < 2 {
+            reservoir[k] = neuron_id;
+        }
+    }
+    reservoir
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
     use std::f64::EPSILON;
+
+    fn rng() -> ChaCha8Rng {
+        ChaCha8Rng::seed_from_u64(0)
+    }
+
+    impl Genome {
+        fn mutate_add_connection(&mut self) {
+            self.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng());
+        }
+
+        fn mutate_connection_weight(&mut self) {
+            self.mutate_connection_weight_with_config(&MutationConfig::default(), &mut rng());
+        }
+
+        fn add_connection(&mut self, in_neuron_id: usize, out_neuron_id: usize) {
+            let gene = <dyn Mutation>::add_connection(in_neuron_id, out_neuron_id, &mut rng());
+            self.add_gene(gene);
+        }
+    }
+
+    #[test]
+    fn pick_two_neurons_keeps_rand_0_4_order_distribution() {
+        // rand 0.4 sample_iter(0..3, 2): [0,1] then 2 replaces slot k in 0..3
+        // if k < 2, so the only possible pairs are [2,1], [0,2], [0,1].
+        let mut rng = rng();
+        let mut seen = std::collections::BTreeMap::new();
+        for _ in 0..3000 {
+            *seen.entry(pick_two_neurons(&mut rng, 3)).or_insert(0) += 1;
+        }
+        let pairs: Vec<&Vec<usize>> = seen.keys().collect();
+        assert_eq!(pairs, vec![&vec![0, 1], &vec![0, 2], &vec![2, 1]]);
+        for &count in seen.values() {
+            assert!(count > 800 && count < 1200, "{:?}", seen);
+        }
+        assert_eq!(pick_two_neurons(&mut rng, 2), vec![0, 1]);
+    }
 
     #[test]
     fn mutation_connection_weight() {
@@ -370,7 +444,7 @@ mod tests {
     fn mutation_add_neuron() {
         let mut genome = Genome::default();
         genome.mutate_add_connection();
-        genome.mutate_add_neuron();
+        genome.mutate_add_neuron(&mut rng());
         assert!(!genome.genes[0].enabled());
         assert!(genome.genes[1].in_neuron_id() == genome.genes[0].in_neuron_id());
         assert!(genome.genes[1].out_neuron_id() == 1);
@@ -423,7 +497,7 @@ mod tests {
     fn adding_an_existing_gene_disabled_should_enable_original() {
         let mut genome1 = Genome::default();
         genome1.add_gene(Gene::new(0, 1, 0f64, true, false));
-        genome1.mutate_add_neuron();
+        genome1.mutate_add_neuron(&mut rng());
         assert!(!genome1.genes[0].enabled());
         assert!(genome1.genes.len() == 3);
         genome1.add_connection(0, 1);

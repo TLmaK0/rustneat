@@ -1,6 +1,4 @@
-extern crate rand;
-
-use rand::Closed01;
+use rand::Rng;
 use std::cmp::Ordering;
 
 /// A connection Gene
@@ -73,14 +71,24 @@ impl Gene {
         }
     }
 
-    /// Generate a weight in [-1, 1]
+    /// Generate a weight in [-1, 1] using an entropy-seeded generator
     pub fn generate_weight() -> f64 {
-        rand::random::<Closed01<f64>>().0 * 2f64 - 1f64
+        Gene::generate_weight_with_rng(&mut rand::thread_rng())
     }
 
-    /// Generate a weight in [-range, range]
+    /// Generate a weight in [-1, 1] using the given generator
+    pub fn generate_weight_with_rng<R: Rng + ?Sized>(rng: &mut R) -> f64 {
+        Gene::generate_weight_in_range_with_rng(1.0, rng)
+    }
+
+    /// Generate a weight in [-range, range] using an entropy-seeded generator
     pub fn generate_weight_in_range(range: f64) -> f64 {
-        rand::random::<Closed01<f64>>().0 * 2.0 * range - range
+        Gene::generate_weight_in_range_with_rng(range, &mut rand::thread_rng())
+    }
+
+    /// Generate a weight in [-range, range] using the given generator
+    pub fn generate_weight_in_range_with_rng<R: Rng + ?Sized>(range: f64, rng: &mut R) -> f64 {
+        rng.gen::<f64>() * 2.0 * range - range
     }
     /// Connection in ->
     pub fn in_neuron_id(&self) -> usize {

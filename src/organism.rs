@@ -1,5 +1,7 @@
 use crate::ctrnn::{Ctrnn, CtrnnNeuralNetwork};
 use crate::genome::Genome;
+use crate::mutation_config::MutationConfig;
+use rand::Rng;
 use std::cmp;
 use std::cmp::Ordering;
 
@@ -67,9 +69,18 @@ impl Organism {
         child
     }
     /// Return a new Organism by mutating with specific config
-    pub fn mutate_with_config(&self, config: &crate::mutation_config::MutationConfig) -> Organism {
+    pub fn mutate_with_config(&self, config: &MutationConfig) -> Organism {
+        self.mutate_with_config_and_rng(config, &mut rand::thread_rng())
+    }
+    /// Return a new Organism by mutating with specific config, drawing every
+    /// random decision from `rng`
+    pub fn mutate_with_config_and_rng<R: Rng + ?Sized>(
+        &self,
+        config: &MutationConfig,
+        rng: &mut R,
+    ) -> Organism {
         let mut new_genome = self.genome.clone();
-        new_genome.mutate_with_config(config);
+        new_genome.mutate_with_config_and_rng(config, rng);
         let mut child = Organism::new(new_genome);
         child.tau = self.tau;
         child.step_time = self.step_time;
@@ -77,10 +88,15 @@ impl Organism {
     }
     /// Mate this organism with another
     pub fn mate(&self, other: &Organism) -> Organism {
-        let mut child = Organism::new(
-            self.genome
-                .mate(&other.genome, self.fitness < other.fitness),
-        );
+        self.mate_with_rng(other, &mut rand::thread_rng())
+    }
+    /// Mate this organism with another, drawing every random decision from `rng`
+    pub fn mate_with_rng<R: Rng + ?Sized>(&self, other: &Organism, rng: &mut R) -> Organism {
+        let mut child = Organism::new(self.genome.mate_with_rng(
+            &other.genome,
+            self.fitness < other.fitness,
+            rng,
+        ));
         child.tau = self.tau;
         child.step_time = self.step_time;
         child

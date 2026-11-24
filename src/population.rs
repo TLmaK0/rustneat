@@ -2,6 +2,8 @@ use crate::environment::Environment;
 use crate::genome::Genome;
 use crate::organism::Organism;
 use conv::prelude::*;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use std::cmp::Ordering;
 #[cfg(feature = "telemetry")]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -27,6 +29,21 @@ pub struct Population {
     pub champion: Option<Organism>,
     /// Mutation configuration
     pub mutation_config: MutationConfig,
+    /// Source of every random decision taken by the population (initial
+    /// weights, selection, crossover, mutation, representatives).
+    rng: ChaCha8Rng,
+    /// How the initial organisms were built, so `with_seed` can rebuild them.
+    initial: InitialPopulation,
+}
+
+/// Shape of the initial (minimal) population: inputs and outputs only.
+#[derive(Debug, Clone, Copy)]
+struct InitialPopulation {
+    size: usize,
+    input_neurons: usize,
+    output_neurons: usize,
+    /// true: every input connected to every output; false: no connections.
+    connected: bool,
 }
 
 const MAX_EPOCHS_WITHOUT_IMPROVEMENTS: usize = 50;
@@ -36,16 +53,15 @@ const SPECIES_ELITISM: usize = 2; // Protect top 2 species from stagnation remov
 impl Population {
     /// Create a new population of size X.
     pub fn create_population(population_size: usize) -> Population {
-        let mut population = Population {
-            species: vec![],
-            champion_fitness: 0f64,
-            champion: None,
-            epochs_without_improvements: 0usize,
-            mutation_config: MutationConfig::default(),
-        };
-
-        population.create_organisms(population_size);
-        population
+        Population::new(
+            InitialPopulation {
+                size: population_size,
+                input_neurons: 0,
+                output_neurons: 0,
+                connected: true,
+            },
+            MutationConfig::default(),
+        )
     }
 
     /// Create a population of size X with where every organisms has initial input and output neurons
@@ -54,16 +70,12 @@ impl Population {
         input_neurons: usize,
         output_neurons: usize,
     ) -> Population {
-        let mut population = Population {
-            species: vec![],
-            champion_fitness: 0f64,
-            champion: None,
-            epochs_without_improvements: 0usize,
-            mutation_config: MutationConfig::default(),
-        };
-
-        population.create_organisms_initialized(population_size, input_neurons, output_neurons);
-        population
+        Population::create_population_initialized_with_config(
+            population_size,
+            input_neurons,
+            output_neurons,
+            MutationConfig::default(),
+        )
     }
 
     /// Create a population with custom mutation configuration
@@ -73,16 +85,15 @@ impl Population {
         output_neurons: usize,
         config: MutationConfig,
     ) -> Population {
-        let mut population = Population {
-            species: vec![],
-            champion_fitness: 0f64,
-            champion: None,
-            epochs_without_improvements: 0usize,
-            mutation_config: config,
-        };
-
-        population.create_organisms_initialized(population_size, input_neurons, output_neurons);
-        population
+        Population::new(
+            InitialPopulation {
+                size: population_size,
+                input_neurons,
+                output_neurons,
+                connected: true,
+            },
+            config,
+        )
     }
 
     /// Create a population with unconnected genomes (no initial connections).
@@ -93,15 +104,54 @@ impl Population {
         output_neurons: usize,
         config: MutationConfig,
     ) -> Population {
+        Population::new(
+            InitialPopulation {
+                size: population_size,
+                input_neurons,
+                output_neurons,
+                connected: false,
+            },
+            config,
+        )
+    }
+
+    /// Make the population reproducible: reseed its random generator with
+    /// `seed` and rebuild the initial organisms from it, with the same shape
+    /// the constructor used and the current `mutation_config` (tau, step
+    /// time). Call it right after a constructor; any evolution done before is
+    /// discarded. The constructors without seed use a seed from entropy.
+    ///
+    /// The same seed and the same (deterministic) environment always produce
+    /// the same genomes, whatever `Environment::threads` returns.
+    ///
+    /// ```
+    /// use rustneat::{MutationConfig, Population};
+    /// let population = Population::create_population_initialized_with_config(
+    ///     150, 2, 1, MutationConfig::default(),
+    /// )
+    /// .with_seed(42);
+    /// assert_eq!(population.size(), 150);
+    /// ```
+    pub fn with_seed(mut self, seed: u64) -> Population {
+        self.rng = ChaCha8Rng::seed_from_u64(seed);
+        self.champion = None;
+        self.champion_fitness = 0f64;
+        self.epochs_without_improvements = 0;
+        self.create_initial_organisms();
+        self
+    }
+
+    fn new(initial: InitialPopulation, config: MutationConfig) -> Population {
         let mut population = Population {
             species: vec![],
             champion_fitness: 0f64,
             champion: None,
             epochs_without_improvements: 0usize,
             mutation_config: config,
+            rng: ChaCha8Rng::from_entropy(),
+            initial,
         };
-
-        population.create_organisms_unconnected(population_size, input_neurons, output_neurons);
+        population.create_initial_organisms();
         population
     }
 
@@ -204,10 +254,11 @@ impl Population {
             let mut best_species = self.get_best_species();
             let num_of_selected = best_species.len();
             for specie in &mut best_species {
-                specie.generate_offspring_with_config(
+                specie.generate_offspring_with_config_and_rng(
                     num_of_organisms.checked_div(num_of_selected).unwrap(),
                     &organisms,
                     &config,
+                    &mut self.rng,
                 );
             }
             self.epochs_without_improvements = 0;
@@ -225,7 +276,12 @@ impl Population {
                 (specie_fitness * organisms_by_average_fitness).round() as usize
             };
             if offspring_size > 0 {
-                specie.generate_offspring_with_config(offspring_size, &organisms, &config);
+                specie.generate_offspring_with_config_and_rng(
+                    offspring_size,
+                    &organisms,
+                    &config,
+                    &mut self.rng,
+                );
             } else {
                 specie.remove_organisms();
             }
@@ -272,7 +328,7 @@ impl Population {
                 )
             );
 
-            specie.choose_new_representative();
+            specie.choose_new_representative_with_rng(&mut self.rng);
 
             specie.remove_organisms();
 
@@ -302,17 +358,23 @@ impl Population {
         self.species.retain(|specie| !specie.is_empty());
     }
 
-    fn create_organisms_initialized(
-        &mut self,
-        population_size: usize,
-        input_neurons: usize,
-        output_neurons: usize,
-    ) {
+    fn create_initial_organisms(&mut self) {
+        let InitialPopulation {
+            size,
+            input_neurons,
+            output_neurons,
+            connected,
+        } = self.initial;
         self.species = vec![];
         let mut organisms = vec![];
 
-        while organisms.len() < population_size {
-            let mut org = Organism::new(Genome::new_initialized(input_neurons, output_neurons));
+        while organisms.len() < size {
+            let genome = if connected {
+                Genome::new_initialized_with_rng(input_neurons, output_neurons, &mut self.rng)
+            } else {
+                Genome::new_unconnected(input_neurons, output_neurons)
+            };
+            let mut org = Organism::new(genome);
             org.tau = self.mutation_config.tau;
             org.step_time = self.mutation_config.step_time;
             organisms.push(org);
@@ -321,31 +383,6 @@ impl Population {
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
         specie.organisms = organisms;
         self.species.push(specie);
-    }
-
-    fn create_organisms_unconnected(
-        &mut self,
-        population_size: usize,
-        input_neurons: usize,
-        output_neurons: usize,
-    ) {
-        self.species = vec![];
-        let mut organisms = vec![];
-
-        while organisms.len() < population_size {
-            let mut org = Organism::new(Genome::new_unconnected(input_neurons, output_neurons));
-            org.tau = self.mutation_config.tau;
-            org.step_time = self.mutation_config.step_time;
-            organisms.push(org);
-        }
-
-        let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
-        specie.organisms = organisms;
-        self.species.push(specie);
-    }
-
-    fn create_organisms(&mut self, population_size: usize) {
-        self.create_organisms_initialized(population_size, 0, 0);
     }
 }
 

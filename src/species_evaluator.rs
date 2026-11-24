@@ -61,7 +61,7 @@ impl<'a> SpeciesEvaluator<'a> {
         let (tx, rx) = mpsc::channel();
 
         crossbeam::scope(|scope| {
-            for chunk in all_organisms.chunks_mut(chunk_size) {
+            for (chunk_index, chunk) in all_organisms.chunks_mut(chunk_size).enumerate() {
                 let tx = tx.clone();
                 let env = self.environment;
 
@@ -74,16 +74,20 @@ impl<'a> SpeciesEvaluator<'a> {
                             local_champion = org.clone();
                         }
                     }
-                    tx.send(local_champion).unwrap();
+                    tx.send((chunk_index, local_champion)).unwrap();
                 });
             }
         })
         .unwrap();
 
-        let num_chunks = (all_organisms.len() + chunk_size - 1) / chunk_size;
+        // Chunks finish in any order; reduce them in chunk order so ties are
+        // broken exactly as in `evaluate_single` (first organism wins) and the
+        // result does not depend on thread scheduling.
+        drop(tx);
+        let mut local_champions: Vec<(usize, Organism)> = rx.iter().collect();
+        local_champions.sort_by_key(|(chunk_index, _)| *chunk_index);
         let mut champion = Organism::new(Genome::default());
-        for _ in 0..num_chunks {
-            let local_champion = rx.recv().unwrap();
+        for (_, local_champion) in local_champions {
             if local_champion.fitness > champion.fitness {
                 champion = local_champion;
             }

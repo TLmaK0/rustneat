@@ -1,21 +1,26 @@
 use crate::gene::Gene;
+use rand::Rng;
 
 pub trait Mutation {}
 
 impl dyn Mutation {
-    pub fn connection_weight(gene: &mut Gene, perturbation: bool) {
-        let mut new_weight = Gene::generate_weight();
+    pub fn connection_weight<R: Rng + ?Sized>(gene: &mut Gene, perturbation: bool, rng: &mut R) {
+        let mut new_weight = Gene::generate_weight_with_rng(rng);
         if perturbation {
             new_weight += gene.weight();
         }
         gene.set_weight(new_weight);
     }
 
-    pub fn add_connection(in_neuron_id: usize, out_neuron_id: usize) -> Gene {
+    pub fn add_connection<R: Rng + ?Sized>(
+        in_neuron_id: usize,
+        out_neuron_id: usize,
+        rng: &mut R,
+    ) -> Gene {
         Gene::new(
             in_neuron_id,
             out_neuron_id,
-            Gene::generate_weight(),
+            Gene::generate_weight_with_rng(rng),
             true,
             false,
         )
