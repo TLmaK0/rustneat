@@ -26,7 +26,29 @@ pub(crate) const MUTATE_ADD_NEURON: f64 = 0.03f64;
 pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
 pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
 pub(crate) const MUTATE_BIAS: f64 = 0.90f64;
-pub(crate) const COMPATIBILITY_THRESHOLD: f64 = 3f64;
+// Initial compatibility threshold. The paper uses 3.0, but with N = 1 two
+// genomes without genes in common are at distance >= c1 + c2 = 2 (one gene
+// each), so 2.0 is the largest value that keeps them apart. With a
+// target number of species it is only the starting point.
+pub(crate) const COMPATIBILITY_THRESHOLD: f64 = 2f64;
+// Compatibility distance of the NEAT paper (Stanley & Miikkulainen 2002,
+// eq. 1 and section 4.1): c1 = c2 = 1, c3 = 0.4.
+pub(crate) const COMPATIBILITY_EXCESS_COEFFICIENT: f64 = 1f64;
+pub(crate) const COMPATIBILITY_DISJOINT_COEFFICIENT: f64 = 1f64;
+pub(crate) const COMPATIBILITY_WEIGHT_COEFFICIENT: f64 = 0.4f64;
+// A bias is one more weight (that of the neuron), so it counts like c3.
+pub(crate) const COMPATIBILITY_BIAS_COEFFICIENT: f64 = 0.4f64;
+// The paper uses N = 1 below 20 genes and N = genes of the larger genome
+// from there on (set 20 to get it). That jump divides the distance by about
+// 20 as soon as one of the two genomes reaches 20 genes: in XOR, where
+// genomes grow through 9-22 genes, a representative with 20 genes swallowed
+// the whole population every other generation (bench A seed=1: species from
+// generation 50 between 1 and 22). Never normalizing (N = 1) keeps the
+// distance continuous; the dynamic threshold takes care of the scale.
+pub(crate) const COMPATIBILITY_SMALL_GENOME_GENES: usize = usize::MAX;
+pub(crate) const TARGET_SPECIES: usize = 10;
+pub(crate) const COMPATIBILITY_THRESHOLD_STEP: f64 = 0.3f64;
+pub(crate) const COMPATIBILITY_THRESHOLD_MIN: f64 = 0.3f64;
 
 impl Genome {
     /// Create a genome from serialized gene data
@@ -440,8 +462,15 @@ impl Genome {
     }
 
     /// Compare another Genome for species equality using a custom threshold
+    /// and the default coefficients
     pub fn is_same_specie_with_threshold(&self, other: &Genome, threshold: f64) -> bool {
         self.compatibility_distance(other) < threshold
+    }
+
+    /// Compare another Genome for species equality with the coefficients and
+    /// the threshold of `config`
+    pub fn is_same_specie_with_config(&self, other: &Genome, config: &MutationConfig) -> bool {
+        self.compatibility_distance_with_config(other, config) < config.compatibility_threshold
     }
 
     /// Total weigths of all genes
@@ -459,48 +488,87 @@ impl Genome {
         self.genes.len()
     }
 
-    // http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf - Pag. 110
-    // I have considered disjoint and excess genes as the same
-    fn compatibility_distance(&self, other: &Genome) -> f64 {
-        // TODO: optimize this method
-        let c2 = 1f64;
-        let c3 = 0.2f64;
+    /// Compatibility distance with the default coefficients
+    pub fn compatibility_distance(&self, other: &Genome) -> f64 {
+        self.compatibility_distance_with_config(other, &MutationConfig::default())
+    }
 
-        // Number of excess
-        let n1 = self.genes.len();
-        let n2 = other.genes.len();
-        let n = cmp::max(n1, n2);
-
-        if n == 0 {
-            return 0f64; // no genes in any genome, the genomes are equal
+    /// Compatibility distance with the coefficients of `config` (NEAT paper,
+    /// Stanley & Miikkulainen 2002, eq. 1, plus a bias term):
+    ///
+    /// `δ = c1·E/N + c2·D/N + c3·W̄ + c_bias·B̄`
+    ///
+    /// Genes are aligned by `(in, out)`, the order they are kept in (there are
+    /// no innovation numbers yet). `E` counts the excess genes (beyond the
+    /// last gene of the other genome), `D` the disjoint ones (the rest of the
+    /// unmatched genes), `W̄` is the average weight difference of the matching
+    /// genes and `B̄` the average bias difference of the neurons both genomes
+    /// have, inputs excluded; each average is 0 when there is nothing to
+    /// average. `N = 1` if both genomes have fewer genes than
+    /// `compatibility_small_genome_genes`, otherwise the number of genes of
+    /// the larger genome.
+    pub fn compatibility_distance_with_config(
+        &self,
+        other: &Genome,
+        config: &MutationConfig,
+    ) -> f64 {
+        let (a, b) = (&self.genes, &other.genes);
+        let (mut i, mut j) = (0, 0);
+        let (mut disjoint, mut matching) = (0usize, 0usize);
+        let mut weight_difference = 0f64;
+        // Both gene lists are sorted: walk them together.
+        while i < a.len() && j < b.len() {
+            match a[i].cmp(&b[j]) {
+                cmp::Ordering::Equal => {
+                    weight_difference += (a[i].weight() - b[j].weight()).abs();
+                    matching += 1;
+                    i += 1;
+                    j += 1;
+                }
+                cmp::Ordering::Less => {
+                    disjoint += 1;
+                    i += 1;
+                }
+                cmp::Ordering::Greater => {
+                    disjoint += 1;
+                    j += 1;
+                }
+            }
         }
+        // Whatever is left in one genome lies beyond the last gene of the
+        // other one.
+        let excess = (a.len() - i) + (b.len() - j);
 
-        let matching_genes = self
-            .genes
-            .iter()
-            .filter(|i1_gene| other.genes.contains(i1_gene))
-            .collect::<Vec<&Gene>>();
-        let n3 = matching_genes.len();
-
-        // Disjoint / excess genes
-        let d = n1 + n2 - (2 * n3);
-
-        // average weight differences of matching genes
-        let mut w = matching_genes.iter().fold(0f64, |acc, &m_gene| {
-            acc + (m_gene.weight()
-                - &other.genes[other.genes.binary_search(m_gene).unwrap()].weight())
-                .abs()
-        });
-
-        // if no matching genes then are completely different
-        w = if n3 == 0 {
-            COMPATIBILITY_THRESHOLD
+        let larger = cmp::max(a.len(), b.len());
+        let small = config.compatibility_small_genome_genes;
+        let n = if larger < small {
+            1f64
         } else {
-            w / n3 as f64
+            larger.max(1) as f64
         };
 
-        // compatibility distance
-        (c2 * d as f64 / n as f64) + c3 * w
+        let average_weight_difference = if matching > 0 {
+            weight_difference / matching as f64
+        } else {
+            0f64
+        };
+
+        // Neurons both genomes have (ids are shared), inputs excluded.
+        let first = cmp::max(self.input_neurons, other.input_neurons);
+        let common = cmp::min(self.len(), other.len());
+        let average_bias_difference = if common > first {
+            (first..common)
+                .map(|id| (self.bias(id) - other.bias(id)).abs())
+                .sum::<f64>()
+                / (common - first) as f64
+        } else {
+            0f64
+        };
+
+        config.compatibility_excess_coefficient * excess as f64 / n
+            + config.compatibility_disjoint_coefficient * disjoint as f64 / n
+            + config.compatibility_weight_coefficient * average_weight_difference
+            + config.compatibility_bias_coefficient * average_bias_difference
     }
 }
 
@@ -758,6 +826,135 @@ mod tests {
         let mut genome2 = Genome::default();
         genome2.add_gene(Gene::new(0, 0, 25f64, true));
         assert!(!genome1.is_same_specie(&genome2));
+    }
+
+    /// Genome with neurons `0..inputs` as inputs and one connection per
+    /// pair in `connections`, all with weight `weight`.
+    fn genome_with(inputs: usize, connections: &[(usize, usize)], weight: f64) -> Genome {
+        let mut genome = Genome::new_unconnected(inputs, 1);
+        for &(from, to) in connections {
+            genome.add_gene(Gene::new(from, to, weight, true));
+        }
+        genome
+    }
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "distance {} != {}",
+            actual,
+            expected
+        );
+    }
+
+    #[test]
+    fn genomes_without_common_genes_are_in_different_species() {
+        // a: connections 0 -> k; b: connections 1 -> k. No gene in common.
+        // With the default N = 1 the distance is at least c1 + c2 = 2.
+        for size_a in 1..40 {
+            for size_b in 1..40 {
+                let a_conn: Vec<(usize, usize)> = (0..size_a).map(|k| (0, 2 + k)).collect();
+                let b_conn: Vec<(usize, usize)> = (0..size_b).map(|k| (1, 2 + k)).collect();
+                let a = genome_with(2, &a_conn, 1f64);
+                let b = genome_with(2, &b_conn, 1f64);
+                assert!(
+                    !a.is_same_specie(&b),
+                    "{} vs {} genes: distance {}",
+                    size_a,
+                    size_b,
+                    a.compatibility_distance(&b)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn compatibility_distance_of_disjoint_genomes_has_no_weight_term() {
+        // One gene each, none in common: one disjoint and one excess gene,
+        // W = 0 (no special value when nothing matches), N = 1.
+        let a = genome_with(2, &[(0, 2)], 5f64);
+        let b = genome_with(2, &[(1, 2)], -5f64);
+        assert_close(a.compatibility_distance(&b), 2f64);
+    }
+
+    #[test]
+    fn compatibility_distance_follows_the_paper_formula() {
+        let config = MutationConfig::new()
+            .compatibility_coefficients(2f64, 3f64, 0.5f64, 0f64)
+            .build();
+        // Genes aligned by (in, out), the order they are kept in.
+        // a: 0->3, 0->4, 1->3 ; b: 0->3, 0->5, 1->4, 2->3.
+        // Matching: 0->3 (|1 - 3| = 2). Disjoint (within the range of the
+        // other genome): a's 0->4, 1->3 and b's 0->5. Excess (beyond a's
+        // last gene 1->3): b's 1->4, 2->3.
+        let a = genome_with(3, &[(0, 3), (0, 4), (1, 3)], 1f64);
+        let mut b = genome_with(3, &[(0, 5), (1, 4), (2, 3)], 0f64);
+        b.add_gene(Gene::new(0, 3, 3f64, true));
+        // E = 2, D = 3, W = 2, N = 1
+        let expected = 2f64 * 2f64 + 3f64 * 3f64 + 0.5f64 * 2f64;
+        assert_close(a.compatibility_distance_with_config(&b, &config), expected);
+        assert_close(b.compatibility_distance_with_config(&a, &config), expected);
+    }
+
+    #[test]
+    fn compatibility_distance_normalizes_large_genomes() {
+        // The paper criterion: N = 1 if both genomes have fewer than 20 genes.
+        let config = MutationConfig::new()
+            .compatibility_coefficients(1f64, 1f64, 0f64, 0f64)
+            .compatibility_small_genome_genes(20)
+            .build();
+        // a: 25 genes 0 -> k; b: the same 25 genes plus 5 genes 1 -> k.
+        let common: Vec<(usize, usize)> = (0..25).map(|k| (0, 2 + k)).collect();
+        let mut more = common.clone();
+        more.extend((0..5).map(|k| (1, 2 + k)));
+        let a = genome_with(2, &common, 1f64);
+        let b = genome_with(2, &more, 1f64);
+        // E = 5, N = 30
+        assert_close(
+            a.compatibility_distance_with_config(&b, &config),
+            5f64 / 30f64,
+        );
+        // N criterion disabled for small genomes: N = max always.
+        let small_a = genome_with(2, &[(0, 2)], 1f64);
+        let small_b = genome_with(2, &[(0, 2), (1, 2)], 1f64);
+        assert_close(
+            small_a.compatibility_distance_with_config(&small_b, &config),
+            1f64,
+        );
+        let always = MutationConfig::new()
+            .compatibility_coefficients(1f64, 1f64, 0f64, 0f64)
+            .compatibility_small_genome_genes(0)
+            .build();
+        assert_close(
+            small_a.compatibility_distance_with_config(&small_b, &always),
+            0.5f64,
+        );
+        // Default: never normalized (N = 1).
+        let default = MutationConfig::new()
+            .compatibility_coefficients(1f64, 1f64, 0f64, 0f64)
+            .build();
+        assert_close(a.compatibility_distance_with_config(&b, &default), 5f64);
+    }
+
+    #[test]
+    fn compatibility_distance_counts_bias_differences_of_common_neurons() {
+        let config = MutationConfig::new()
+            .compatibility_coefficients(1f64, 1f64, 0.4f64, 0.5f64)
+            .build();
+        // Same genes and weights; neurons 0, 1 inputs, 2 output, 3 hidden.
+        let mut a = genome_with(2, &[(0, 2), (1, 3), (3, 2)], 1f64);
+        let mut b = a.clone();
+        assert_close(a.compatibility_distance_with_config(&b, &config), 0f64);
+        a.set_bias(2, 1f64);
+        b.set_bias(2, -1f64);
+        a.set_bias(3, 0.5f64);
+        // Input biases never count.
+        a.set_bias(0, 100f64);
+        // B = (|1 - (-1)| + |0.5 - 0|) / 2 = 1.25
+        assert_close(
+            a.compatibility_distance_with_config(&b, &config),
+            0.5f64 * 1.25f64,
+        );
     }
 
     #[test]

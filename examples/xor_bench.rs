@@ -12,6 +12,11 @@
 //!
 //! keys: `addc`, `addn`, `wpow`, `winit`, `wrate`, `thr`, `mutp`, `tog`,
 //! `bias` (bias mutation rate), `bpow` (bias mutate power), `tau` (MutationConfig), `pop` (population size, default 150),
+//! `c1`, `c2`, `c3`, `cb` (compatibility coefficients: excess, disjoint,
+//! weights, biases), `nsmall` (N = 1 below this many genes; 20 = paper,
+//! `inf` = never normalize, the default), `tspec` (target
+//! number of species; 0 = fixed threshold), `tstep`, `tmin` (dynamic
+//! threshold step and minimum),
 //! `reset` (0/1: reset the CTRNN state before each pattern, default 0),
 //! `target` (fitness that counts as solved, default 15.5 of 16),
 //! `seed` (run `i` uses `Population::with_seed(seed + i)`, so every run is
@@ -85,6 +90,9 @@ struct RunResult {
     pop_end: usize,
     species_max: usize,
     species_end: usize,
+    /// Fewest / most species from generation 50 on (None if solved before).
+    species_min_g50: Option<usize>,
+    species_max_g50: Option<usize>,
     neurons: usize,
     genes: usize,
     enabled: usize,
@@ -155,6 +163,31 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
             "bias" => b.bias_mutation_rate(v),
             "bpow" => b.bias_mutate_power(v),
             "tau" => b.tau(v),
+            "c1" | "c2" | "c3" | "cb" => {
+                let c = b.build();
+                let mut k4 = [
+                    c.compatibility_excess_coefficient,
+                    c.compatibility_disjoint_coefficient,
+                    c.compatibility_weight_coefficient,
+                    c.compatibility_bias_coefficient,
+                ];
+                k4[["c1", "c2", "c3", "cb"]
+                    .iter()
+                    .position(|x| *x == k)
+                    .unwrap()] = v;
+                b.compatibility_coefficients(k4[0], k4[1], k4[2], k4[3])
+            }
+            "nsmall" => b.compatibility_small_genome_genes(v as usize),
+            "tspec" if v == 0.0 => b.fixed_compatibility_threshold(),
+            "tspec" => b.target_species(v as usize),
+            "tstep" | "tmin" => {
+                let c = b.build();
+                if k == "tstep" {
+                    b.compatibility_threshold_adjustment(v, c.compatibility_threshold_min)
+                } else {
+                    b.compatibility_threshold_adjustment(c.compatibility_threshold_step, v)
+                }
+            }
             "pop" => {
                 pop_size = v as usize;
                 b
@@ -233,6 +266,11 @@ fn run_once(bench: &Bench, seed: Option<u64>) -> RunResult {
         r.pop_end = n;
         r.species_end = pop.species.len();
         r.species_max = r.species_max.max(pop.species.len());
+        if g + 1 >= 50 {
+            let s = pop.species.len();
+            r.species_min_g50 = Some(r.species_min_g50.map_or(s, |m| m.min(s)));
+            r.species_max_g50 = Some(r.species_max_g50.map_or(s, |m| m.max(s)));
+        }
         if let Some(c) = &pop.champion {
             if c.fitness < last_champ_fit - 1e-12 {
                 r.champ_regress += 1;
@@ -297,7 +335,8 @@ fn summary(bench: &Bench, rs: &[RunResult]) -> String {
          gens_mean={:.1} gens_min={} gens_max={} | champion: neurons_avg={:.1} genes_avg={:.1} \
          enabled_avg={:.1} max|w|_avg={:.1} | reproduced_same_order={}/{} \
          still_solved_reset_each={}/{} still_solved_reversed_order={}/{} | pop_min={} pop_max={} \
-         species_max={} species_end_avg={:.1} champ_regress_runs={} best_fit_unsolved_avg={:.2} \
+         species_max={} species_end_avg={:.1} | from_gen50: runs={} species_min={} species_max={} \
+         runs_always_5_to_20={} | champ_regress_runs={} best_fit_unsolved_avg={:.2} \
          total_secs={:.1}",
         bench.mode,
         bench.extra,
@@ -323,6 +362,21 @@ fn summary(bench: &Bench, rs: &[RunResult]) -> String {
         rs.iter().map(|r| r.pop_max).max().unwrap_or(0),
         rs.iter().map(|r| r.species_max).max().unwrap_or(0),
         mean(&rs.iter().map(|r| r.species_end as f64).collect::<Vec<_>>()),
+        rs.iter().filter(|r| r.species_min_g50.is_some()).count(),
+        rs.iter()
+            .filter_map(|r| r.species_min_g50)
+            .min()
+            .unwrap_or(0),
+        rs.iter()
+            .filter_map(|r| r.species_max_g50)
+            .max()
+            .unwrap_or(0),
+        rs.iter()
+            .filter(|r| {
+                r.species_min_g50.is_some_and(|m| m >= 5)
+                    && r.species_max_g50.is_some_and(|m| m <= 20)
+            })
+            .count(),
         rs.iter().filter(|r| r.champ_regress > 0).count(),
         mean(&unsolved_best),
         rs.iter().map(|r| r.secs).sum::<f64>(),

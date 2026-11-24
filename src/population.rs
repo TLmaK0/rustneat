@@ -353,12 +353,12 @@ impl Population {
             next_specie_id += 1;
         }
 
-        let threshold = self.mutation_config.compatibility_threshold;
+        let config = self.mutation_config;
         for organism in organisms {
             match self
                 .species
                 .iter_mut()
-                .find(|specie| specie.match_genome_with_threshold(organism, threshold))
+                .find(|specie| specie.match_genome_with_config(organism, &config))
             {
                 Some(specie) => {
                     specie.add(organism.clone());
@@ -373,6 +373,26 @@ impl Population {
             };
         }
         self.species.retain(|specie| !specie.is_empty());
+        self.adjust_compatibility_threshold();
+    }
+
+    /// Dynamic threshold: move `compatibility_threshold` one step towards
+    /// the value that gives `target_species` species, for the next
+    /// speciation.
+    fn adjust_compatibility_threshold(&mut self) {
+        let config = &mut self.mutation_config;
+        let target = match config.target_species {
+            Some(target) => target,
+            None => return,
+        };
+        let species = self.species.len();
+        if species > target {
+            config.compatibility_threshold += config.compatibility_threshold_step;
+        } else if species < target {
+            config.compatibility_threshold = (config.compatibility_threshold
+                - config.compatibility_threshold_step)
+                .max(config.compatibility_threshold_min);
+        }
     }
 
     fn create_initial_organisms(&mut self) {
@@ -477,6 +497,74 @@ mod tests {
         population.species = vec![specie];
         population.speciate();
         assert_eq!(population.species.len(), 2usize);
+    }
+
+    fn threshold_after_one_speciation(config: MutationConfig) -> (f64, usize) {
+        let mut population =
+            Population::create_population_initialized_with_config(50, 2, 1, config).with_seed(1);
+        population.speciate();
+        (
+            population.mutation_config.compatibility_threshold,
+            population.species.len(),
+        )
+    }
+
+    #[test]
+    fn dynamic_threshold_rises_with_too_many_species() {
+        let config = MutationConfig::new()
+            .compatibility_threshold(0.01)
+            .target_species(3)
+            .compatibility_threshold_adjustment(0.3, 0.001)
+            .build();
+        let (threshold, species) = threshold_after_one_speciation(config);
+        assert!(species > 3, "species = {}", species);
+        assert!((threshold - 0.31).abs() < 1e-9, "threshold = {}", threshold);
+    }
+
+    #[test]
+    fn dynamic_threshold_drops_with_too_few_species_down_to_its_minimum() {
+        let config = MutationConfig::new()
+            .compatibility_threshold(3.0)
+            .target_species(10)
+            .compatibility_threshold_adjustment(0.25, 0.3)
+            .build();
+        let (threshold, species) = threshold_after_one_speciation(config);
+        assert_eq!(species, 1);
+        assert!((threshold - 2.75).abs() < 1e-9, "threshold = {}", threshold);
+        let config = MutationConfig::new()
+            .compatibility_threshold(0.4)
+            .target_species(1000)
+            .compatibility_threshold_adjustment(0.25, 0.3)
+            .build();
+        let (threshold, _) = threshold_after_one_speciation(config);
+        assert!((threshold - 0.3).abs() < 1e-9, "threshold = {}", threshold);
+    }
+
+    #[test]
+    fn dynamic_threshold_stays_when_on_target_or_disabled() {
+        let config = MutationConfig::new()
+            .compatibility_threshold(3.0)
+            .target_species(1)
+            .build();
+        assert_eq!(threshold_after_one_speciation(config), (3.0, 1));
+        let config = MutationConfig::new()
+            .compatibility_threshold(0.01)
+            .fixed_compatibility_threshold()
+            .build();
+        let (threshold, species) = threshold_after_one_speciation(config);
+        assert!(species > 1);
+        assert_eq!(threshold, 0.01);
+    }
+
+    #[test]
+    fn default_config_aims_at_a_number_of_species() {
+        let config = MutationConfig::default();
+        assert_eq!(config.target_species, Some(10));
+        assert_eq!(config.compatibility_excess_coefficient, 1.0);
+        assert_eq!(config.compatibility_disjoint_coefficient, 1.0);
+        assert_eq!(config.compatibility_weight_coefficient, 0.4);
+        assert_eq!(config.compatibility_small_genome_genes, usize::MAX);
+        assert_eq!(config.compatibility_threshold, 2.0);
     }
 
     #[test]

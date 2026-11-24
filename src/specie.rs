@@ -52,6 +52,13 @@ impl Specie {
             .is_same_specie_with_threshold(&organism.genome, threshold)
     }
 
+    /// Check if another organism is of the same species with the
+    /// compatibility coefficients and threshold of `config`.
+    pub fn match_genome_with_config(&self, organism: &Organism, config: &MutationConfig) -> bool {
+        self.representative
+            .is_same_specie_with_config(&organism.genome, config)
+    }
+
     /// Get the most performant organism
     pub fn calculate_champion_fitness(&self) -> f64 {
         self.organisms.iter().fold(0f64, |max, organism| {
