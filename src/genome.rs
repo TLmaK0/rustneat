@@ -111,27 +111,50 @@ impl Genome {
         };
     }
 
-    /// Mate two genes
-    pub fn mate(&self, other: &Genome, fittest: bool) -> Genome {
-        self.mate_with_rng(other, fittest, &mut rand::thread_rng())
+    /// Mate two genomes. If `self_is_fitter` is true the child inherits the
+    /// structure (disjoint and excess genes) of `self`, otherwise of `other`.
+    pub fn mate(&self, other: &Genome, self_is_fitter: bool) -> Genome {
+        self.mate_with_rng(other, self_is_fitter, &mut rand::thread_rng())
     }
 
-    /// Mate two genes, drawing every random decision from `rng`
+    /// Mate two genomes, drawing every random decision from `rng`.
+    /// If `self_is_fitter` is true the child inherits the structure
+    /// (disjoint and excess genes) of `self`, otherwise of `other`.
     pub fn mate_with_rng<R: Rng + ?Sized>(
         &self,
         other: &Genome,
-        fittest: bool,
+        self_is_fitter: bool,
         rng: &mut R,
     ) -> Genome {
-        if fittest {
-            self.mate_genes(other, rng)
+        if self_is_fitter {
+            self.mate_genes(other, false, rng)
         } else {
-            other.mate_genes(self, rng)
+            other.mate_genes(self, false, rng)
         }
     }
 
-    fn mate_genes<R: Rng + ?Sized>(&self, other: &Genome, rng: &mut R) -> Genome {
+    /// Mate two genomes of equal fitness, drawing every random decision from
+    /// `rng`: disjoint and excess genes are inherited from either parent at
+    /// random (NEAT paper, section 3.2).
+    pub fn mate_equal_with_rng<R: Rng + ?Sized>(&self, other: &Genome, rng: &mut R) -> Genome {
+        self.mate_genes(other, true, rng)
+    }
+
+    /// Builds the child of `self` (structure donor) and `other`. With
+    /// `equal_fitness`, every disjoint/excess gene of either parent is
+    /// inherited with probability 0.5 instead of taking those of `self`.
+    fn mate_genes<R: Rng + ?Sized>(
+        &self,
+        other: &Genome,
+        equal_fitness: bool,
+        rng: &mut R,
+    ) -> Genome {
         let mut genome = Genome::default();
+        if equal_fitness {
+            // Keep every neuron of both parents so a randomly inherited gene
+            // never references a neuron the child lacks.
+            genome.last_neuron_id = cmp::max(self.last_neuron_id, other.last_neuron_id);
+        }
         // NEAT paper: 40% of crossovers use average weights for matching genes
         let use_average_weights = rng.gen::<f64>() < 0.4;
 
@@ -151,7 +174,11 @@ impl Genome {
                     }
                 }
                 Err(_) => {
-                    // Disjoint/excess gene: inherit from fitter parent (self)
+                    // Disjoint/excess gene: inherit from the fitter parent (self),
+                    // or from either parent at random when fitness is equal
+                    if equal_fitness && rng.gen::<f64>() < 0.5 {
+                        continue;
+                    }
                     *gene
                 }
             };
@@ -174,6 +201,23 @@ impl Genome {
             }
 
             genome.add_gene(child_gene);
+        }
+
+        if equal_fitness {
+            for gene in &other.genes {
+                if self.genes.binary_search(gene).is_ok() || rng.gen::<f64>() < 0.5 {
+                    continue;
+                }
+                let mut child_gene = *gene;
+                if !gene.enabled() {
+                    if rng.gen::<f64>() < 0.25 {
+                        child_gene.set_disabled();
+                    } else {
+                        child_gene.set_enabled();
+                    }
+                }
+                genome.add_gene(child_gene);
+            }
         }
         genome
     }

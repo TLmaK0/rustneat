@@ -92,11 +92,15 @@ impl Organism {
     }
     /// Mate this organism with another, drawing every random decision from `rng`
     pub fn mate_with_rng<R: Rng + ?Sized>(&self, other: &Organism, rng: &mut R) -> Organism {
-        let mut child = Organism::new(self.genome.mate_with_rng(
-            &other.genome,
-            self.fitness < other.fitness,
-            rng,
-        ));
+        // NEAT paper, section 3.2: the child inherits the structure of the
+        // fitter parent; with equal fitness, disjoint and excess genes come
+        // from either parent at random.
+        let genome = match self.fitness.partial_cmp(&other.fitness) {
+            Some(Ordering::Greater) => self.genome.mate_with_rng(&other.genome, true, rng),
+            Some(Ordering::Less) => self.genome.mate_with_rng(&other.genome, false, rng),
+            _ => self.genome.mate_equal_with_rng(&other.genome, rng),
+        };
+        let mut child = Organism::new(genome);
         child.tau = self.tau;
         child.step_time = self.step_time;
         child
@@ -183,6 +187,92 @@ use crate::gene::Gene;
 mod tests {
     use super::*;
     use crate::genome::Genome;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+
+    fn topology(genome: &Genome) -> Vec<(usize, usize)> {
+        genome
+            .get_genes()
+            .iter()
+            .map(|g| (g.in_neuron_id(), g.out_neuron_id()))
+            .collect()
+    }
+
+    /// A: 1 gene, B: 3 genes sharing A's gene, so B has two excess genes.
+    fn crossover_parents(fitness_a: f64, fitness_b: f64) -> (Organism, Organism) {
+        let mut a = Organism::new(Genome::default());
+        a.genome.add_gene(Gene::new(0, 1, 1f64, true, false));
+        a.fitness = fitness_a;
+
+        let mut b = Organism::new(Genome::default());
+        b.genome.add_gene(Gene::new(0, 1, 2f64, true, false));
+        b.genome.add_gene(Gene::new(0, 2, 2f64, true, false));
+        b.genome.add_gene(Gene::new(2, 1, 2f64, true, false));
+        b.fitness = fitness_b;
+        (a, b)
+    }
+
+    #[test]
+    fn child_inherits_topology_of_fitter_parent_in_both_call_orders() {
+        for (fitness_a, fitness_b) in [(10f64, 1f64), (1f64, 10f64)] {
+            let (a, b) = crossover_parents(fitness_a, fitness_b);
+            let fitter = if a.fitness > b.fitness { &a } else { &b };
+            let expected = topology(&fitter.genome);
+            let mut rng = ChaCha8Rng::seed_from_u64(1);
+            for (first, second) in [(&a, &b), (&b, &a)] {
+                let matching = (0..1000)
+                    .filter(|_| topology(&first.mate_with_rng(second, &mut rng).genome) == expected)
+                    .count();
+                assert_eq!(
+                    matching, 1000,
+                    "fitness {} vs {}: only {}/1000 children have the fitter topology",
+                    first.fitness, second.fitness, matching
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn equal_fitness_inherits_disjoint_genes_from_both_parents_at_random() {
+        let (a, b) = crossover_parents(5f64, 5f64);
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        for (first, second) in [(&a, &b), (&b, &a)] {
+            let mut with_excess = [0usize; 2];
+            for _ in 0..1000 {
+                let child = first.mate_with_rng(second, &mut rng);
+                let genes = topology(&child.genome);
+                assert!(
+                    genes.contains(&(0, 1)),
+                    "matching gene must always be inherited"
+                );
+                if genes.contains(&(0, 2)) {
+                    with_excess[0] += 1;
+                }
+                if genes.contains(&(2, 1)) {
+                    with_excess[1] += 1;
+                }
+            }
+            for count in with_excess {
+                assert!(
+                    (400..=600).contains(&count),
+                    "excess gene inherited {}/1000 times, expected ~50%",
+                    count
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn equal_fitness_crossover_is_reproducible_with_same_seed() {
+        let (a, b) = crossover_parents(5f64, 5f64);
+        let run = |seed| {
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            (0..50)
+                .map(|_| topology(&a.mate_with_rng(&b, &mut rng).genome))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(run(7), run(7));
+    }
 
     #[test]
     fn should_propagate_signal_without_hidden_layers() {
