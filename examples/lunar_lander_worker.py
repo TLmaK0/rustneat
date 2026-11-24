@@ -97,6 +97,8 @@ def evaluate_organism(genome_data, render=False, max_steps=400, num_episodes=1):
         total_reward /= num_episodes
         avg_behavior = np.mean(behaviors, axis=0).tolist()
 
-        # Transform to positive fitness: Lunar Lander returns [-500, 300]
-        # Adding 500 shifts to [0, 800] which NEAT can handle properly
+        # Lunar Lander returns [-500, 300]; adding 500 gives [0, 800].
+        # rustneat handles negative fitness, but this example keeps the
+        # offset: the novelty blend, the thresholds and the saved configs
+        # are all on the [0, 800] scale.
         return total_reward + 500, avg_behavior

@@ -27,7 +27,7 @@ fn genomes(population: &Population) -> Vec<String> {
 #[test]
 fn with_constant_fitness_every_evolve_changes_the_population() {
     let mut population = Population::create_population_initialized(150, 2, 1).with_seed(1);
-    population.evaluate_in(&Constant);
+    population.evaluate_in(&Constant).unwrap();
     for generation in 1..=200 {
         let before = genomes(&population);
         population.evolve();
@@ -38,6 +38,6 @@ fn with_constant_fitness_every_evolve_changes_the_population() {
             "evolve left the population identical in generation {}",
             generation
         );
-        population.evaluate_in(&Constant);
+        population.evaluate_in(&Constant).unwrap();
     }
 }

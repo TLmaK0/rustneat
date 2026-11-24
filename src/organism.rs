@@ -26,6 +26,8 @@ pub struct Organism {
     pub adjusted_fitness: f64,
     /// If true, skip evaluation and preserve current fitness (used for elitism)
     pub preserve_fitness: bool,
+    /// True once `SpeciesEvaluator` has evaluated this organism.
+    evaluated: bool,
     /// Persistent CTRNN state across activate() calls within an episode
     ctrnn_state: Vec<f64>,
     /// CTRNN neuron time constant τ (default 0.01).
@@ -38,9 +40,16 @@ pub struct Organism {
     pub output_activation: OutputActivation,
 }
 
+/// Fittest first; a NaN fitness goes after every number, so sorting never
+/// panics.
 impl Ord for Organism {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.fitness.partial_cmp(&self.fitness).unwrap()
+        match (self.fitness.is_nan(), other.fitness.is_nan()) {
+            (true, true) => Ordering::Equal,
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            (false, false) => other.fitness.partial_cmp(&self.fitness).unwrap(),
+        }
     }
 }
 
@@ -48,7 +57,7 @@ impl Eq for Organism {}
 
 impl PartialEq for Organism {
     fn eq(&self, other: &Self) -> bool {
-        self.fitness == other.fitness
+        self.cmp(other) == Ordering::Equal
     }
 }
 
@@ -66,6 +75,7 @@ impl Organism {
             fitness: 0f64,
             adjusted_fitness: 0f64,
             preserve_fitness: false,
+            evaluated: false,
             ctrnn_state: vec![],
             tau: 0.01,
             step_time: 0.1,
@@ -120,6 +130,28 @@ impl Organism {
         child.step_time = self.step_time;
         child.output_activation = self.output_activation;
         child
+    }
+    /// True once the population has evaluated this organism (its `fitness`
+    /// comes from the environment).
+    pub fn is_evaluated(&self) -> bool {
+        self.evaluated
+    }
+    pub(crate) fn mark_evaluated(&mut self) {
+        self.evaluated = true;
+    }
+    /// The organism with the highest fitness, ignoring NaN; ties go to the
+    /// first one. None if there is no organism with a fitness that is not NaN.
+    pub(crate) fn fittest<'a, I>(organisms: I) -> Option<&'a Organism>
+    where
+        I: IntoIterator<Item = &'a Organism>,
+    {
+        organisms
+            .into_iter()
+            .filter(|organism| !organism.fitness.is_nan())
+            .fold(None, |best: Option<&Organism>, organism| match best {
+                Some(best) if best.fitness >= organism.fitness => Some(best),
+                _ => Some(organism),
+            })
     }
     /// Reset the internal CTRNN state (call at the start of each episode)
     pub fn reset_state(&mut self) {

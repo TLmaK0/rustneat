@@ -19,33 +19,38 @@ impl<'a> SpeciesEvaluator<'a> {
         }
     }
 
-    /// Evaluate all organisms and return the champion
+    /// Evaluate all organisms and return the champion: the organism with
+    /// the highest fitness, whatever its sign (ties: the first one; NaN
+    /// fitness is ignored). If there is no organism, or all of them got
+    /// NaN, it returns an empty organism with fitness `-inf`.
     pub fn evaluate(&self, species: &mut Vec<Specie>) -> Organism {
-        if self.threads <= 1 {
+        let champion = if self.threads <= 1 {
             self.evaluate_single(species)
         } else {
             self.evaluate_parallel(species)
-        }
+        };
+        champion.unwrap_or_else(|| {
+            let mut empty = Organism::new(Genome::default());
+            empty.fitness = f64::NEG_INFINITY;
+            empty
+        })
     }
 
-    fn evaluate_single(&self, species: &mut Vec<Specie>) -> Organism {
-        let mut champion = Organism::new(Genome::default());
+    fn evaluate_single(&self, species: &mut Vec<Specie>) -> Option<Organism> {
+        let mut champion: Option<Organism> = None;
 
         for specie in species.iter_mut() {
             if !specie.organisms.is_empty() {
-                self.environment.test_batch(&mut specie.organisms);
-                for org in &specie.organisms {
-                    if org.fitness > champion.fitness {
-                        champion = org.clone();
-                    }
-                }
+                test_batch(self.environment, &mut specie.organisms);
+                champion =
+                    Organism::fittest(champion.iter().chain(specie.organisms.iter())).cloned();
             }
         }
 
         champion
     }
 
-    fn evaluate_parallel(&self, species: &mut Vec<Specie>) -> Organism {
+    fn evaluate_parallel(&self, species: &mut Vec<Specie>) -> Option<Organism> {
         let original_sizes: Vec<usize> = species.iter().map(|s| s.organisms.len()).collect();
 
         let mut all_organisms: Vec<Organism> = species
@@ -54,7 +59,7 @@ impl<'a> SpeciesEvaluator<'a> {
             .collect();
 
         if all_organisms.is_empty() {
-            return Organism::new(Genome::default());
+            return None;
         }
 
         let chunk_size = (all_organisms.len() + self.threads - 1) / self.threads;
@@ -66,14 +71,8 @@ impl<'a> SpeciesEvaluator<'a> {
                 let env = self.environment;
 
                 scope.spawn(move |_| {
-                    env.test_batch(chunk);
-
-                    let mut local_champion = Organism::new(Genome::default());
-                    for org in chunk.iter() {
-                        if org.fitness > local_champion.fitness {
-                            local_champion = org.clone();
-                        }
-                    }
+                    test_batch(env, chunk);
+                    let local_champion = Organism::fittest(chunk.iter()).cloned();
                     tx.send((chunk_index, local_champion)).unwrap();
                 });
             }
@@ -84,14 +83,10 @@ impl<'a> SpeciesEvaluator<'a> {
         // broken exactly as in `evaluate_single` (first organism wins) and the
         // result does not depend on thread scheduling.
         drop(tx);
-        let mut local_champions: Vec<(usize, Organism)> = rx.iter().collect();
+        let mut local_champions: Vec<(usize, Option<Organism>)> = rx.iter().collect();
         local_champions.sort_by_key(|(chunk_index, _)| *chunk_index);
-        let mut champion = Organism::new(Genome::default());
-        for (_, local_champion) in local_champions {
-            if local_champion.fitness > champion.fitness {
-                champion = local_champion;
-            }
-        }
+        let champion =
+            Organism::fittest(local_champions.iter().filter_map(|(_, c)| c.as_ref())).cloned();
 
         let mut drain_iter = all_organisms.into_iter();
         for (specie, &size) in species.iter_mut().zip(original_sizes.iter()) {
@@ -99,5 +94,14 @@ impl<'a> SpeciesEvaluator<'a> {
         }
 
         champion
+    }
+}
+
+/// Let the environment evaluate `organisms` and mark all of them as
+/// evaluated (elite copies it skipped already were).
+fn test_batch(environment: &dyn Environment, organisms: &mut [Organism]) {
+    environment.test_batch(organisms);
+    for organism in organisms.iter_mut() {
+        organism.mark_evaluated();
     }
 }

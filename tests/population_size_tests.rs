@@ -34,7 +34,7 @@ fn population_size_is_exact_for_500_generations_with_many_species() {
             "after evolve, generation {}",
             generation
         );
-        population.evaluate_in(&Xor);
+        population.evaluate_in(&Xor).unwrap();
         assert_eq!(
             population.size(),
             150,

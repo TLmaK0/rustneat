@@ -44,7 +44,7 @@ fn run(make: &dyn Fn() -> Population, generations: usize, threads: usize) -> Str
     let mut population = make();
     for _ in 0..generations {
         population.evolve();
-        population.evaluate_in(&environment);
+        population.evaluate_in(&environment).unwrap();
     }
     snapshot(&population)
 }

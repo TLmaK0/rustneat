@@ -22,12 +22,14 @@ use crate::species_evaluator::SpeciesEvaluator;
 pub struct Population {
     /// container of species
     pub species: Vec<Specie>,
+    /// Fitness of `champion` (-inf before the first evaluation).
     champion_fitness: f64,
     epochs_without_improvements: usize,
     /// Id for the next new species: ids are never reused, so a species
     /// keeps its id for its whole life.
     next_species_id: i64,
-    /// champion of the population
+    /// Best organism ever evaluated in the population (the historical
+    /// champion): it is only replaced by a strictly fitter one.
     pub champion: Option<Organism>,
     /// Mutation configuration
     pub mutation_config: MutationConfig,
@@ -139,7 +141,7 @@ impl Population {
     pub fn with_seed(mut self, seed: u64) -> Population {
         self.rng = ChaCha8Rng::seed_from_u64(seed);
         self.champion = None;
-        self.champion_fitness = 0f64;
+        self.champion_fitness = f64::NEG_INFINITY;
         self.epochs_without_improvements = 0;
         self.create_initial_organisms();
         self
@@ -148,7 +150,7 @@ impl Population {
     fn new(initial: InitialPopulation, config: MutationConfig) -> Population {
         let mut population = Population {
             species: vec![],
-            champion_fitness: 0f64,
+            champion_fitness: f64::NEG_INFINITY,
             champion: None,
             epochs_without_improvements: 0usize,
             next_species_id: 0,
@@ -178,9 +180,33 @@ impl Population {
         self.generate_offspring();
     }
 
-    /// Evaluate all organisms in the population using the given environment.
-    pub fn evaluate_in(&mut self, environment: &dyn Environment) {
+    /// Evaluate all organisms in the population using the given environment
+    /// and update `champion`, the best organism ever evaluated. Fitness can
+    /// be negative.
+    ///
+    /// # Errors
+    ///
+    /// If the environment gives a fitness that is not a finite number (NaN
+    /// or an infinity) it returns a `FitnessError` and leaves the champion
+    /// and the species statistics as they were. The population keeps its
+    /// size: `evolve` still works, and treats those organisms as the worst
+    /// ones.
+    pub fn evaluate_in(&mut self, environment: &dyn Environment) -> Result<(), FitnessError> {
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
+
+        let invalid: Vec<f64> = self
+            .species
+            .iter()
+            .flat_map(|specie| specie.organisms.iter())
+            .map(|organism| organism.fitness)
+            .filter(|fitness| !fitness.is_finite())
+            .collect();
+        if let Some(&first) = invalid.first() {
+            return Err(FitnessError {
+                count: invalid.len(),
+                first,
+            });
+        }
 
         // Apply fitness sharing and update stagnation tracking. Stagnant
         // species are removed in the next `evolve`, where their share of the
@@ -193,7 +219,7 @@ impl Population {
         #[cfg(feature = "telemetry")]
         telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
 
-        if self.champion_fitness >= champion.fitness {
+        if champion.fitness <= self.champion_fitness {
             self.epochs_without_improvements += 1;
         } else {
             #[cfg(feature = "telemetry")]
@@ -206,7 +232,7 @@ impl Population {
             self.champion = Some(champion.clone());
             self.champion_fitness = champion.fitness;
         }
-        self.champion_fitness = champion.fitness;
+        Ok(())
     }
 
     /// Remove the species that are stagnant (see
@@ -252,7 +278,7 @@ impl Population {
             .collect::<Vec<Organism>>()
     }
 
-    /// How many iterations without improvement
+    /// How many evaluations in a row did not beat the historical champion.
     pub fn epochs_without_improvements(&self) -> usize {
         self.epochs_without_improvements
     }
@@ -273,6 +299,7 @@ impl Population {
             .iter()
             .map(|specie| specie.calculate_average_fitness())
             .collect();
+        let average_fitnesses = shift_to_non_negative(&average_fitnesses);
         let total_average_fitness: f64 = average_fitnesses.iter().sum();
         // Without positive fitness, keep the current proportions.
         let weights: Vec<f64> = if total_average_fitness > 0f64 {
@@ -395,6 +422,52 @@ impl Population {
     }
 }
 
+/// Shift `values` so that none is negative: if the lowest finite value is
+/// negative, subtract it from all of them (the lowest becomes 0); otherwise
+/// leave them as they are, so non negative fitness keeps the proportions it
+/// always had. Non finite values (only after an evaluation that returned a
+/// `FitnessError`) become 0: those species get no share.
+fn shift_to_non_negative(values: &[f64]) -> Vec<f64> {
+    let lowest = values
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite())
+        .fold(0f64, f64::min);
+    values
+        .iter()
+        .map(|value| {
+            if value.is_finite() {
+                value - lowest
+            } else {
+                0f64
+            }
+        })
+        .collect()
+}
+
+/// Error returned by `Population::evaluate_in` when the environment gave
+/// a fitness that is not a finite number.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FitnessError {
+    /// Organisms with a non finite fitness.
+    pub count: usize,
+    /// First non finite fitness found (NaN or an infinity).
+    pub first: f64,
+}
+
+impl std::fmt::Display for FitnessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} organism(s) got a fitness that is not a finite number (first: {}); \
+             the environment must return finite fitness values",
+            self.count, self.first
+        )
+    }
+}
+
+impl std::error::Error for FitnessError {}
+
 /// Split `total` into integer shares proportional to `weights` by the
 /// largest remainder method: every share gets the floor of its exact quota
 /// and the units still missing go to the largest fractional parts (ties to
@@ -450,6 +523,27 @@ mod tests {
     use crate::genome::Genome;
     use crate::organism::Organism;
     use crate::specie::Specie;
+
+    #[test]
+    fn shift_to_non_negative_moves_negative_values_and_keeps_positive_ones() {
+        assert_eq!(shift_to_non_negative(&[1.0, 3.0]), vec![1.0, 3.0]);
+        assert_eq!(
+            shift_to_non_negative(&[-100.0, -90.0, -95.0]),
+            vec![0.0, 10.0, 5.0]
+        );
+        assert_eq!(shift_to_non_negative(&[-2.0, 3.0]), vec![0.0, 5.0]);
+        assert_eq!(
+            shift_to_non_negative(&[f64::NAN, -1.0, 1.0, f64::INFINITY]),
+            vec![0.0, 0.0, 2.0, 0.0]
+        );
+    }
+
+    #[test]
+    fn species_with_negative_fitness_get_more_offspring_when_fitter() {
+        let weights = shift_to_non_negative(&[-100.0, -90.0]);
+        let shares = apportion(&weights, 10);
+        assert_eq!(shares, vec![0, 10]);
+    }
 
     #[test]
     fn population_should_be_able_to_speciate_genomes() {

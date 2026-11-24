@@ -485,7 +485,9 @@ impl Environment for LunarLanderMultiprocess {
 // ============================================================================
 
 fn main() {
-    // Fitness is offset by +500 (Lunar Lander returns [-500,300] -> [0,800])
+    // Fitness is offset by +500 (Lunar Lander returns [-500,300] -> [0,800]).
+    // rustneat accepts negative fitness; the offset stays because the
+    // novelty blend and every threshold below are on the [0, 800] scale.
     let max_fitness = 800f64;
 
     #[allow(unused_must_use)]
@@ -555,7 +557,9 @@ fn main() {
 
     while champion.is_none() {
         population.evolve();
-        population.evaluate_in(&environment);
+        population
+            .evaluate_in(&environment)
+            .expect("the environment must return a finite fitness");
         generations += 1;
 
         // Show performance stats every 50 generations

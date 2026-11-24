@@ -39,7 +39,9 @@ fn main() {
     let mut champion: Option<Organism> = None;
     while champion.is_none() {
         population.evolve();
-        population.evaluate_in(&environment);
+        population
+            .evaluate_in(&environment)
+            .expect("the environment must return a finite fitness");
         for organism in &population.get_organisms() {
             if organism.fitness > 15.5f64 {
                 champion = Some(organism.clone());

@@ -25,6 +25,17 @@ pub struct Specie {
 const INTERSPECIE_MATE_PROBABILITY: f64 = 0.15f64; // Increased from 0.03 to escape local optima
 const BEST_ORGANISMS_THRESHOLD: f64 = 0.5f64; // Only top 50% can reproduce
 
+/// Weight of an organism in the roulette: its adjusted fitness, or 0 if it
+/// is not a positive finite number.
+fn selection_weight(organism: &Organism) -> f64 {
+    let weight = organism.adjusted_fitness;
+    if weight.is_finite() && weight > 0.0 {
+        weight
+    } else {
+        0.0
+    }
+}
+
 impl Specie {
     /// Create a new species from a Genome
     pub fn new(genome: Genome) -> Specie {
@@ -61,15 +72,10 @@ impl Specie {
             .is_same_specie_with_config(&organism.genome, config)
     }
 
-    /// Get the most performant organism
+    /// Fitness of the most performant organism, whatever its sign (NaN
+    /// is ignored; `-inf` if there is none).
     pub fn calculate_champion_fitness(&self) -> f64 {
-        self.organisms.iter().fold(0f64, |max, organism| {
-            if organism.fitness > max {
-                organism.fitness
-            } else {
-                max
-            }
-        })
+        Organism::fittest(&self.organisms).map_or(f64::NEG_INFINITY, |organism| organism.fitness)
     }
 
     /// Update stagnation tracking. Call once after every evaluation: the
@@ -177,11 +183,7 @@ impl Specie {
             // Fitness-proportionate selection (roulette wheel) using adjusted_fitness
 
             // Calculate total adjusted fitness for roulette wheel
-            let total_adjusted_fitness: f64 = self
-                .organisms
-                .iter()
-                .map(|o| o.adjusted_fitness.max(0.0))
-                .sum();
+            let total_adjusted_fitness: f64 = self.organisms.iter().map(selection_weight).sum();
 
             let mut selected_organisms = vec![];
             for _ in 0..num_of_organisms - copy_champion {
@@ -194,7 +196,7 @@ impl Specie {
                     let mut cumulative = 0.0;
                     let mut selected = 0;
                     for (i, organism) in self.organisms.iter().enumerate() {
-                        cumulative += organism.adjusted_fitness.max(0.0);
+                        cumulative += selection_weight(organism);
                         if cumulative >= spin {
                             selected = i;
                             break;
@@ -217,18 +219,14 @@ impl Specie {
         };
 
         if copy_champion == 1 {
-            let champion: Option<Organism> =
-                self.organisms.iter().fold(None, |champion, organism| {
-                    if champion.is_none() || champion.as_ref().unwrap().fitness < organism.fitness {
-                        Some(organism.clone())
-                    } else {
-                        champion
-                    }
-                });
-
-            // Mark champion copy to preserve its fitness (skip re-evaluation)
-            let mut elite = champion.unwrap();
-            elite.preserve_fitness = true;
+            let mut elite = Organism::fittest(&self.organisms)
+                .unwrap_or(&self.organisms[0])
+                .clone();
+            // Keep the fitness of the elite copy (skip re-evaluation) only if
+            // it is a real one: an organism that was never evaluated (as in
+            // the first `evolve`) or got a non finite fitness is evaluated
+            // again.
+            elite.preserve_fitness = elite.is_evaluated() && elite.fitness.is_finite();
             offspring.push(elite);
         }
         self.organisms = offspring;

@@ -268,7 +268,8 @@ fn run_once(bench: &Bench, seed: Option<u64>) -> RunResult {
     let mut last_champ_fit = 0.0f64;
     for g in 0..bench.max_gens {
         pop.evolve();
-        pop.evaluate_in(&env);
+        pop.evaluate_in(&env)
+            .expect("the environment must return a finite fitness");
         let n = pop.size();
         r.pop_min = r.pop_min.min(n);
         r.pop_max = r.pop_max.max(n);
