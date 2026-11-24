@@ -1,6 +1,7 @@
 use crate::genome::{
-    COMPATIBILITY_THRESHOLD, MUTATE_ADD_CONNECTION, MUTATE_ADD_NEURON, MUTATE_CONNECTION_WEIGHT,
-    MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY, MUTATE_TOGGLE_BIAS, MUTATE_TOGGLE_EXPRESSION,
+    COMPATIBILITY_THRESHOLD, MUTATE_ADD_CONNECTION, MUTATE_ADD_NEURON, MUTATE_BIAS,
+    MUTATE_CONNECTION_WEIGHT, MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY,
+    MUTATE_TOGGLE_EXPRESSION,
 };
 use crate::organism::OutputActivation;
 
@@ -20,8 +21,11 @@ pub struct MutationConfig {
     pub toggle_expression_rate: f64,
     /// Probability of perturbing vs replacing weight
     pub weight_perturbation_rate: f64,
-    /// Probability of toggling bias
-    pub toggle_bias_rate: f64,
+    /// Probability that a genome's neuron biases are mutated: when it
+    /// happens every bias is perturbed
+    pub bias_mutation_rate: f64,
+    /// Power of bias perturbation: random value in [-bias_mutate_power, bias_mutate_power]
+    pub bias_mutate_power: f64,
     /// Compatibility threshold for speciation
     pub compatibility_threshold: f64,
     /// Probability of mutating vs crossing over (0.0 = all crossover, 1.0 = all mutation)
@@ -53,7 +57,8 @@ impl Default for MutationConfig {
             add_neuron_rate: MUTATE_ADD_NEURON,
             toggle_expression_rate: MUTATE_TOGGLE_EXPRESSION,
             weight_perturbation_rate: MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY,
-            toggle_bias_rate: MUTATE_TOGGLE_BIAS,
+            bias_mutation_rate: MUTATE_BIAS,
+            bias_mutate_power: 1.0,
             compatibility_threshold: COMPATIBILITY_THRESHOLD,
             mutation_probability: 0.4,
             weight_init_range: 1.0,
@@ -117,9 +122,15 @@ impl MutationConfigBuilder {
         self
     }
 
-    /// Set toggle bias rate
-    pub fn toggle_bias_rate(mut self, rate: f64) -> Self {
-        self.config.toggle_bias_rate = rate;
+    /// Set the probability of mutating the neuron biases
+    pub fn bias_mutation_rate(mut self, rate: f64) -> Self {
+        self.config.bias_mutation_rate = rate;
+        self
+    }
+
+    /// Set bias perturbation power [-power, power]
+    pub fn bias_mutate_power(mut self, power: f64) -> Self {
+        self.config.bias_mutate_power = power;
         self
     }
 

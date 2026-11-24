@@ -54,7 +54,10 @@ struct ChampionFile {
     fitness: f64,
     generation: usize,
     neurons_len: usize,
-    genes: Vec<(usize, usize, f64, bool, bool)>, // (in, out, weight, enabled, bias)
+    genes: Vec<(usize, usize, f64, bool)>, // (in, out, weight, enabled)
+    /// Bias of each neuron, by neuron id
+    #[serde(default)]
+    biases: Vec<f64>,
 }
 
 impl ChampionFile {
@@ -69,21 +72,14 @@ impl ChampionFile {
             .genome
             .get_genes()
             .iter()
-            .map(|g| {
-                (
-                    g.in_neuron_id(),
-                    g.out_neuron_id(),
-                    g.weight(),
-                    g.enabled(),
-                    g.is_bias(),
-                )
-            })
+            .map(|g| (g.in_neuron_id(), g.out_neuron_id(), g.weight(), g.enabled()))
             .collect();
         ChampionFile {
             fitness,
             generation,
             neurons_len: organism.genome.len(),
             genes,
+            biases: neuron_biases(organism),
         }
     }
 }
@@ -96,7 +92,10 @@ struct ConfigFile {
     add_neuron_rate: f64,
     toggle_expression_rate: f64,
     weight_perturbation_rate: f64,
-    toggle_bias_rate: f64,
+    #[serde(default = "default_bias_mutation_rate")]
+    bias_mutation_rate: f64,
+    #[serde(default = "default_bias_mutate_power")]
+    bias_mutate_power: f64,
     compatibility_threshold: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     best_fitness: Option<f64>,
@@ -111,6 +110,19 @@ fn default_weight_init_range() -> f64 {
 }
 fn default_weight_mutate_power() -> f64 {
     1.5
+}
+fn default_bias_mutation_rate() -> f64 {
+    MutationConfig::default().bias_mutation_rate
+}
+fn default_bias_mutate_power() -> f64 {
+    MutationConfig::default().bias_mutate_power
+}
+
+/// Bias of every neuron of the organism, by neuron id
+fn neuron_biases(organism: &Organism) -> Vec<f64> {
+    (0..organism.genome.len())
+        .map(|id| organism.genome.bias(id))
+        .collect()
 }
 
 impl ConfigFile {
@@ -130,7 +142,8 @@ impl ConfigFile {
             .add_neuron_rate(self.add_neuron_rate)
             .toggle_expression_rate(self.toggle_expression_rate)
             .weight_perturbation_rate(self.weight_perturbation_rate)
-            .toggle_bias_rate(self.toggle_bias_rate)
+            .bias_mutation_rate(self.bias_mutation_rate)
+            .bias_mutate_power(self.bias_mutate_power)
             .compatibility_threshold(self.compatibility_threshold)
             .weight_init_range(self.weight_init_range)
             .weight_mutate_power(self.weight_mutate_power)
@@ -167,20 +180,22 @@ impl PyOrganism {
 
 #[pyfunction]
 fn create_organism(
-    genes: Vec<(usize, usize, f64, bool, bool)>,
+    genes: Vec<(usize, usize, f64, bool)>,
     neurons_len: usize,
+    biases: Vec<f64>,
 ) -> PyResult<PyOrganism> {
     // Reconstruct genes from serialized data
     let gene_vec: Vec<Gene> = genes
         .into_iter()
-        .map(|(in_id, out_id, weight, enabled, is_bias)| {
-            Gene::new(in_id, out_id, weight, enabled, is_bias)
-        })
+        .map(|(in_id, out_id, weight, enabled)| Gene::new(in_id, out_id, weight, enabled))
         .collect();
 
     // Reconstruct genome with proper neuron count (neurons_len = last_neuron_id + 1)
     let last_neuron_id = if neurons_len > 0 { neurons_len - 1 } else { 0 };
-    let genome = Genome::from_genes(gene_vec, last_neuron_id);
+    let mut genome = Genome::from_genes(gene_vec, last_neuron_id);
+    for (id, bias) in biases.into_iter().enumerate() {
+        genome.set_bias(id, bias);
+    }
     let organism = Organism::new(genome);
 
     Ok(PyOrganism { organism })
@@ -291,7 +306,6 @@ impl LunarLanderMultiprocess {
                         gene.out_neuron_id(),
                         gene.weight(),
                         gene.enabled(),
-                        gene.is_bias(),
                     )
                 })
                 .collect::<Vec<_>>();
@@ -300,6 +314,7 @@ impl LunarLanderMultiprocess {
             let dict = builtins.call_method0("dict").unwrap();
             dict.set_item("genes", genes_list).unwrap();
             dict.set_item("neurons_len", neurons_len).unwrap();
+            dict.set_item("biases", neuron_biases(organism)).unwrap();
 
             let worker_fn = self
                 .worker_module
@@ -369,7 +384,6 @@ impl Environment for LunarLanderMultiprocess {
                             gene.out_neuron_id(),
                             gene.weight(),
                             gene.enabled(),
-                            gene.is_bias(),
                         )
                     })
                     .collect::<Vec<_>>();
@@ -379,6 +393,7 @@ impl Environment for LunarLanderMultiprocess {
                     let dict = builtins.call_method0("dict").unwrap();
                     dict.set_item("genes", &genes_list).unwrap();
                     dict.set_item("neurons_len", neurons_len).unwrap();
+                    dict.set_item("biases", neuron_biases(organism)).unwrap();
                     batch_data.push((dict, false));
                 }
             }

@@ -9,7 +9,6 @@ pub struct Gene {
     out_neuron_id: usize,
     weight: f64,
     enabled: bool,
-    is_bias: bool,
 }
 
 impl Eq for Gene {}
@@ -46,19 +45,12 @@ impl PartialOrd for Gene {
 
 impl Gene {
     /// Create a new gene
-    pub fn new(
-        in_neuron_id: usize,
-        out_neuron_id: usize,
-        weight: f64,
-        enabled: bool,
-        is_bias: bool,
-    ) -> Gene {
+    pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64, enabled: bool) -> Gene {
         Gene {
             in_neuron_id: in_neuron_id,
             out_neuron_id: out_neuron_id,
             weight: weight,
             enabled: enabled,
-            is_bias: is_bias,
         }
     }
 
@@ -118,14 +110,6 @@ impl Gene {
     pub fn set_disabled(&mut self) {
         self.enabled = false;
     }
-    /// Get if gene is bias
-    pub fn is_bias(&self) -> bool {
-        self.is_bias
-    }
-    /// Set or disable bias
-    pub fn set_bias(&mut self, is_bias: bool) {
-        self.is_bias = is_bias
-    }
 }
 
 impl Default for Gene {
@@ -135,7 +119,6 @@ impl Default for Gene {
             out_neuron_id: 1,
             weight: Gene::generate_weight(),
             enabled: true,
-            is_bias: false,
         }
     }
 }

@@ -10,7 +10,7 @@
 //! * `uncon`   - `create_population_unconnected_with_config(pop, 2, 1, cfg)`
 //!
 //! keys: `addc`, `addn`, `wpow`, `winit`, `wrate`, `thr`, `mutp`, `tog`,
-//! `bias`, `tau` (MutationConfig), `pop` (population size, default 150),
+//! `bias` (bias mutation rate), `bpow` (bias mutate power), `tau` (MutationConfig), `pop` (population size, default 150),
 //! `reset` (0/1: reset the CTRNN state before each pattern, default 0),
 //! `target` (fitness that counts as solved, default 15.5 of 16),
 //! `seed` (run `i` uses `Population::with_seed(seed + i)`, so every run is
@@ -151,7 +151,8 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
             "thr" => b.compatibility_threshold(v),
             "mutp" => b.mutation_probability(v),
             "tog" => b.toggle_expression_rate(v),
-            "bias" => b.toggle_bias_rate(v),
+            "bias" => b.bias_mutation_rate(v),
+            "bpow" => b.bias_mutate_power(v),
             "tau" => b.tau(v),
             "pop" => {
                 pop_size = v as usize;

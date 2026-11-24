@@ -16,7 +16,10 @@ struct ChampionFile {
     fitness: f64,
     generation: usize,
     neurons_len: usize,
-    genes: Vec<(usize, usize, f64, bool, bool)>,
+    genes: Vec<(usize, usize, f64, bool)>,
+    /// Bias of each neuron, by neuron id
+    #[serde(default)]
+    biases: Vec<f64>,
 }
 
 impl ChampionFile {
@@ -29,14 +32,17 @@ impl ChampionFile {
         let gene_vec: Vec<Gene> = self
             .genes
             .iter()
-            .map(|(i, o, w, e, b)| Gene::new(*i, *o, *w, *e, *b))
+            .map(|(i, o, w, e)| Gene::new(*i, *o, *w, *e))
             .collect();
         let last_neuron_id = if self.neurons_len > 0 {
             self.neurons_len - 1
         } else {
             0
         };
-        let genome = Genome::from_genes(gene_vec, last_neuron_id);
+        let mut genome = Genome::from_genes(gene_vec, last_neuron_id);
+        for (id, bias) in self.biases.iter().enumerate() {
+            genome.set_bias(id, *bias);
+        }
         let mut org = Organism::new(genome);
         org.tau = 0.1;
         org.step_time = 0.5;

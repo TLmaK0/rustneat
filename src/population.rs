@@ -400,11 +400,11 @@ mod tests {
     #[test]
     fn population_should_be_able_to_speciate_genomes() {
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
-        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 0, 1f64, true));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true));
         let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(1, 1, 1f64, true, false));
-        genome2.add_gene(Gene::new(1, 0, 1f64, true, false));
+        genome2.add_gene(Gene::new(1, 1, 1f64, true));
+        genome2.add_gene(Gene::new(1, 0, 1f64, true));
 
         let mut population = Population::create_population(2);
         population.mutation_config.compatibility_threshold = 1.0;

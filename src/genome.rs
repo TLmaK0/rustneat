@@ -10,6 +10,9 @@ use std::cmp;
 pub struct Genome {
     genes: Vec<Gene>,
     last_neuron_id: usize,
+    /// Neuron (node) genes: the bias θ of neuron `id` is `biases[id]`; a
+    /// neuron past the end has bias 0.
+    biases: Vec<f64>,
 }
 
 pub(crate) const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
@@ -17,7 +20,7 @@ pub(crate) const MUTATE_ADD_CONNECTION: f64 = 0.005f64;
 pub(crate) const MUTATE_ADD_NEURON: f64 = 0.004f64;
 pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
 pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.90f64;
-pub(crate) const MUTATE_TOGGLE_BIAS: f64 = 0.01;
+pub(crate) const MUTATE_BIAS: f64 = 0.90f64;
 pub(crate) const COMPATIBILITY_THRESHOLD: f64 = 3f64;
 
 impl Genome {
@@ -26,6 +29,7 @@ impl Genome {
         let mut genome = Genome {
             genes: Vec::new(),
             last_neuron_id,
+            biases: Vec::new(),
         };
         for gene in genes {
             // Directly add gene without validation since we're reconstructing
@@ -53,7 +57,7 @@ impl Genome {
         for i in 0..input_neurons {
             for o in 0..output_neurons {
                 let weight = Gene::generate_weight_with_rng(rng);
-                genome.add_gene(Gene::new(i, input_neurons + o, weight, true, false));
+                genome.add_gene(Gene::new(i, input_neurons + o, weight, true));
             }
         }
         genome
@@ -69,7 +73,21 @@ impl Genome {
             } else {
                 0
             },
+            biases: Vec::new(),
         }
+    }
+
+    /// Bias θ of the neuron `neuron_id` (0 for a neuron without one).
+    pub fn bias(&self, neuron_id: usize) -> f64 {
+        self.biases.get(neuron_id).copied().unwrap_or(0f64)
+    }
+
+    /// Set the bias θ of the neuron `neuron_id`.
+    pub fn set_bias(&mut self, neuron_id: usize, bias: f64) {
+        if self.biases.len() <= neuron_id {
+            self.biases.resize(neuron_id + 1, 0f64);
+        }
+        self.biases[neuron_id] = bias;
     }
 
     /// May add a connection &| neuron &| mutat connection weight &|
@@ -106,8 +124,8 @@ impl Genome {
             self.mutate_toggle_expression(rng);
         };
 
-        if rng.gen::<f64>() < config.toggle_bias_rate {
-            self.mutate_toggle_bias(rng);
+        if rng.gen::<f64>() < config.bias_mutation_rate {
+            self.mutate_biases_with_config(config, rng);
         };
     }
 
@@ -219,6 +237,19 @@ impl Genome {
                 genome.add_gene(child_gene);
             }
         }
+
+        // Neuron genes: a neuron of both parents takes the bias of either at
+        // random (or their average when weights are averaged); a neuron of
+        // only one parent takes its bias.
+        genome.biases = (0..genome.len())
+            .map(|id| match (id < self.len(), id < other.len()) {
+                (true, true) if use_average_weights => (self.bias(id) + other.bias(id)) / 2.0,
+                (true, true) if rng.gen::<f64>() > 0.5 => self.bias(id),
+                (true, true) | (false, true) => other.bias(id),
+                (true, false) => self.bias(id),
+                (false, false) => 0f64,
+            })
+            .collect();
         genome
     }
     /// Get vector of all genes in this genome
@@ -229,7 +260,7 @@ impl Genome {
     /// only allow connected nodes
     #[deprecated(since = "0.3.0", note = "please use `add_gene` instead")]
     pub fn inject_gene(&mut self, in_neuron_id: usize, out_neuron_id: usize, weight: f64) {
-        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true, false);
+        let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true);
         self.add_gene(gene);
     }
     /// Number of genes
@@ -258,7 +289,6 @@ impl Genome {
             neuron_ids_to_connect[1],
             Gene::generate_weight_in_range_with_rng(config.weight_init_range, rng),
             true,
-            false,
         );
         self.add_gene(gene);
     }
@@ -289,9 +319,13 @@ impl Genome {
         <dyn Mutation>::toggle_expression(&mut self.genes[selected_gene]);
     }
 
-    fn mutate_toggle_bias<R: Rng + ?Sized>(&mut self, rng: &mut R) {
-        let selected_gene = rng.gen_range(0..self.genes.len());
-        <dyn Mutation>::toggle_bias(&mut self.genes[selected_gene]);
+    /// Perturbs the bias of every neuron. Input neurons have one too, but
+    /// the phenotype ignores it (the genome does not know which are inputs).
+    fn mutate_biases_with_config<R: Rng + ?Sized>(&mut self, config: &MutationConfig, rng: &mut R) {
+        self.biases.resize(self.len(), 0f64);
+        for bias in &mut self.biases {
+            *bias += Gene::generate_weight_in_range_with_rng(config.bias_mutate_power, rng);
+        }
     }
 
     fn mutate_add_neuron<R: Rng + ?Sized>(&mut self, rng: &mut R) {
@@ -301,6 +335,8 @@ impl Genome {
             self.last_neuron_id += 1;
             <dyn Mutation>::add_neuron(gene, self.last_neuron_id)
         };
+        // A new neuron is born neutral, even if its id held a bias before.
+        self.set_bias(self.last_neuron_id, 0f64);
         self.add_gene(gene1);
         self.add_gene(gene2);
     }
@@ -468,7 +504,7 @@ mod tests {
     #[test]
     fn mutation_connection_weight() {
         let mut genome = Genome::default();
-        genome.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome.add_gene(Gene::new(0, 0, 1f64, true));
         let orig_gene = genome.genes[0];
         genome.mutate_connection_weight();
         // These should not be same size
@@ -500,38 +536,38 @@ mod tests {
     #[should_panic(expected = "Try to create a gene neuron unconnected, max neuron id 1, 2 -> 2")]
     fn try_to_inject_a_unconnected_neuron_gene_should_panic() {
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(2, 2, 0.5f64, true, false));
+        genome1.add_gene(Gene::new(2, 2, 0.5f64, true));
     }
 
     #[test]
     fn two_genomes_without_differences_should_be_in_same_specie() {
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
-        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 0, 1f64, true));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true));
         let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(0, 0, 0f64, true, false));
-        genome2.add_gene(Gene::new(0, 1, 0f64, true, false));
-        genome2.add_gene(Gene::new(0, 2, 0f64, true, false));
+        genome2.add_gene(Gene::new(0, 0, 0f64, true));
+        genome2.add_gene(Gene::new(0, 1, 0f64, true));
+        genome2.add_gene(Gene::new(0, 2, 0f64, true));
         assert!(genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn two_genomes_with_enought_difference_should_be_in_different_species() {
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
-        genome1.add_gene(Gene::new(0, 1, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 0, 1f64, true));
+        genome1.add_gene(Gene::new(0, 1, 1f64, true));
         let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(0, 0, 20f64, true, false));
-        genome2.add_gene(Gene::new(0, 1, 20f64, true, false));
-        genome2.add_gene(Gene::new(0, 2, 1f64, true, false));
-        genome2.add_gene(Gene::new(0, 3, 1f64, true, false));
+        genome2.add_gene(Gene::new(0, 0, 20f64, true));
+        genome2.add_gene(Gene::new(0, 1, 20f64, true));
+        genome2.add_gene(Gene::new(0, 2, 1f64, true));
+        genome2.add_gene(Gene::new(0, 3, 1f64, true));
         assert!(!genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn already_existing_gene_should_be_not_duplicated() {
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 0, 1f64, true, false));
+        genome1.add_gene(Gene::new(0, 0, 1f64, true));
         genome1.add_connection(0, 0);
         assert_eq!(genome1.genes.len(), 1);
         assert!((genome1.get_genes()[0].weight() - 1f64).abs() < EPSILON);
@@ -540,7 +576,7 @@ mod tests {
     #[test]
     fn adding_an_existing_gene_disabled_should_enable_original() {
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 1, 0f64, true, false));
+        genome1.add_gene(Gene::new(0, 1, 0f64, true));
         genome1.mutate_add_neuron(&mut rng());
         assert!(!genome1.genes[0].enabled());
         assert!(genome1.genes.len() == 3);
@@ -553,18 +589,18 @@ mod tests {
     #[test]
     fn genomes_with_same_genes_with_little_differences_on_weight_should_be_in_same_specie() {
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 0, 16f64, true, false));
+        genome1.add_gene(Gene::new(0, 0, 16f64, true));
         let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(0, 0, 16.1f64, true, false));
+        genome2.add_gene(Gene::new(0, 0, 16.1f64, true));
         assert!(genome1.is_same_specie(&genome2));
     }
 
     #[test]
     fn genomes_with_same_genes_with_big_differences_on_weight_should_be_in_other_specie() {
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 0, 5f64, true, false));
+        genome1.add_gene(Gene::new(0, 0, 5f64, true));
         let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(0, 0, 25f64, true, false));
+        genome2.add_gene(Gene::new(0, 0, 25f64, true));
         assert!(!genome1.is_same_specie(&genome2));
     }
 
@@ -586,14 +622,159 @@ mod tests {
         assert_eq!(genome1.genes[5].out_neuron_id(), 4);
     }
 
+    fn only_bias_mutation(rate: f64) -> MutationConfig {
+        MutationConfig::new()
+            .add_connection_rate(0f64)
+            .add_neuron_rate(0f64)
+            .weight_mutation_rate(0f64)
+            .toggle_expression_rate(0f64)
+            .bias_mutation_rate(rate)
+            .build()
+    }
+
+    #[test]
+    fn neuron_without_bias_gene_has_neutral_bias() {
+        let mut genome = Genome::default();
+        genome.add_gene(Gene::new(0, 2, 1f64, true));
+        for id in 0..10 {
+            assert_eq!(genome.bias(id), 0f64);
+        }
+        genome.set_bias(1, -2.5);
+        assert_eq!(genome.bias(1), -2.5);
+        assert_eq!(genome.bias(2), 0f64);
+    }
+
+    #[test]
+    fn bias_mutation_perturbs_every_bias_and_can_go_negative() {
+        let mut genome = Genome::default();
+        genome.add_gene(Gene::new(0, 1, 1f64, true));
+        genome.add_gene(Gene::new(0, 2, 1f64, true));
+        let config = only_bias_mutation(1f64);
+        let mut rng = rng();
+        let mut seen_negative = false;
+        for _ in 0..20 {
+            let before: Vec<f64> = (0..genome.len()).map(|id| genome.bias(id)).collect();
+            genome.mutate_with_config_and_rng(&config, &mut rng);
+            for (id, old) in before.iter().enumerate() {
+                let new = genome.bias(id);
+                assert!(new != *old, "bias of neuron {} not perturbed", id);
+                assert!((new - old).abs() <= config.bias_mutate_power);
+                seen_negative |= new < 0f64;
+            }
+        }
+        assert!(seen_negative);
+    }
+
+    #[test]
+    fn bias_mutation_rate_zero_leaves_biases_untouched() {
+        let mut genome = Genome::default();
+        genome.add_gene(Gene::new(0, 1, 1f64, true));
+        genome.set_bias(1, 0.7);
+        let mut rng = rng();
+        for _ in 0..50 {
+            genome.mutate_with_config_and_rng(&only_bias_mutation(0f64), &mut rng);
+        }
+        assert_eq!(genome.bias(0), 0f64);
+        assert_eq!(genome.bias(1), 0.7);
+    }
+
+    #[test]
+    fn bias_mutation_is_reproducible_with_same_seed() {
+        let run = |seed| {
+            let mut genome = Genome::default();
+            genome.add_gene(Gene::new(0, 1, 1f64, true));
+            let mut rng = ChaCha8Rng::seed_from_u64(seed);
+            for _ in 0..10 {
+                genome.mutate_with_config_and_rng(&only_bias_mutation(1f64), &mut rng);
+            }
+            (genome.bias(0), genome.bias(1))
+        };
+        assert_eq!(run(3), run(3));
+        assert!(run(3) != run(4));
+    }
+
+    #[test]
+    fn new_neuron_is_born_with_neutral_bias() {
+        let mut genome = Genome::default();
+        genome.add_gene(Gene::new(0, 1, 1f64, true));
+        genome.set_bias(0, 3f64);
+        genome.set_bias(1, -3f64);
+        // A stale bias stored for the id the new neuron will take.
+        genome.set_bias(2, 5f64);
+        genome.mutate_add_neuron(&mut rng());
+        assert_eq!(genome.len(), 3);
+        assert_eq!(genome.bias(2), 0f64);
+        assert_eq!(genome.bias(0), 3f64);
+        assert_eq!(genome.bias(1), -3f64);
+    }
+
+    /// A: neurons 0, 1; B: neurons 0, 1, 2. Different biases on 1, B has
+    /// its own bias on 2.
+    fn bias_parents() -> (Genome, Genome) {
+        let mut a = Genome::default();
+        a.add_gene(Gene::new(0, 1, 1f64, true));
+        a.set_bias(1, -1f64);
+        let mut b = Genome::default();
+        b.add_gene(Gene::new(0, 1, 1f64, true));
+        b.add_gene(Gene::new(0, 2, 1f64, true));
+        b.add_gene(Gene::new(2, 1, 1f64, true));
+        b.set_bias(1, 2f64);
+        b.set_bias(2, -4f64);
+        (a, b)
+    }
+
+    #[test]
+    fn crossover_inherits_biases_of_matching_neurons_from_both_parents() {
+        let (a, b) = bias_parents();
+        let mut rng = rng();
+        let mut from = std::collections::BTreeMap::new();
+        for (fitter, child) in (0..1000).map(|i| {
+            if i % 2 == 0 {
+                ("a", a.mate_with_rng(&b, true, &mut rng))
+            } else {
+                ("b", a.mate_with_rng(&b, false, &mut rng))
+            }
+        }) {
+            let bias = child.bias(1);
+            assert!(
+                bias == -1f64 || bias == 2f64 || bias == 0.5f64,
+                "bias {} not inherited",
+                bias
+            );
+            *from.entry((fitter, bias.to_string())).or_insert(0) += 1;
+        }
+        for fitter in ["a", "b"] {
+            for bias in ["-1", "2"] {
+                assert!(
+                    from.get(&(fitter, bias.to_string())).copied().unwrap_or(0) > 100,
+                    "{:?}",
+                    from
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn crossover_inherits_bias_of_neuron_only_in_one_parent() {
+        let (a, b) = bias_parents();
+        let mut rng = rng();
+        for _ in 0..200 {
+            assert_eq!(a.mate_with_rng(&b, false, &mut rng).bias(2), -4f64);
+            let child = a.mate_equal_with_rng(&b, &mut rng);
+            if child.len() > 2 {
+                assert_eq!(child.bias(2), -4f64);
+            }
+        }
+    }
+
     #[test]
     fn crossover_disabled_gene_should_stay_disabled_25_percent() {
         // Parent 1 has disabled gene, parent 2 has enabled gene
         let mut genome1 = Genome::default();
-        genome1.add_gene(Gene::new(0, 1, 1.0, false, false)); // disabled
+        genome1.add_gene(Gene::new(0, 1, 1.0, false)); // disabled
 
         let mut genome2 = Genome::default();
-        genome2.add_gene(Gene::new(0, 1, 1.0, true, false)); // enabled
+        genome2.add_gene(Gene::new(0, 1, 1.0, true)); // enabled
 
         // Run many trials to check probability
         let trials = 1000;
