@@ -190,7 +190,9 @@ impl Organism {
                 _ => Some(organism),
             })
     }
-    /// Reset the internal CTRNN state (call at the start of each episode)
+    /// Reset the internal CTRNN state, so the next `activate` starts from
+    /// rest. Call it at the start of each episode, and before each case when
+    /// the cases are independent (see `activate`).
     pub fn reset_state(&mut self) {
         self.ctrnn_state = vec![];
     }
@@ -212,10 +214,30 @@ impl Organism {
     ///
     /// Each call integrates `step_time` seconds in steps of `dt`
     /// (exponential Euler, stable for any τ > 0; each neuron uses its τ gene
-    /// or the default `tau`). The state persists between calls until
-    /// `reset_state`. A change travels one connection per step, so with
-    /// the defaults (10 steps) the output of one call only sees inputs at
-    /// most 10 connections upstream; longer paths act on later calls.
+    /// or the default `tau`). A change travels one connection per step, so
+    /// with the defaults (10 steps) the output of one call only sees inputs
+    /// at most 10 connections upstream; longer paths act on later calls.
+    ///
+    /// **The state persists between calls** until `reset_state`: the output
+    /// of a call depends on the inputs of the calls before it. That is what
+    /// a control task wants (one episode = many calls), but when the cases
+    /// are independent (a classification such as XOR) call `reset_state`
+    /// before each one; otherwise evolution may find networks that only
+    /// answer right in the order they were evaluated in.
+    ///
+    /// ```
+    /// use rustneat::Population;
+    /// let mut organism = Population::create_population_initialized(1, 2, 1)
+    ///     .with_seed(1)
+    ///     .get_organisms()
+    ///     .remove(0);
+    /// let mut output = vec![0f64];
+    /// for inputs in [[0f64, 0f64], [0f64, 1f64], [1f64, 0f64], [1f64, 1f64]] {
+    ///     organism.reset_state(); // stateless: each case starts from rest
+    ///     organism.activate(inputs.to_vec(), &mut output);
+    ///     assert!(output[0] > 0f64 && output[0] < 1f64);
+    /// }
+    /// ```
     pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
         let inputs_len = sensors.len();
         let fixed_len = inputs_len + outputs.len();

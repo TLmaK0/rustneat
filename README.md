@@ -66,7 +66,7 @@ source $HOME/.cargo/env
 
 ## Run tests
 
-To speed up tests, run them with `--release` (XOR classification/simple_sample should take less than a minute):
+To speed up tests, run them with `--release`. The XOR test runs one seeded attempt of at most 500 generations (seed 1; set `RUSTNEAT_XOR_SEED` to try another) and checks that the champion solves XOR in all 24 orders of the patterns:
 
 ```bash
 cargo test --release
@@ -81,7 +81,9 @@ Create a new cargo project and add rustneat to Cargo.toml:
 rustneat = "0.2.1"
 ```
 
-Then use the library to implement XOR classification:
+Then use the library to implement XOR classification. `activate` keeps the
+CTRNN state between calls (useful for control tasks, where one episode is many
+calls); XOR is four independent cases, so the state is reset before each one:
 
 ```rust
 extern crate rustneat;
@@ -89,33 +91,42 @@ use rustneat::Environment;
 use rustneat::Organism;
 use rustneat::Population;
 
+const PATTERNS: [([f64; 2], f64); 4] = [
+    ([0f64, 0f64], 0f64),
+    ([0f64, 1f64], 1f64),
+    ([1f64, 0f64], 1f64),
+    ([1f64, 1f64], 0f64),
+];
+
 struct XORClassification;
 
 impl Environment for XORClassification {
     fn test(&self, organism: &mut Organism) -> f64 {
         let mut output = vec![0f64];
-        let mut distance: f64;
-        organism.activate(&vec![0f64, 0f64], &mut output);
-        distance = (0f64 - output[0]).abs();
-        organism.activate(&vec![0f64, 1f64], &mut output);
-        distance += (1f64 - output[0]).abs();
-        organism.activate(&vec![1f64, 0f64], &mut output);
-        distance += (1f64 - output[0]).abs();
-        organism.activate(&vec![1f64, 1f64], &mut output);
-        distance += (0f64 - output[0]).abs();
-        (4f64 - distance).powi(2)
+        let mut distance = 0f64;
+        for (inputs, expected) in PATTERNS.iter() {
+            organism.reset_state(); // each pattern starts from rest
+            organism.activate(inputs.to_vec(), &mut output);
+            distance += (expected - output[0]).powi(2);
+        }
+        16f64 / (1f64 + distance)
     }
 }
 
 fn main() {
+    // 2 inputs connected directly to 1 output, no hidden neurons:
+    // NEAT adds neurons and connections as it needs them.
     let mut population = Population::create_population_initialized(150, 2, 1);
-    let mut environment = XORClassification;
+    let environment = XORClassification;
     let mut champion: Option<Organism> = None;
     while champion.is_none() {
         population.evolve();
-        population.evaluate_in(&mut environment);
+        // Err if the environment returns NaN or an infinite fitness.
+        population
+            .evaluate_in(&environment)
+            .expect("the environment must return a finite fitness");
         for organism in &population.get_organisms() {
-            if organism.fitness > 15.9f64 {
+            if organism.fitness > 15.5f64 {
                 champion = Some(organism.clone());
             }
         }
@@ -123,6 +134,9 @@ fn main() {
     println!("{:?}", champion.unwrap().genome);
 }
 ```
+
+For a reproducible run, seed the population:
+`Population::create_population_initialized(150, 2, 1).with_seed(42)`.
 
 ## Develop
 

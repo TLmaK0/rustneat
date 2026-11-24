@@ -8,21 +8,26 @@ use rustneat::Population;
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
 
+const PATTERNS: [([f64; 2], f64); 4] = [
+    ([0f64, 0f64], 0f64),
+    ([0f64, 1f64], 1f64),
+    ([1f64, 0f64], 1f64),
+    ([1f64, 1f64], 0f64),
+];
+
+/// XOR as four independent cases: `activate` keeps the CTRNN state between
+/// calls, so it is reset before each pattern.
 struct XORClassification;
 
 impl Environment for XORClassification {
     fn test(&self, organism: &mut Organism) -> f64 {
         let mut output = vec![0f64];
-        let mut distance: f64;
-        organism.activate(vec![0f64, 0f64], &mut output);
-        distance = (0f64 - output[0]).powi(2);
-        organism.activate(vec![0f64, 1f64], &mut output);
-        distance += (1f64 - output[0]).powi(2);
-        organism.activate(vec![1f64, 0f64], &mut output);
-        distance += (1f64 - output[0]).powi(2);
-        organism.activate(vec![1f64, 1f64], &mut output);
-        distance += (0f64 - output[0]).powi(2);
-
+        let mut distance = 0f64;
+        for (inputs, expected) in PATTERNS.iter() {
+            organism.reset_state();
+            organism.activate(inputs.to_vec(), &mut output);
+            distance += (expected - output[0]).powi(2);
+        }
         16f64 / (1f64 + distance)
     }
 }
@@ -48,5 +53,12 @@ fn main() {
             }
         }
     }
-    println!("{:?}", champion.unwrap().genome);
+    let mut champion = champion.unwrap();
+    println!("{:?}", champion.genome);
+    for (inputs, expected) in PATTERNS.iter() {
+        let mut output = vec![0f64];
+        champion.reset_state();
+        champion.activate(inputs.to_vec(), &mut output);
+        println!("{:?} -> {:.3} (expected {})", inputs, output[0], expected);
+    }
 }
