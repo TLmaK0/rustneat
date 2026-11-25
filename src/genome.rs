@@ -411,7 +411,7 @@ impl Genome {
         };
 
         if rng.gen::<f64>() < config.add_neuron_rate {
-            self.mutate_add_neuron_with_registry(innovations, rng);
+            self.mutate_add_neuron_with_registry(config, innovations, rng);
         };
 
         if rng.gen::<f64>() < config.weight_mutation_rate {
@@ -460,11 +460,10 @@ impl Genome {
         config: &MutationConfig,
         rng: &mut R,
     ) -> Genome {
-        let disabled = config.disabled_gene_inheritance;
         if self_is_fitter {
-            self.mate_genes(other, false, disabled, rng)
+            self.mate_genes(other, false, config, rng)
         } else {
-            other.mate_genes(self, false, disabled, rng)
+            other.mate_genes(self, false, config, rng)
         }
     }
 
@@ -483,21 +482,22 @@ impl Genome {
         config: &MutationConfig,
         rng: &mut R,
     ) -> Genome {
-        self.mate_genes(other, true, config.disabled_gene_inheritance, rng)
+        self.mate_genes(other, true, config, rng)
     }
 
     /// Builds the child of `self` (structure donor) and `other`. With
     /// `equal_fitness`, every disjoint/excess gene of either parent is
     /// inherited with probability 0.5 instead of taking those of `self`.
     /// A gene disabled in either parent is disabled in the child with
-    /// probability `disabled_inheritance`, otherwise enabled.
+    /// probability `config.disabled_gene_inheritance`, otherwise enabled.
     fn mate_genes<R: Rng + ?Sized>(
         &self,
         other: &Genome,
         equal_fitness: bool,
-        disabled_inheritance: f64,
+        config: &MutationConfig,
         rng: &mut R,
     ) -> Genome {
+        let disabled_inheritance = config.disabled_gene_inheritance;
         let mut genome = Genome {
             input_neurons: cmp::max(self.input_neurons, other.input_neurons),
             output_neurons: cmp::max(self.output_neurons, other.output_neurons),
@@ -512,8 +512,9 @@ impl Genome {
             // never references a neuron the child lacks.
             genome.last_neuron_id = cmp::max(self.last_neuron_id, other.last_neuron_id);
         }
-        // NEAT paper: 40% of crossovers use average weights for matching genes
-        let use_average_weights = rng.gen::<f64>() < 0.4;
+        // NEAT paper: some crossovers average the weights of the matching
+        // genes (`crossover_weight_averaging_rate`, 0.4 by default).
+        let use_average_weights = rng.gen::<f64>() < config.crossover_weight_averaging_rate;
 
         for gene in &self.genes {
             let mut child_gene = match other.genes.binary_search(gene) {
@@ -768,11 +769,12 @@ impl Genome {
 
     #[cfg(test)]
     fn mutate_add_neuron<R: Rng + ?Sized>(&mut self, rng: &mut R) {
-        self.mutate_add_neuron_with_registry(None, rng);
+        self.mutate_add_neuron_with_registry(&MutationConfig::default(), None, rng);
     }
 
     fn mutate_add_neuron_with_registry<R: Rng + ?Sized>(
         &mut self,
+        config: &MutationConfig,
         innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
     ) {
@@ -785,13 +787,20 @@ impl Genome {
             return;
         }
         let selected_gene = enabled[rng.gen_range(0..enabled.len())];
-        self.split_gene(selected_gene, innovations);
+        self.split_gene(selected_gene, config, innovations);
     }
 
     /// Split the gene at `index`: disable it and add a new neuron between its
-    /// ends, nearly neutral (see SPLIT_INPUT_WEIGHT). The neuron id comes from `innovations` or, without registry,
-    /// is the next one after the highest id of the genome. Returns the id.
-    fn split_gene(&mut self, index: usize, innovations: Option<&mut InnovationRegistry>) -> usize {
+    /// ends, nearly neutral with the default `config.split_input_weight` and
+    /// `config.split_bias` (see SPLIT_INPUT_WEIGHT). The neuron id comes
+    /// from `innovations` or, without registry, is the next one after the
+    /// highest id of the genome. Returns the id.
+    fn split_gene(
+        &mut self,
+        index: usize,
+        config: &MutationConfig,
+        innovations: Option<&mut InnovationRegistry>,
+    ) -> usize {
         let (in_neuron_id, out_neuron_id) = (
             self.genes[index].in_neuron_id(),
             self.genes[index].out_neuron_id(),
@@ -800,11 +809,14 @@ impl Genome {
             Some(registry) => registry.split_neuron_id(self, in_neuron_id, out_neuron_id),
             None => self.last_neuron_id + 1,
         };
-        let (gene1, gene2) =
-            <dyn Mutation>::add_neuron(&mut self.genes[index], neuron_id, SPLIT_INPUT_WEIGHT);
+        let (gene1, gene2) = <dyn Mutation>::add_neuron(
+            &mut self.genes[index],
+            neuron_id,
+            config.split_input_weight,
+        );
         // The new neuron is born with the split bias (see SPLIT_BIAS), even
         // if its id held a bias before.
-        self.set_bias(neuron_id, SPLIT_BIAS);
+        self.set_bias(neuron_id, config.split_bias);
         // ... and with the default τ.
         self.store_tau(neuron_id, None);
         self.add_gene(gene1);
@@ -1562,7 +1574,7 @@ mod tests {
             .genes
             .binary_search(&Gene::new_connection(from, to))
             .unwrap();
-        genome.split_gene(index, innovations)
+        genome.split_gene(index, &MutationConfig::default(), innovations)
     }
 
     #[test]

@@ -24,8 +24,6 @@ pub struct Specie {
     pub id: i64,
 }
 
-const BEST_ORGANISMS_THRESHOLD: f64 = 0.5f64; // Only top 50% can reproduce
-
 impl Specie {
     /// Create a new species from a Genome
     pub fn new(genome: Genome) -> Specie {
@@ -190,17 +188,24 @@ impl Specie {
         );
     }
 
-    /// Organisms allowed to reproduce: the fittest half (at least one),
-    /// the ones `generate_offspring` keeps as parents.
+    /// Organisms allowed to reproduce with the default configuration: the
+    /// fittest half (at least one), the ones `generate_offspring` keeps as
+    /// parents.
     pub fn parents(&self) -> impl Iterator<Item = &Organism> {
+        self.parents_with_config(&MutationConfig::default())
+    }
+
+    /// Organisms allowed to reproduce: the fittest
+    /// `config.survival_threshold` of the species (at least one).
+    pub fn parents_with_config(&self, config: &MutationConfig) -> impl Iterator<Item = &Organism> {
         let mut sorted: Vec<&Organism> = self.organisms.iter().collect();
         sorted.sort();
-        sorted.truncate(self.parents_len());
+        sorted.truncate(self.parents_len(config));
         sorted.into_iter()
     }
 
-    fn parents_len(&self) -> usize {
-        ((self.organisms.len() as f64 * BEST_ORGANISMS_THRESHOLD) as usize).max(1)
+    fn parents_len(&self, config: &MutationConfig) -> usize {
+        ((self.organisms.len() as f64 * config.survival_threshold) as usize).max(1)
     }
 
     /// Generates the offspring; `other_species_parents` are the candidates
@@ -219,10 +224,14 @@ impl Specie {
         }
         self.age += 1;
 
-        // Always copy champion (elitism)
-        let copy_champion = if num_of_organisms > 1 { 1 } else { 0 };
+        // Elitism: a species with enough offspring keeps its champion.
+        let copy_champion = if num_of_organisms >= base_config.champion_copy_min_offspring.max(1) {
+            1
+        } else {
+            0
+        };
 
-        let organisms_to_mate = self.parents_len();
+        let organisms_to_mate = self.parents_len(base_config);
         self.organisms.sort();
         self.organisms.truncate(organisms_to_mate);
 

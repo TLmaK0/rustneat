@@ -1,7 +1,7 @@
 use crate::ctrnn::{Ctrnn, Integrator};
 use crate::genome::Genome;
 use crate::innovation::InnovationRegistry;
-use crate::mutation_config::MutationConfig;
+use crate::mutation_config::{self, MutationConfig};
 use crate::phenotype::Phenotype;
 use rand::Rng;
 use std::cmp::Ordering;
@@ -91,9 +91,9 @@ impl Organism {
             evaluations: 0,
             ctrnn_state: vec![],
             phenotype: None,
-            tau: 0.01,
-            dt: 0.01,
-            step_time: 0.1,
+            tau: mutation_config::TAU,
+            dt: mutation_config::DT,
+            step_time: mutation_config::STEP_TIME,
             output_activation: OutputActivation::default(),
         }
     }

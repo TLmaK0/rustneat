@@ -9,7 +9,8 @@ use crate::genome::{
     COMPATIBILITY_TAU_COEFFICIENT, COMPATIBILITY_THRESHOLD, COMPATIBILITY_THRESHOLD_MIN,
     COMPATIBILITY_THRESHOLD_STEP, COMPATIBILITY_WEIGHT_COEFFICIENT, MUTATE_ADD_CONNECTION,
     MUTATE_ADD_NEURON, MUTATE_BIAS, MUTATE_CONNECTION_WEIGHT,
-    MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY, MUTATE_TOGGLE_EXPRESSION, TARGET_SPECIES,
+    MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY, MUTATE_TOGGLE_EXPRESSION, SPLIT_BIAS,
+    SPLIT_INPUT_WEIGHT, TARGET_SPECIES,
 };
 use crate::organism::OutputActivation;
 
@@ -131,7 +132,13 @@ pub struct MutationConfig {
     /// How an organism compatible with several species chooses one
     /// (default `SpeciesAssignment::FirstCompatible`, as in the paper).
     pub species_assignment: SpeciesAssignment,
-    /// Probability of mutating vs crossing over (0.0 = all crossover, 1.0 = all mutation)
+    /// Probability of mutating vs crossing over (0.0 = all crossover, 1.0 = all mutation).
+    ///
+    /// Default 0.4; the NEAT paper uses 0.25. Bench A (`xor_bench 50 500
+    /// init reset=1`, seeds 1/101/201/301, 50/50 solved in every case),
+    /// median generations: 0.4 gives 52/53/53/51 (mean 52.25), 0.25 gives
+    /// 53/55/53/55 (54.0), 0.3 gives 55/53/53/59 (55.0) and 0.5 gives
+    /// 54/53/55/51 (53.25), so 0.4 is kept.
     pub mutation_probability: f64,
     /// Probability that a gene disabled in either parent is disabled in the
     /// child (NEAT paper, section 4.1: 0.75). Otherwise it is enabled.
@@ -142,6 +149,29 @@ pub struct MutationConfig {
     /// fittest half); with a single species the mate is always from the
     /// same species.
     pub interspecies_mate_rate: f64,
+    /// Probability that a crossover gives every matching gene (and every
+    /// neuron both parents have) the average of the two parents' weights
+    /// (biases, τ) instead of the value of one parent chosen at random
+    /// (default 0.4).
+    pub crossover_weight_averaging_rate: f64,
+    /// Fraction of each species, the fittest first, allowed to reproduce
+    /// (default 0.5: the fittest half; at least one organism always
+    /// reproduces). The same organisms are the candidates for an
+    /// interspecies crossover.
+    pub survival_threshold: f64,
+    /// A species that gets at least this many offspring keeps its champion:
+    /// one of the offspring is an unchanged copy of it (default 2). The NEAT
+    /// paper copies the champion of species with more than five members
+    /// (6); `usize::MAX` turns this elitism off. 0 behaves like 1.
+    pub champion_copy_min_offspring: usize,
+    /// Splitting a connection `i -> o` of weight w (add neuron mutation)
+    /// adds `i -> new` with this weight, a new neuron with bias
+    /// `split_bias` and `new -> o` with weight w. The defaults (5, -2.5)
+    /// make the new neuron relay its input in [0, 1] almost unchanged (see
+    /// `genome.rs`); the paper uses weight 1 and no bias.
+    pub split_input_weight: f64,
+    /// Bias of the neuron added by a split (see `split_input_weight`).
+    pub split_bias: f64,
     /// Range for initial weight generation: [-weight_init_range, weight_init_range]
     pub weight_init_range: f64,
     /// Standard deviation σ of the gaussian weight perturbation `N(0, σ²)`.
@@ -216,6 +246,24 @@ const INTERSPECIES_MATE_RATE: f64 = 0.001;
 const SPECIES_STAGNATION_GENERATIONS: usize = 15;
 /// Best species protected from the stagnation removal.
 const SPECIES_ELITISM: usize = 2;
+/// Probability of mutation without crossover (the NEAT paper uses 0.25; see
+/// `MutationConfig::mutation_probability` for the measurements).
+const MUTATION_PROBABILITY: f64 = 0.4;
+/// Probability that a crossover averages the matching weights.
+const CROSSOVER_WEIGHT_AVERAGING_RATE: f64 = 0.4;
+/// Fraction of each species that reproduces.
+const SURVIVAL_THRESHOLD: f64 = 0.5;
+/// Smallest offspring of a species that keeps an unchanged champion.
+const CHAMPION_COPY_MIN_OFFSPRING: usize = 2;
+/// Initial weights (and replaced weights and biases) are drawn from
+/// `[-WEIGHT_INIT_RANGE, WEIGHT_INIT_RANGE]`.
+pub(crate) const WEIGHT_INIT_RANGE: f64 = 1.0;
+/// Default CTRNN time constant τ.
+pub(crate) const TAU: f64 = 0.01;
+/// Default CTRNN integration step.
+pub(crate) const DT: f64 = 0.01;
+/// Default simulated time per activation.
+pub(crate) const STEP_TIME: f64 = 0.1;
 
 impl Default for MutationConfig {
     fn default() -> Self {
@@ -244,14 +292,19 @@ impl Default for MutationConfig {
             compatibility_threshold_min: COMPATIBILITY_THRESHOLD_MIN,
             compatibility_threshold_max: f64::INFINITY,
             species_assignment: SpeciesAssignment::FirstCompatible,
-            mutation_probability: 0.4,
+            mutation_probability: MUTATION_PROBABILITY,
             disabled_gene_inheritance: DISABLED_GENE_INHERITANCE,
             interspecies_mate_rate: INTERSPECIES_MATE_RATE,
-            weight_init_range: 1.0,
+            crossover_weight_averaging_rate: CROSSOVER_WEIGHT_AVERAGING_RATE,
+            survival_threshold: SURVIVAL_THRESHOLD,
+            champion_copy_min_offspring: CHAMPION_COPY_MIN_OFFSPRING,
+            split_input_weight: SPLIT_INPUT_WEIGHT,
+            split_bias: SPLIT_BIAS,
+            weight_init_range: WEIGHT_INIT_RANGE,
             weight_mutate_power: WEIGHT_MUTATE_POWER,
-            tau: 0.01,
-            dt: 0.01,
-            step_time: 0.1,
+            tau: TAU,
+            dt: DT,
+            step_time: STEP_TIME,
             tau_mutation_rate: MUTATE_TAU,
             tau_gene_mutation_rate: TAU_GENE_MUTATION_RATE,
             tau_mutate_power: TAU_MUTATE_POWER,
@@ -298,6 +351,34 @@ impl MutationConfigBuilder {
     /// another species
     pub fn interspecies_mate_rate(mut self, rate: f64) -> Self {
         self.config.interspecies_mate_rate = rate;
+        self
+    }
+
+    /// Set the probability that a crossover averages the weights (biases,
+    /// τ) of the matching genes instead of taking those of one parent
+    pub fn crossover_weight_averaging_rate(mut self, rate: f64) -> Self {
+        self.config.crossover_weight_averaging_rate = rate;
+        self
+    }
+
+    /// Set the fraction of each species (the fittest) allowed to reproduce
+    pub fn survival_threshold(mut self, threshold: f64) -> Self {
+        self.config.survival_threshold = threshold;
+        self
+    }
+
+    /// Set the smallest number of offspring for which a species keeps an
+    /// unchanged copy of its champion (`usize::MAX`: no elitism)
+    pub fn champion_copy_min_offspring(mut self, offspring: usize) -> Self {
+        self.config.champion_copy_min_offspring = offspring;
+        self
+    }
+
+    /// Set the weight of the connection into a neuron added by a split and
+    /// the bias of that neuron
+    pub fn split_neuron(mut self, input_weight: f64, bias: f64) -> Self {
+        self.config.split_input_weight = input_weight;
+        self.config.split_bias = bias;
         self
     }
 

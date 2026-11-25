@@ -70,7 +70,7 @@ impl Gene {
 
     /// Generate a weight in [-1, 1] using the given generator
     pub fn generate_weight_with_rng<R: Rng + ?Sized>(rng: &mut R) -> f64 {
-        Gene::generate_weight_in_range_with_rng(1.0, rng)
+        Gene::generate_weight_in_range_with_rng(crate::mutation_config::WEIGHT_INIT_RANGE, rng)
     }
 
     /// Generate a weight in [-range, range] using an entropy-seeded generator

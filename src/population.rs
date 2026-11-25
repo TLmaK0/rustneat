@@ -376,7 +376,7 @@ impl Population {
         // Candidates for an interspecies crossover: the organisms each
         // species lets reproduce, taken before any species is replaced by
         // its offspring.
-        let parents = species_parents(&self.species);
+        let parents = species_parents(&self.species, &self.mutation_config);
         let config = self.mutation_config;
 
         let average_fitnesses: Vec<f64> = self
@@ -572,11 +572,11 @@ fn closest_compatible_species(
     closest.map(|(index, _)| index)
 }
 
-/// A copy of the parents (`Specie::parents`) of each species.
-fn species_parents(species: &[Specie]) -> Vec<Vec<Organism>> {
+/// A copy of the parents (`Specie::parents_with_config`) of each species.
+fn species_parents(species: &[Specie], config: &MutationConfig) -> Vec<Vec<Organism>> {
     species
         .iter()
-        .map(|specie| specie.parents().cloned().collect())
+        .map(|specie| specie.parents_with_config(config).cloned().collect())
         .collect()
 }
 
@@ -711,7 +711,7 @@ mod tests {
             }
             species.push(specie);
         }
-        let parents = species_parents(&species);
+        let parents = species_parents(&species, &MutationConfig::default());
         let fitnesses = |index| {
             let mut f: Vec<f64> = other_species_parents(&parents, index)
                 .iter()

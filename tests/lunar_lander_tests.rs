@@ -223,6 +223,17 @@ fn new_config_parameters_default_to_the_library_defaults() {
         base.disabled_gene_inheritance
     );
     assert_eq!(config.interspecies_mate_rate, base.interspecies_mate_rate);
+    assert_eq!(
+        config.crossover_weight_averaging_rate,
+        base.crossover_weight_averaging_rate
+    );
+    assert_eq!(config.survival_threshold, base.survival_threshold);
+    assert_eq!(
+        config.champion_copy_min_offspring,
+        base.champion_copy_min_offspring
+    );
+    assert_eq!(config.split_input_weight, base.split_input_weight);
+    assert_eq!(config.split_bias, base.split_bias);
     assert_eq!(config.dt, base.dt);
     assert_eq!(config.tau_mutation_rate, base.tau_mutation_rate);
     assert_eq!(config.tau_gene_mutation_rate, base.tau_gene_mutation_rate);
@@ -288,6 +299,11 @@ fn a_saved_config_loads_back_unchanged() {
         tau_mutation_rate: 0.1,
         species_elitism: 3,
         reevaluate_elites: true,
+        crossover_weight_averaging_rate: 0.25,
+        survival_threshold: 0.2,
+        champion_copy_min_offspring: 6,
+        split_input_weight: 1.0,
+        split_bias: 0.0,
         ..ConfigFile::default()
     };
     let json = serde_json::to_string_pretty(&file).unwrap();
@@ -300,4 +316,20 @@ fn reevaluate_elites_is_read_from_the_config_file() {
         .unwrap()
         .to_mutation_config();
     assert!(config.reevaluate_elites);
+}
+
+#[test]
+fn crossover_selection_and_split_settings_are_read_from_the_config_file() {
+    let config = ConfigFile::from_json(
+        r#"{"crossover_weight_averaging_rate": 0.1, "survival_threshold": 0.3,
+            "champion_copy_min_offspring": 6, "split_input_weight": 1.0,
+            "split_bias": 0.5}"#,
+    )
+    .unwrap()
+    .to_mutation_config();
+    assert_eq!(config.crossover_weight_averaging_rate, 0.1);
+    assert_eq!(config.survival_threshold, 0.3);
+    assert_eq!(config.champion_copy_min_offspring, 6);
+    assert_eq!(config.split_input_weight, 1.0);
+    assert_eq!(config.split_bias, 0.5);
 }
