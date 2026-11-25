@@ -39,6 +39,7 @@ pub use self::genome::Genome;
 pub use self::innovation::InnovationRegistry;
 pub use self::mutation_config::MutationConfig;
 pub use self::organism::{Organism, OutputActivation};
+pub use self::phenotype::Phenotype;
 pub use self::population::{FitnessError, Population};
 pub use self::specie::Specie;
 pub use self::species_evaluator::SpeciesEvaluator;
@@ -56,6 +57,7 @@ mod mutation;
 pub mod mutation_config;
 /// A genome plus fitness
 pub mod organism;
+mod phenotype;
 /// A collection of species with champion
 pub mod population;
 mod specie;

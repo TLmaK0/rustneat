@@ -4,6 +4,27 @@ use crate::mutation::Mutation;
 use crate::mutation_config::MutationConfig;
 use rand::Rng;
 use std::cmp;
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+
+/// Identifies the contents of a genome: a new genome and every change to a
+/// genome take a value never used before, and a clone keeps it (same
+/// contents). `Organism` compares it to know if its compiled phenotype is
+/// still the one of its genome.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Revision(u64);
+
+impl Revision {
+    fn next() -> Revision {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        Revision(NEXT.fetch_add(1, AtomicOrdering::Relaxed))
+    }
+}
+
+impl Default for Revision {
+    fn default() -> Revision {
+        Revision::next()
+    }
+}
 
 /// Vector of Genes
 ///
@@ -11,7 +32,7 @@ use std::cmp;
 /// new neuron comes from its `InnovationRegistry`, so a genome's hidden ids
 /// need not be consecutive. A genome mutated on its own (without registry)
 /// numbers its new neurons after its highest id.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Clone)]
 pub struct Genome {
     genes: Vec<Gene>,
     last_neuron_id: usize,
@@ -26,6 +47,8 @@ pub struct Genome {
     input_neurons: usize,
     /// Neurons `input_neurons..input_neurons + output_neurons` are outputs.
     output_neurons: usize,
+    /// Changes with every change to the genome (see `Revision`).
+    revision: Revision,
 }
 
 pub(crate) const MUTATE_CONNECTION_WEIGHT: f64 = 0.90f64;
@@ -159,6 +182,20 @@ fn mutated_value<R: Rng + ?Sized>(
     }
 }
 
+/// The genes; the revision is bookkeeping, not part of the genome.
+impl std::fmt::Debug for Genome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Genome")
+            .field("genes", &self.genes)
+            .field("last_neuron_id", &self.last_neuron_id)
+            .field("biases", &self.biases)
+            .field("taus", &self.taus)
+            .field("input_neurons", &self.input_neurons)
+            .field("output_neurons", &self.output_neurons)
+            .finish()
+    }
+}
+
 impl Genome {
     /// Create a genome from serialized gene data
     pub fn from_genes(genes: Vec<Gene>, last_neuron_id: usize) -> Genome {
@@ -217,6 +254,7 @@ impl Genome {
             taus: Vec::new(),
             input_neurons,
             output_neurons,
+            revision: Revision::next(),
         }
     }
 
@@ -228,6 +266,16 @@ impl Genome {
     /// Number of output neurons (the ids right after the inputs), 0 if unknown.
     pub fn output_neurons(&self) -> usize {
         self.output_neurons
+    }
+
+    /// Changes whenever the genome changes; equal for a clone.
+    pub(crate) fn revision(&self) -> Revision {
+        self.revision
+    }
+
+    /// Record a change of the genome.
+    fn touch(&mut self) {
+        self.revision = Revision::next();
     }
 
     /// Bias θ of the neuron `neuron_id` (0 for a neuron without one).
@@ -271,6 +319,7 @@ impl Genome {
     }
 
     fn store_tau(&mut self, neuron_id: usize, tau: Option<f64>) {
+        self.touch();
         if self.taus.len() <= neuron_id {
             self.taus.resize(neuron_id + 1, None);
         }
@@ -279,6 +328,7 @@ impl Genome {
 
     /// Set the bias θ of the neuron `neuron_id`.
     pub fn set_bias(&mut self, neuron_id: usize, bias: f64) {
+        self.touch();
         if self.biases.len() <= neuron_id {
             self.biases.resize(neuron_id + 1, 0f64);
         }
@@ -325,6 +375,7 @@ impl Genome {
         innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
     ) {
+        self.touch();
         if rng.gen::<f64>() < config.add_connection_rate || self.genes.is_empty() {
             self.mutate_add_connection_with_config(config, rng);
         };
@@ -734,6 +785,7 @@ impl Genome {
     /// Add a new gene and checks if is allowd. Only can connect next neuron or already connected
     /// neurons.
     pub fn add_gene(&mut self, gene: Gene) {
+        self.touch();
         let max_neuron_id = self.last_neuron_id + 1;
 
         if gene.in_neuron_id() == gene.out_neuron_id() && gene.in_neuron_id() > max_neuron_id {

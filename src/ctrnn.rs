@@ -110,6 +110,11 @@ impl Ctrnn {
     }
 
     #[cfg(feature = "ctrnn_telemetry")]
+    pub(crate) fn telemetry_values(y: &[f64]) {
+        telemetry!("ctrnn1", 1.0, serde_json::to_string(y).unwrap());
+    }
+
+    #[cfg(feature = "ctrnn_telemetry")]
     fn telemetry(y: &Matrix<f64>) {
         let y2 = y.clone();
         telemetry!(

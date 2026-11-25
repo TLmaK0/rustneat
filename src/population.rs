@@ -345,8 +345,10 @@ impl Population {
     }
 
     fn speciate(&mut self) {
-        let organisms = &self.get_organisms();
         self.species.retain(|specie| !specie.is_empty());
+        // Every organism leaves its species (moved, not cloned) and is
+        // assigned again, in the same order.
+        let mut organisms = Vec::with_capacity(self.size());
 
         #[cfg(feature = "telemetry")]
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
@@ -367,7 +369,7 @@ impl Population {
 
             specie.choose_new_representative_with_rng(&mut self.rng);
 
-            specie.remove_organisms();
+            organisms.append(&mut specie.organisms);
         }
 
         let config = self.mutation_config;
@@ -375,14 +377,14 @@ impl Population {
             match self
                 .species
                 .iter_mut()
-                .find(|specie| specie.match_genome_with_config(organism, &config))
+                .find(|specie| specie.match_genome_with_config(&organism, &config))
             {
                 Some(specie) => {
-                    specie.add(organism.clone());
+                    specie.add(organism);
                 }
                 None => {
                     let mut specie = Specie::new(organism.genome.clone());
-                    specie.add(organism.clone());
+                    specie.add(organism);
                     self.add_species(specie);
                 }
             };

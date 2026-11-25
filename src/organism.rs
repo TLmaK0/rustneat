@@ -1,7 +1,8 @@
-use crate::ctrnn::{Ctrnn, CtrnnNeuralNetwork};
+use crate::ctrnn::{Ctrnn, Integrator};
 use crate::genome::Genome;
 use crate::innovation::InnovationRegistry;
 use crate::mutation_config::MutationConfig;
+use crate::phenotype::Phenotype;
 use rand::Rng;
 use std::cmp::Ordering;
 
@@ -30,6 +31,9 @@ pub struct Organism {
     evaluated: bool,
     /// Persistent CTRNN state across activate() calls within an episode
     ctrnn_state: Vec<f64>,
+    /// The CTRNN compiled by the last `activate`; compiled again when the
+    /// genome or the CTRNN settings change.
+    phenotype: Option<Phenotype>,
     /// Default CTRNN time constant τ (default 0.01): that of the neurons
     /// without τ gene (`Genome::tau`). See `MutationConfig::tau`.
     pub tau: f64,
@@ -70,6 +74,9 @@ impl PartialOrd for Organism {
 }
 
 impl Organism {
+    /// Integration scheme of `activate`.
+    pub(crate) const INTEGRATOR: Integrator = Integrator::ExponentialEuler;
+
     /// Create a new organmism form a single genome.
     pub fn new(genome: Genome) -> Organism {
         Organism {
@@ -79,6 +86,7 @@ impl Organism {
             preserve_fitness: false,
             evaluated: false,
             ctrnn_state: vec![],
+            phenotype: None,
             tau: 0.01,
             dt: 0.01,
             step_time: 0.1,
@@ -194,7 +202,7 @@ impl Organism {
     /// rest. Call it at the start of each episode, and before each case when
     /// the cases are independent (see `activate`).
     pub fn reset_state(&mut self) {
-        self.ctrnn_state = vec![];
+        self.ctrnn_state.clear();
     }
 
     /// Activate this organism in the NN.
@@ -238,92 +246,48 @@ impl Organism {
     ///     assert!(output[0] > 0f64 && output[0] < 1f64);
     /// }
     /// ```
+    ///
+    /// The network is compiled (`Phenotype`) on the first call and reused
+    /// until the genome, `tau`, `dt`, `step_time` or the number of sensors
+    /// or outputs change.
     pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
-        let inputs_len = sensors.len();
-        let fixed_len = inputs_len + outputs.len();
-        // Neuron ids of the network, in id order: inputs, outputs, hidden.
-        let ids: Vec<usize> = (0..fixed_len)
-            .chain(
-                self.genome
-                    .neurons()
-                    .into_iter()
-                    .filter(|&id| id >= fixed_len),
-            )
-            .collect();
-        let neurons_len = ids.len();
-        // Integrated neurons: outputs and hidden, in neuron id order.
-        let integrated_len = neurons_len - inputs_len;
-
-        let weights = self.get_weights(&ids);
-        let mut wji = vec![0.0; integrated_len * integrated_len];
-        let mut i = vec![0.0; integrated_len];
-        for row in 0..integrated_len {
-            let to = (inputs_len + row) * neurons_len;
-            for (from, sensor) in sensors.iter().enumerate() {
-                i[row] += weights[to + from] * sensor;
-            }
-            wji[row * integrated_len..(row + 1) * integrated_len]
-                .copy_from_slice(&weights[to + inputs_len..to + neurons_len]);
+        let compiled = match &self.phenotype {
+            Some(phenotype) => phenotype.is_compiled_for(self, sensors.len(), outputs.len()),
+            None => false,
+        };
+        if !compiled {
+            self.phenotype = Some(Phenotype::compile(
+                &self.genome,
+                sensors.len(),
+                outputs.len(),
+                self.tau,
+                self.dt,
+                self.step_time,
+                Organism::INTEGRATOR,
+            ));
         }
-        let theta: Vec<f64> = ids[inputs_len..]
-            .iter()
-            .map(|&id| self.genome.bias(id))
-            .collect();
-        let tau: Vec<f64> = ids[inputs_len..]
-            .iter()
-            .map(|&id| self.genome.tau(id).unwrap_or(self.tau))
-            .collect();
+        let phenotype = self.phenotype.as_mut().unwrap();
+        let integrated_len = phenotype.integrated_neurons();
 
         // Initialize state if needed (first call or after reset_state())
         if self.ctrnn_state.len() != integrated_len {
-            self.ctrnn_state = vec![0.0; integrated_len];
+            self.ctrnn_state.clear();
+            self.ctrnn_state.resize(integrated_len, 0f64);
         }
         if integrated_len == 0 {
             return;
         }
 
-        let activations = Ctrnn::default().activate_nn(
-            self.step_time,
-            self.dt,
-            &CtrnnNeuralNetwork {
-                y: &self.ctrnn_state,
-                tau: &tau,
-                wji: &wji,
-                theta: &theta,
-                i: &i,
-            },
-        );
+        // The state persists for the next call.
+        phenotype.activate(&mut self.ctrnn_state, &sensors);
 
         for (n, output) in outputs.iter_mut().enumerate() {
-            let value = activations[n] + theta[n];
+            let value = self.ctrnn_state[n] + phenotype.bias(n);
             *output = match self.output_activation {
                 OutputActivation::Sigmoid => Ctrnn::sigmoid(value),
                 OutputActivation::Linear => value,
             };
         }
-
-        // Persist state for next activate() call
-        self.ctrnn_state = activations;
-    }
-
-    /// Connection weights as a square matrix over the neurons `ids` (sorted),
-    /// row = destination neuron, column = source neuron, both by position in
-    /// `ids`.
-    fn get_weights(&self, ids: &[usize]) -> Vec<f64> {
-        let neurons_len = ids.len();
-        let position = |id: usize| ids.binary_search(&id).ok();
-        let mut matrix = vec![0.0; neurons_len * neurons_len];
-        for gene in self.genome.get_genes() {
-            if gene.enabled() {
-                if let (Some(from), Some(to)) = (
-                    position(gene.in_neuron_id()),
-                    position(gene.out_neuron_id()),
-                ) {
-                    matrix[to * neurons_len + from] = gene.weight()
-                }
-            }
-        }
-        matrix
     }
 }
 
@@ -491,20 +455,6 @@ mod tests {
         organism.activate(sensors, &mut output);
     }
 
-    #[test]
-    fn should_be_able_to_get_matrix_representation_of_the_neuron_connections() {
-        let mut organism = Organism::new(Genome::default());
-        organism.genome.add_gene(Gene::new(0, 1, 1f64, true));
-        organism.genome.add_gene(Gene::new(1, 2, 0.5f64, true));
-        organism.genome.add_gene(Gene::new(2, 1, 0.5f64, true));
-        organism.genome.add_gene(Gene::new(2, 2, 0.75f64, true));
-        organism.genome.add_gene(Gene::new(1, 0, 1f64, true));
-        assert_eq!(
-            organism.get_weights(&organism.genome.neurons()),
-            vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.5, 0.0, 0.5, 0.75]
-        );
-    }
-
     /// 2 inputs, 1 output and the hidden neurons `hidden`, wired the same way.
     fn network_with_hidden(hidden: [usize; 2]) -> Organism {
         let [h1, h2] = hidden;
@@ -541,6 +491,37 @@ mod tests {
             assert_eq!(a, b);
         }
         assert_eq!(sparse.ctrnn_state.len(), 3);
+    }
+
+    fn buffers_address(organism: &Organism) -> *const f64 {
+        organism.phenotype.as_ref().unwrap().buffers_address()
+    }
+
+    #[test]
+    fn phenotype_is_compiled_once_and_reused_until_something_changes() {
+        let mut organism = network_with_hidden([3, 4]);
+        let mut output = vec![0f64];
+        organism.activate(vec![1.0, 0.0], &mut output);
+        let compiled = buffers_address(&organism);
+        for sensors in [[0f64, 1f64], [1f64, 1f64]] {
+            organism.activate(sensors.to_vec(), &mut output);
+            organism.reset_state();
+            organism.activate(sensors.to_vec(), &mut output);
+        }
+        assert_eq!(buffers_address(&organism), compiled);
+        // A clone keeps it (same genome) until its genome changes.
+        let mut clone = organism.clone();
+        clone.activate(vec![1.0, 0.0], &mut output);
+        let cloned = buffers_address(&clone);
+        clone.activate(vec![1.0, 0.0], &mut output);
+        assert_eq!(buffers_address(&clone), cloned);
+        clone.genome.set_bias(3, 1.0);
+        clone.activate(vec![1.0, 0.0], &mut output);
+        assert_ne!(buffers_address(&clone), cloned);
+        // Changing a CTRNN setting compiles it again too.
+        organism.step_time = 0.2;
+        organism.activate(vec![1.0, 0.0], &mut output);
+        assert_ne!(buffers_address(&organism), compiled);
     }
 
     #[test]
