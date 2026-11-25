@@ -1,3 +1,4 @@
+use crate::ctrnn::Integrator;
 use crate::genome::{
     BIAS_GENE_MUTATION_RATE, BIAS_MAX, BIAS_MUTATE_POWER, BIAS_PERTURBED_PROBABILITY, MUTATE_TAU,
     TAU_GENE_MUTATION_RATE, TAU_MAX, TAU_MIN, TAU_MUTATE_POWER, WEIGHT_GENE_MUTATION_RATE,
@@ -210,6 +211,12 @@ pub struct MutationConfig {
     /// How output neurons are read: `σ(y + θ)` (default) or linear `y + θ`
     /// for regression.
     pub output_activation: OutputActivation,
+    /// How organisms integrate their CTRNN (default
+    /// `Integrator::ExponentialEuler`, stable for any τ > 0).
+    /// `Integrator::Euler` (explicit Euler) is only stable for dt/τ < 2:
+    /// with τ genes evolving down to `tau_min` it can make networks
+    /// diverge. Kept to reproduce older results.
+    pub integrator: Integrator,
     /// A species whose best fitness ever has not improved for this many
     /// generations is stagnant and is removed at the start of the next
     /// `evolve`; its share of the offspring goes to the other species
@@ -311,6 +318,7 @@ impl Default for MutationConfig {
             tau_min: TAU_MIN,
             tau_max: TAU_MAX,
             output_activation: OutputActivation::Sigmoid,
+            integrator: Integrator::ExponentialEuler,
             species_stagnation_generations: SPECIES_STAGNATION_GENERATIONS,
             species_elitism: SPECIES_ELITISM,
             reevaluate_elites: false,
@@ -606,6 +614,13 @@ impl MutationConfigBuilder {
     /// Set how output neurons are read (sigmoid or linear)
     pub fn output_activation(mut self, output_activation: OutputActivation) -> Self {
         self.config.output_activation = output_activation;
+        self
+    }
+
+    /// Set how organisms integrate their CTRNN (see
+    /// `MutationConfig::integrator`)
+    pub fn integrator(mut self, integrator: Integrator) -> Self {
+        self.config.integrator = integrator;
         self
     }
 

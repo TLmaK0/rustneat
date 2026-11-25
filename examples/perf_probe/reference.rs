@@ -35,7 +35,7 @@ impl DenseOrganism {
             dt: organism.dt,
             step_time: organism.step_time,
             output_activation: organism.output_activation,
-            integrator: Integrator::ExponentialEuler,
+            integrator: organism.integrator,
             ctrnn_state: vec![],
         }
     }

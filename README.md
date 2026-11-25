@@ -63,9 +63,11 @@ assert_eq!(population.size(), 150);
 ```
 
 **Explicit Euler.** `Integrator::Euler` (`y ← y + (h/τ)·(target - y)`) is kept
-to reproduce older results. It is only stable for `h/τ < 2` and is available
-through the low-level `Ctrnn::with_integrator(Integrator::Euler)`;
-`Organism::activate`, and so evolution, always uses exponential Euler.
+to reproduce older results. It is only stable for `h/τ < 2`. Choose it for
+evolution with `MutationConfig::builder().integrator(Integrator::Euler)` (the
+organisms of the population inherit it) or for a single network with
+`Ctrnn::with_integrator(Integrator::Euler)`. `cargo run --release --example
+ctrnn` shows both diverging for `h/τ > 2` while exponential Euler does not.
 
 ## Telemetry Dashboard
 

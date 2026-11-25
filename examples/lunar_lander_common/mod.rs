@@ -411,6 +411,8 @@ impl ConfigFile {
             tau_max: self.tau_max,
             // The workers pick the action with thresholds on (0, 1) outputs
             output_activation: OutputActivation::Sigmoid,
+            // Not in the JSON config: the library default.
+            integrator: MutationConfig::default().integrator,
             species_stagnation_generations: self.species_stagnation_generations,
             species_elitism: self.species_elitism,
             reevaluate_elites: self.reevaluate_elites,

@@ -1,8 +1,15 @@
-// run with: cargo run --release --example ctrnn --features="telemetry ctrnn_telemetry"
-// try to reproduce results from: http://www.tinyblueplanet.com/easy/FCSReport.pdf
+// run with: cargo run --release --example ctrnn
+// (graphs with: --features="telemetry ctrnn_telemetry")
+// Explicit Euler (`Integrator::Euler`) against exponential Euler
+// (`Integrator::ExponentialEuler`, the default): explicit Euler diverges for
+// h/τ > 2, exponential Euler is stable for any step size. Step-size demo
+// after http://www.tinyblueplanet.com/easy/FCSReport.pdf
 extern crate rustneat;
 
-use rustneat::{Ctrnn, CtrnnNeuralNetwork};
+mod ctrnn_common;
+
+#[cfg(feature = "telemetry")]
+use rustneat::{Ctrnn, CtrnnNeuralNetwork, Integrator};
 
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
@@ -15,35 +22,42 @@ extern crate rusty_dashed;
 use self::rusty_dashed::Dashboard;
 
 fn main() {
+    // Deterministic text demo (see examples/ctrnn_common).
+    print!("{}", ctrnn_common::report());
+
+    // With the dashboard (one window each): the step-size runs with explicit
+    // Euler, the same with exponential Euler, and a single neuron relaxing
+    // from ±1.
     #[cfg(feature = "telemetry")]
-    show_graph();
-    step_size_test();
-    #[cfg(feature = "telemetry")]
-    close();
-    #[cfg(feature = "telemetry")]
-    open();
-    minimal_ctrnn_node();
-    #[cfg(feature = "telemetry")]
-    close();
+    {
+        show_graph();
+        step_size_test(Integrator::Euler);
+        close();
+        open();
+        step_size_test(Integrator::ExponentialEuler);
+        close();
+        open();
+        minimal_ctrnn_node();
+        close();
+    }
 }
 
 #[cfg(feature = "telemetry")]
 fn close() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
-    #[cfg(feature = "telemetry")]
     telemetry!("ctrnn1", 1.0, "window.close()");
 }
 
+#[cfg(feature = "telemetry")]
 fn minimal_ctrnn_node() {
     std::thread::sleep(std::time::Duration::from_millis(2000));
-    #[cfg(feature = "telemetry")]
     telemetry!("ctrnn1", 1.0, "clear('ctrnn1', 500, 1)");
     activate_minimal_ctrnn_node(1.0);
-    #[cfg(feature = "telemetry")]
     telemetry!("ctrnn1", 1.0, "next_graph()");
     activate_minimal_ctrnn_node(-1.0);
 }
 
+#[cfg(feature = "telemetry")]
 fn activate_minimal_ctrnn_node(initial: f64) {
     Ctrnn::default().activate_nn(
         5.0,
@@ -58,39 +72,31 @@ fn activate_minimal_ctrnn_node(initial: f64) {
     );
 }
 
-fn step_size_test() {
+/// One graph per step size (h/τ up to 2.1: larger ones leave the plot).
+#[cfg(feature = "telemetry")]
+fn step_size_test(integrator: Integrator) {
     std::thread::sleep(std::time::Duration::from_millis(1000));
-    #[cfg(feature = "telemetry")]
     telemetry!("ctrnn1", 1.0, "clear('ctrnn1', 16, 2.5)");
-
-    activate_step_size_test(0.1);
-    #[cfg(feature = "telemetry")]
-    telemetry!("ctrnn1", 1.0, "next_graph('ctrnn1')");
-    activate_step_size_test(0.5);
-    #[cfg(feature = "telemetry")]
-    telemetry!("ctrnn1", 1.0, "next_graph('ctrnn1')");
-    activate_step_size_test(1.0);
-    #[cfg(feature = "telemetry")]
-    telemetry!("ctrnn1", 1.0, "next_graph('ctrnn1')");
-    activate_step_size_test(1.5);
-    #[cfg(feature = "telemetry")]
-    telemetry!("ctrnn1", 1.0, "next_graph('ctrnn1')");
-    activate_step_size_test(2.0);
-    #[cfg(feature = "telemetry")]
-    telemetry!("ctrnn1", 1.0, "next_graph('ctrnn1')");
-    activate_step_size_test(2.1);
+    let step_sizes = [0.1, 0.5, 1.0, 1.5, 2.0, 2.1];
+    for (n, &step_size) in step_sizes.iter().enumerate() {
+        if n > 0 {
+            telemetry!("ctrnn1", 1.0, "next_graph('ctrnn1')");
+        }
+        activate_step_size_test(integrator, step_size);
+    }
 }
 
-fn activate_step_size_test(step_size: f64) {
-    Ctrnn::default().activate_nn(
-        15.0 * step_size,
+#[cfg(feature = "telemetry")]
+fn activate_step_size_test(integrator: Integrator, step_size: f64) {
+    Ctrnn::with_integrator(integrator).activate_nn(
+        ctrnn_common::STEPS as f64 * step_size,
         step_size,
         &CtrnnNeuralNetwork {
-            y: &[1.0],
+            y: &[ctrnn_common::STEP_SIZE_Y0],
             tau: &[1.0],
             wji: &[0.0],
             theta: &[0.0],
-            i: &[0.5],
+            i: &[ctrnn_common::STEP_SIZE_FIXED_POINT],
         },
     );
 }

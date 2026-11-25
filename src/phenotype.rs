@@ -175,7 +175,7 @@ impl Phenotype {
             && self.default_tau.to_bits() == organism.tau.to_bits()
             && self.dt.to_bits() == organism.dt.to_bits()
             && self.step_time.to_bits() == organism.step_time.to_bits()
-            && self.integrator == Organism::INTEGRATOR
+            && self.integrator == organism.integrator
     }
 
     /// Number of integrated neurons (outputs and hidden): the length of

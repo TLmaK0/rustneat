@@ -47,6 +47,10 @@ pub struct Organism {
     pub step_time: f64,
     /// How output neurons are read (default `OutputActivation::Sigmoid`).
     pub output_activation: OutputActivation,
+    /// How `activate` integrates the CTRNN (default
+    /// `Integrator::ExponentialEuler`; `Integrator::Euler` is only stable
+    /// for dt/τ < 2). See `MutationConfig::integrator`.
+    pub integrator: Integrator,
 }
 
 /// Fittest first; a NaN fitness goes after every number, so sorting never
@@ -77,11 +81,8 @@ impl PartialOrd for Organism {
 }
 
 impl Organism {
-    /// Integration scheme of `activate`.
-    pub(crate) const INTEGRATOR: Integrator = Integrator::ExponentialEuler;
-
     /// Create a new organism from a single genome, with the CTRNN settings
-    /// (τ, dt, step time, output activation) of `MutationConfig::default()`:
+    /// (τ, dt, step time, output activation, integrator) of `MutationConfig::default()`:
     /// the same as `Organism::with_config(genome, &MutationConfig::default())`.
     /// Use `with_config` for an organism that must behave like those of a
     /// population with another config.
@@ -99,10 +100,12 @@ impl Organism {
             dt: mutation_config::DT,
             step_time: mutation_config::STEP_TIME,
             output_activation: OutputActivation::default(),
+            integrator: Integrator::default(),
         }
     }
     /// Create a new organism from a single genome, with the CTRNN settings
-    /// of `config` (`tau`, `dt`, `step_time`, `output_activation`), as the
+    /// of `config` (`tau`, `dt`, `step_time`, `output_activation`,
+    /// `integrator`), as the
     /// population creates its initial organisms.
     pub fn with_config(genome: Genome, config: &MutationConfig) -> Organism {
         let mut organism = Organism::new(genome);
@@ -110,6 +113,7 @@ impl Organism {
         organism.dt = config.dt;
         organism.step_time = config.step_time;
         organism.output_activation = config.output_activation;
+        organism.integrator = config.integrator;
         organism
     }
     /// Return a new Orgnaism by mutating this Genome and fitness of zero,
@@ -168,13 +172,14 @@ impl Organism {
         self.child(new_genome)
     }
     /// A new organism with `genome` and the CTRNN settings of `self`
-    /// (default τ, dt, step time and output activation).
+    /// (default τ, dt, step time, output activation and integrator).
     fn child(&self, genome: Genome) -> Organism {
         let mut child = Organism::new(genome);
         child.tau = self.tau;
         child.dt = self.dt;
         child.step_time = self.step_time;
         child.output_activation = self.output_activation;
+        child.integrator = self.integrator;
         child
     }
     /// A copy for crossover only: the genome, fitness and CTRNN settings,
@@ -322,7 +327,7 @@ impl Organism {
     /// ```
     ///
     /// The network is compiled (`Phenotype`) on the first call and reused
-    /// until the genome, `tau`, `dt`, `step_time` or the number of sensors
+    /// until the genome, `tau`, `dt`, `step_time`, `integrator` or the number of sensors
     /// or outputs change.
     pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut [f64]) {
         let compiled = match &self.phenotype {
@@ -337,7 +342,7 @@ impl Organism {
                 self.tau,
                 self.dt,
                 self.step_time,
-                Organism::INTEGRATOR,
+                self.integrator,
             ));
         }
         let phenotype = self.phenotype.as_mut().unwrap();
