@@ -1,11 +1,5 @@
 use rulinalg::matrix::{BaseMatrix, BaseMatrixMut, Matrix};
 
-#[cfg(feature = "ctrnn_telemetry")]
-use rusty_dashed;
-
-#[cfg(feature = "ctrnn_telemetry")]
-use serde_json;
-
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub struct CtrnnNeuralNetwork<'a> {
@@ -126,6 +120,8 @@ impl Ctrnn {
 }
 
 #[cfg(test)]
+// `!(a <= d)` on purpose: a NaN difference must fail the assertion.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 mod tests {
     use super::*;
     macro_rules! assert_delta_vector {

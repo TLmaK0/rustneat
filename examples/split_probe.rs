@@ -49,7 +49,7 @@ fn split(g: &Genome, index: usize, rule: Rule, inputs: usize) -> Genome {
         (bf * w).clamp(-30.0, 30.0),
         true,
     ));
-    let mut n = Genome::from_genes(genes, new_id);
+    let mut n = Genome::from_genes_with_io(genes, new_id, g.input_neurons(), g.output_neurons());
     for id in g.neurons() {
         n.set_bias(id, g.bias(id));
     }

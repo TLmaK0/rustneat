@@ -391,7 +391,6 @@ mod tests {
     use super::*;
     use crate::genome::Genome;
     use crate::organism::Organism;
-    use std::f64::EPSILON;
 
     #[test]
     fn specie_should_return_correct_average_fitness() {
@@ -409,7 +408,7 @@ mod tests {
         specie.add(organism2);
         specie.add(organism3);
 
-        assert!((specie.calculate_average_fitness() - 15f64).abs() < EPSILON);
+        assert!((specie.calculate_average_fitness() - 15f64).abs() < f64::EPSILON);
     }
 
     fn set_fitnesses(specie: &mut Specie, fitnesses: &[f64]) {
@@ -604,9 +603,9 @@ mod tests {
         specie.adjust_fitness();
 
         // Each fitness should be divided by species size (3)
-        assert!((specie.organisms[0].adjusted_fitness - 10.0).abs() < EPSILON);
-        assert!((specie.organisms[1].adjusted_fitness - 20.0).abs() < EPSILON);
-        assert!((specie.organisms[2].adjusted_fitness - 30.0).abs() < EPSILON);
+        assert!((specie.organisms[0].adjusted_fitness - 10.0).abs() < f64::EPSILON);
+        assert!((specie.organisms[1].adjusted_fitness - 20.0).abs() < f64::EPSILON);
+        assert!((specie.organisms[2].adjusted_fitness - 30.0).abs() < f64::EPSILON);
     }
 
     /// Species with the given fitnesses (fitness sharing already applied)

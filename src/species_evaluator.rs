@@ -23,7 +23,7 @@ impl<'a> SpeciesEvaluator<'a> {
     /// the highest fitness, whatever its sign (ties: the first one; NaN
     /// fitness is ignored). If there is no organism, or all of them got
     /// NaN, it returns an empty organism with fitness `-inf`.
-    pub fn evaluate(&self, species: &mut Vec<Specie>) -> Organism {
+    pub fn evaluate(&self, species: &mut [Specie]) -> Organism {
         let champion = if self.threads <= 1 {
             self.evaluate_single(species)
         } else {
@@ -36,7 +36,7 @@ impl<'a> SpeciesEvaluator<'a> {
         })
     }
 
-    fn evaluate_single(&self, species: &mut Vec<Specie>) -> Option<Organism> {
+    fn evaluate_single(&self, species: &mut [Specie]) -> Option<Organism> {
         let mut champion: Option<Organism> = None;
 
         for specie in species.iter_mut() {
@@ -50,7 +50,7 @@ impl<'a> SpeciesEvaluator<'a> {
         champion
     }
 
-    fn evaluate_parallel(&self, species: &mut Vec<Specie>) -> Option<Organism> {
+    fn evaluate_parallel(&self, species: &mut [Specie]) -> Option<Organism> {
         let original_sizes: Vec<usize> = species.iter().map(|s| s.organisms.len()).collect();
 
         let mut all_organisms: Vec<Organism> = species
@@ -62,7 +62,7 @@ impl<'a> SpeciesEvaluator<'a> {
             return None;
         }
 
-        let chunk_size = (all_organisms.len() + self.threads - 1) / self.threads;
+        let chunk_size = all_organisms.len().div_ceil(self.threads);
         let (tx, rx) = mpsc::channel();
 
         crossbeam::scope(|scope| {

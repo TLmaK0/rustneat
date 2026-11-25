@@ -6,7 +6,7 @@ fn main() {
 
         // Get Python library path from python3-config
         let output = Command::new("python3")
-            .args(&[
+            .args([
                 "-c",
                 "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))",
             ])

@@ -83,7 +83,7 @@ impl Organism {
     /// Create a new organmism form a single genome.
     pub fn new(genome: Genome) -> Organism {
         Organism {
-            genome: genome,
+            genome,
             fitness: 0f64,
             adjusted_fitness: 0f64,
             preserve_fitness: false,
@@ -277,7 +277,7 @@ impl Organism {
     /// The network is compiled (`Phenotype`) on the first call and reused
     /// until the genome, `tau`, `dt`, `step_time` or the number of sensors
     /// or outputs change.
-    pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut Vec<f64>) {
+    pub fn activate(&mut self, sensors: Vec<f64>, outputs: &mut [f64]) {
         let compiled = match &self.phenotype {
             Some(phenotype) => phenotype.is_compiled_for(self, sensors.len(), outputs.len()),
             None => false,

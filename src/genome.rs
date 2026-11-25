@@ -1128,7 +1128,6 @@ mod tests {
     use super::*;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
-    use std::f64::EPSILON;
 
     fn rng() -> ChaCha8Rng {
         ChaCha8Rng::seed_from_u64(0)
@@ -1148,7 +1147,8 @@ mod tests {
         }
 
         fn add_connection(&mut self, in_neuron_id: usize, out_neuron_id: usize) {
-            let gene = <dyn Mutation>::add_connection(in_neuron_id, out_neuron_id, &mut rng());
+            let weight = Gene::generate_weight_with_rng(&mut rng());
+            let gene = Gene::new(in_neuron_id, out_neuron_id, weight, true);
             self.add_gene(gene);
         }
     }
@@ -1367,7 +1367,7 @@ mod tests {
         let orig_gene = genome.genes[0];
         genome.mutate_connection_weight();
         // These should not be same size
-        assert!((genome.genes[0].weight() - orig_gene.weight()).abs() > EPSILON);
+        assert!((genome.genes[0].weight() - orig_gene.weight()).abs() > f64::EPSILON);
     }
 
     #[test]
@@ -1429,7 +1429,7 @@ mod tests {
         genome1.add_gene(Gene::new(0, 0, 1f64, true));
         genome1.add_connection(0, 0);
         assert_eq!(genome1.genes.len(), 1);
-        assert!((genome1.get_genes()[0].weight() - 1f64).abs() < EPSILON);
+        assert!((genome1.get_genes()[0].weight() - 1f64).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -1441,7 +1441,7 @@ mod tests {
         assert!(genome1.genes.len() == 3);
         genome1.add_connection(0, 1);
         assert!(genome1.genes[0].enabled());
-        assert!((genome1.genes[0].weight() - 0f64).abs() < EPSILON);
+        assert!((genome1.genes[0].weight() - 0f64).abs() < f64::EPSILON);
         assert_eq!(genome1.genes.len(), 3);
     }
 

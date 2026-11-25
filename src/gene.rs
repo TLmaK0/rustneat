@@ -36,18 +36,18 @@ impl Gene {
     /// Create a new gene
     pub fn new(in_neuron_id: usize, out_neuron_id: usize, weight: f64, enabled: bool) -> Gene {
         Gene {
-            in_neuron_id: in_neuron_id,
-            out_neuron_id: out_neuron_id,
-            weight: weight,
-            enabled: enabled,
+            in_neuron_id,
+            out_neuron_id,
+            weight,
+            enabled,
         }
     }
 
     /// Create a new gene with a specific connection
     pub fn new_connection(in_neuron_id: usize, out_neuron_id: usize) -> Gene {
         Gene {
-            in_neuron_id: in_neuron_id,
-            out_neuron_id: out_neuron_id,
+            in_neuron_id,
+            out_neuron_id,
             ..Gene::default()
         }
     }
@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn should_be_able_to_binary_search_for_a_gene() {
-        let mut genome = vec![g(0, 1), g(0, 2), g(3, 2), g(2, 3), g(1, 5)];
+        let mut genome = [g(0, 1), g(0, 2), g(3, 2), g(2, 3), g(1, 5)];
         genome.sort();
         genome.binary_search(&g(0, 1)).unwrap();
         genome.binary_search(&g(0, 2)).unwrap();

@@ -49,11 +49,11 @@ fn activate_minimal_ctrnn_node(initial: f64) {
         5.0,
         0.01,
         &CtrnnNeuralNetwork {
-            y: &vec![initial],
-            tau: &vec![1.0],
-            wji: &vec![0.0],
-            theta: &vec![0.0],
-            i: &vec![0f64],
+            y: &[initial],
+            tau: &[1.0],
+            wji: &[0.0],
+            theta: &[0.0],
+            i: &[0f64],
         },
     );
 }
@@ -86,11 +86,11 @@ fn activate_step_size_test(step_size: f64) {
         15.0 * step_size,
         step_size,
         &CtrnnNeuralNetwork {
-            y: &vec![1.0],
-            tau: &vec![1.0],
-            wji: &vec![0.0],
-            theta: &vec![0.0],
-            i: &vec![0.5],
+            y: &[1.0],
+            tau: &[1.0],
+            wji: &[0.0],
+            theta: &[0.0],
+            i: &[0.5],
         },
     );
 }

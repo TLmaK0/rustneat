@@ -70,6 +70,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -90,3 +92,16 @@ jobs:
 
       - name: Check telemetry + ctrnn_telemetry examples
         run: cargo check --release --features "telemetry ctrnn_telemetry" --examples
+
+      # Clippy must stay clean on every feature set (warnings are errors).
+      - name: Clippy (default features)
+        run: cargo clippy --release --all-targets -- -D warnings
+
+      - name: Clippy (telemetry)
+        run: cargo clippy --release --all-targets --features telemetry -- -D warnings
+
+      - name: Clippy (openai)
+        run: cargo clippy --release --all-targets --features openai -- -D warnings
+
+      - name: Clippy (all features)
+        run: cargo clippy --release --all-targets --all-features -- -D warnings

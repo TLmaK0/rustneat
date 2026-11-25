@@ -320,23 +320,17 @@ impl Default for MutationConfig {
 
 impl MutationConfig {
     /// Create a new configuration with custom values
+    // Public API: `new()` has always returned the builder.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> MutationConfigBuilder {
         MutationConfigBuilder::default()
     }
 }
 
 /// Builder for MutationConfig
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct MutationConfigBuilder {
     config: MutationConfig,
-}
-
-impl Default for MutationConfigBuilder {
-    fn default() -> Self {
-        MutationConfigBuilder {
-            config: MutationConfig::default(),
-        }
-    }
 }
 
 impl MutationConfigBuilder {
