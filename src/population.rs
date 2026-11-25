@@ -14,7 +14,7 @@ use rusty_dashed;
 #[cfg(feature = "telemetry")]
 use serde_json;
 
-use crate::mutation_config::MutationConfig;
+use crate::mutation_config::{MutationConfig, SpeciesAssignment};
 use crate::specie::Specie;
 use crate::species_evaluator::SpeciesEvaluator;
 
@@ -344,9 +344,10 @@ impl Population {
         }
     }
 
-    /// Assign every organism again to the compatible species (distance to
-    /// its representative under the threshold) closest to it; ties go to
-    /// the oldest species (lowest id). An organism compatible with none
+    /// Assign every organism again to a compatible species (distance to
+    /// its representative under the threshold) chosen by
+    /// `MutationConfig::species_assignment`: the first one (oldest first)
+    /// or the closest one (ties: the oldest). An organism compatible with none
     /// founds a new species, with itself as representative, that the next
     /// organisms can join.
     ///
@@ -385,7 +386,7 @@ impl Population {
 
         let config = self.mutation_config;
         for organism in organisms {
-            match closest_compatible_species(&self.species, &organism, &config) {
+            match compatible_species(&self.species, &organism, &config) {
                 Some(index) => self.species[index].add(organism),
                 None => {
                     let mut specie = Specie::new(organism.genome.clone());
@@ -412,7 +413,9 @@ impl Population {
         };
         let species = self.species.len();
         if species > target {
-            config.compatibility_threshold += config.compatibility_threshold_step;
+            config.compatibility_threshold = (config.compatibility_threshold
+                + config.compatibility_threshold_step)
+                .min(config.compatibility_threshold_max);
         } else if species < target {
             config.compatibility_threshold = (config.compatibility_threshold
                 - config.compatibility_threshold_step)
@@ -449,6 +452,24 @@ impl Population {
         specie.organisms = organisms;
         self.next_species_id = 0;
         self.add_species(specie);
+    }
+}
+
+/// Position in `species` of the species `organism` belongs to, following
+/// `config.species_assignment`, or `None` if no species is compatible.
+fn compatible_species(
+    species: &[Specie],
+    organism: &Organism,
+    config: &MutationConfig,
+) -> Option<usize> {
+    match config.species_assignment {
+        SpeciesAssignment::FirstCompatible => species
+            .iter()
+            .enumerate()
+            .filter(|(_, specie)| specie.match_genome_with_config(organism, config))
+            .min_by_key(|(_, specie)| specie.id)
+            .map(|(index, _)| index),
+        SpeciesAssignment::Closest => closest_compatible_species(species, organism, config),
     }
 }
 
@@ -716,6 +737,23 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_threshold_does_not_rise_over_its_maximum() {
+        let config = MutationConfig::new()
+            .compatibility_threshold(0.01)
+            .target_species(3)
+            .compatibility_threshold_adjustment(0.3, 0.001)
+            .compatibility_threshold_max(0.2)
+            .build();
+        let (threshold, species) = threshold_after_one_speciation(config);
+        assert!(species > 3, "species = {}", species);
+        assert_eq!(threshold, 0.2);
+        assert_eq!(
+            MutationConfig::default().compatibility_threshold_max,
+            f64::INFINITY
+        );
+    }
+
+    #[test]
     fn dynamic_threshold_stays_when_on_target_or_disabled() {
         let config = MutationConfig::new()
             .compatibility_threshold(3.0)
@@ -899,10 +937,16 @@ mod tests {
 
     /// Population with one species per weight in `weights` (one member
     /// each, a clone of its representative), fixed threshold `threshold`.
-    fn species_by_weight(weights: &[f64], threshold: f64, seed: u64) -> Population {
+    fn species_by_weight(
+        weights: &[f64],
+        threshold: f64,
+        assignment: SpeciesAssignment,
+        seed: u64,
+    ) -> Population {
         let config = MutationConfig::new()
             .fixed_compatibility_threshold()
             .compatibility_threshold(threshold)
+            .species_assignment(assignment)
             .build();
         let mut population =
             Population::create_population_initialized_with_config(10, 2, 1, config).with_seed(seed);
@@ -932,11 +976,38 @@ mod tests {
     }
 
     #[test]
+    fn default_species_assignment_is_the_paper_one() {
+        assert_eq!(
+            MutationConfig::default().species_assignment,
+            SpeciesAssignment::FirstCompatible
+        );
+    }
+
+    #[test]
+    fn first_compatible_puts_an_organism_in_the_oldest_compatible_species() {
+        // w = 0.8 is closer to species w = 1 but also compatible with the
+        // older species w = 0, which wins even when it is second in the list.
+        let mut population =
+            species_by_weight(&[0.0, 1.0], 2.0, SpeciesAssignment::FirstCompatible, 1);
+        let oldest = population.species[0].id;
+        population.species.swap(0, 1);
+        population.species[0].add(Organism::new(genome_with_weights(0.8)));
+        population.speciate();
+        assert_eq!(species_of(&population, 0.8), oldest);
+        // Not compatible with the oldest one: the next compatible one.
+        let mut population =
+            species_by_weight(&[0.0, 10.0], 2.0, SpeciesAssignment::FirstCompatible, 1);
+        population.species[0].add(Organism::new(genome_with_weights(9.0)));
+        population.speciate();
+        assert_eq!(species_of(&population, 9.0), population.species[1].id);
+    }
+
+    #[test]
     fn organism_compatible_with_two_species_goes_to_the_closest_one() {
         // Species 0 (w = 0) and 1 (w = 1); the organism (w = 0.8) is
         // compatible with both (distances 0.64 and 0.16 < 2) but closer to
         // species 1, although it comes from species 0.
-        let mut population = species_by_weight(&[0.0, 1.0], 2.0, 1);
+        let mut population = species_by_weight(&[0.0, 1.0], 2.0, SpeciesAssignment::Closest, 1);
         population.species[0].add(Organism::new(genome_with_weights(0.8)));
         population.speciate();
         assert_eq!(population.species.len(), 2);
@@ -948,7 +1019,7 @@ mod tests {
     fn organism_at_the_same_distance_of_two_species_goes_to_the_oldest_one() {
         // w = 0.5 is as far from w = 0 as from w = 1: the oldest species
         // (lowest id) wins, wherever it is in the list.
-        let mut population = species_by_weight(&[0.0, 1.0], 2.0, 1);
+        let mut population = species_by_weight(&[0.0, 1.0], 2.0, SpeciesAssignment::Closest, 1);
         let (oldest, newest) = (population.species[0].id, population.species[1].id);
         assert!(oldest < newest);
         population.species.swap(0, 1);
@@ -965,8 +1036,12 @@ mod tests {
         // interspecies crossover) that belongs to species 1 (w = 10.2). The
         // child must not become the representative of species 0: after
         // speciating, each representative is one of its species' members.
-        for seed in 0..20 {
-            let mut population = species_by_weight(&[0.0, 10.2], 2.0, seed);
+        let strategies = [
+            SpeciesAssignment::FirstCompatible,
+            SpeciesAssignment::Closest,
+        ];
+        for (seed, assignment) in (0..20).flat_map(|seed| strategies.map(|a| (seed, a))) {
+            let mut population = species_by_weight(&[0.0, 10.2], 2.0, assignment, seed);
             population.species[0].add(Organism::new(genome_with_weights(10.0)));
             population.speciate();
             assert_eq!(species_of(&population, 10.0), population.species[1].id);
@@ -978,7 +1053,8 @@ mod tests {
                         .genome
                         .compatibility_distance_with_config(&representative, &config)
                         == 0.0),
-                    "seed {}: representative of species {} is not a member",
+                    "{:?}, seed {}: representative of species {} is not a member",
+                    assignment,
                     seed,
                     specie.id
                 );

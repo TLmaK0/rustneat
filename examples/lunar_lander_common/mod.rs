@@ -335,6 +335,9 @@ impl ConfigFile {
             target_species: self.target_species,
             compatibility_threshold_step: self.compatibility_threshold_step,
             compatibility_threshold_min: self.compatibility_threshold_min,
+            // Not in the JSON config: the library defaults.
+            compatibility_threshold_max: MutationConfig::default().compatibility_threshold_max,
+            species_assignment: MutationConfig::default().species_assignment,
             mutation_probability: self.mutation_probability,
             disabled_gene_inheritance: self.disabled_gene_inheritance,
             interspecies_mate_rate: self.interspecies_mate_rate,

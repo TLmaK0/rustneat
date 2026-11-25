@@ -13,6 +13,39 @@ use crate::genome::{
 };
 use crate::organism::OutputActivation;
 
+/// How `speciate` chooses the species of an organism among the species
+/// whose representative is under the compatibility threshold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpeciesAssignment {
+    /// The first compatible species, oldest first (NEAT paper, Stanley &
+    /// Miikkulainen 2002: "placed in the first species in which g is
+    /// compatible with the representative"). The default: when the dynamic
+    /// threshold rises, neighbouring species merge into the older ones, so
+    /// `target_species` controls the number of species well.
+    FirstCompatible,
+    /// The compatible species with the smallest distance to its
+    /// representative; ties go to the oldest species (lowest id). This is
+    /// what neat-python does: an organism is never pulled into an older
+    /// species while a closer one exists.
+    ///
+    /// Limitation: an organism nearly always stays with its own species'
+    /// representative, so raising the threshold does not merge species: it
+    /// only stops new ones from appearing, and species disappear only by
+    /// stagnation. With `target_species` the number of species overshoots
+    /// the target: on the XOR bench (`xor_bench 50 500 init reset=1
+    /// assign=1`, seeds 1/101/201/301) about 17 species at the end of a run
+    /// for a target of 10 (about 10 with `FirstCompatible`), and medians
+    /// 57/58/58/57 generations against 52/53/53/51. While there are too many
+    /// species the threshold keeps climbing (about 23 after 80 generations),
+    /// which can stop new species from forming for a long time; set
+    /// `compatibility_threshold_max` to bound it (6 bounds it without
+    /// changing the XOR results; 4 gives about 24 species and slower runs).
+    /// Not raising the threshold when no new species was founded was also
+    /// tried: about 21 species and medians up to 62. No variant brought the
+    /// number of species close to the target.
+    Closest,
+}
+
 /// Configuration for mutation rates in NEAT
 ///
 /// Allows customizing mutation probabilities per problem.
@@ -92,6 +125,12 @@ pub struct MutationConfig {
     pub compatibility_threshold_step: f64,
     /// The dynamic threshold never goes below this value.
     pub compatibility_threshold_min: f64,
+    /// The dynamic threshold never goes above this value (default: no
+    /// limit). Mostly useful with `SpeciesAssignment::Closest`.
+    pub compatibility_threshold_max: f64,
+    /// How an organism compatible with several species chooses one
+    /// (default `SpeciesAssignment::FirstCompatible`, as in the paper).
+    pub species_assignment: SpeciesAssignment,
     /// Probability of mutating vs crossing over (0.0 = all crossover, 1.0 = all mutation)
     pub mutation_probability: f64,
     /// Probability that a gene disabled in either parent is disabled in the
@@ -186,6 +225,8 @@ impl Default for MutationConfig {
             target_species: Some(TARGET_SPECIES),
             compatibility_threshold_step: COMPATIBILITY_THRESHOLD_STEP,
             compatibility_threshold_min: COMPATIBILITY_THRESHOLD_MIN,
+            compatibility_threshold_max: f64::INFINITY,
+            species_assignment: SpeciesAssignment::FirstCompatible,
             mutation_probability: 0.4,
             disabled_gene_inheritance: DISABLED_GENE_INHERITANCE,
             interspecies_mate_rate: INTERSPECIES_MATE_RATE,
@@ -364,6 +405,18 @@ impl MutationConfigBuilder {
     pub fn compatibility_threshold_adjustment(mut self, step: f64, min: f64) -> Self {
         self.config.compatibility_threshold_step = step;
         self.config.compatibility_threshold_min = min;
+        self
+    }
+
+    /// Set the maximum of the dynamic threshold
+    pub fn compatibility_threshold_max(mut self, max: f64) -> Self {
+        self.config.compatibility_threshold_max = max;
+        self
+    }
+
+    /// Set how an organism compatible with several species chooses one
+    pub fn species_assignment(mut self, assignment: SpeciesAssignment) -> Self {
+        self.config.species_assignment = assignment;
         self
     }
 

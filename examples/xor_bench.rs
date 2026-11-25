@@ -21,8 +21,9 @@
 //! `c1`, `c2`, `c3`, `cb` (compatibility coefficients: excess, disjoint,
 //! weights, biases), `nsmall` (N = 1 below this many genes; 20 = paper,
 //! `inf` = never normalize, the default), `tspec` (target
-//! number of species; 0 = fixed threshold), `tstep`, `tmin` (dynamic
-//! threshold step and minimum), `dis` (probability that a gene disabled in
+//! number of species; 0 = fixed threshold), `tstep`, `tmin`, `tmax` (dynamic
+//! threshold step, minimum and maximum), `assign` (species assignment:
+//! 0 = first compatible, the default; 1 = closest), `dis` (probability that a gene disabled in
 //! a parent is disabled in the child), `xsp` (interspecies crossover rate),
 //! `reset` (0/1: reset the CTRNN state before each pattern, default 0),
 //! `target` (fitness that counts as solved, default 15.5 of 16),
@@ -34,7 +35,7 @@
 //!
 //! Reference ("bench A"): `xor_bench 50 500 init reset=1`.
 extern crate rustneat;
-use rustneat::{Environment, MutationConfig, Organism, Population};
+use rustneat::{Environment, MutationConfig, Organism, Population, SpeciesAssignment};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -216,6 +217,10 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
                     b.compatibility_threshold_adjustment(c.compatibility_threshold_step, v)
                 }
             }
+            "tmax" => b.compatibility_threshold_max(v),
+            "assign" if v == 0.0 => b.species_assignment(SpeciesAssignment::FirstCompatible),
+            "assign" if v == 1.0 => b.species_assignment(SpeciesAssignment::Closest),
+            "assign" => return Err(format!("bad value for assign: {} (0 or 1)", v)),
             "pop" => {
                 pop_size = v as usize;
                 b
