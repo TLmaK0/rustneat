@@ -79,7 +79,10 @@ def evaluate_organism(genome_data, render=False, max_steps=400, num_episodes=1):
     taus = genome_data.get('taus', [])
 
     # Create organism using rustneat_py (Rust implementation)
-    organism = rustneat_py.create_organism(genes, neurons_len, biases, taus)
+    input_neurons = genome_data.get('input_neurons', 0)
+    output_neurons = genome_data.get('output_neurons', 0)
+    organism = rustneat_py.create_organism(
+        genes, neurons_len, biases, taus, input_neurons, output_neurons)
 
     if render:
         # For rendering, just run one episode with visualization

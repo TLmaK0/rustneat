@@ -23,6 +23,13 @@ struct ChampionFile {
     /// Time constant τ of each neuron, by neuron id; `null` = default τ
     #[serde(default)]
     taus: Vec<Option<f64>>,
+    /// Number of input neurons (ids `0..input_neurons`). Missing (0) in
+    /// champions saved before it was stored.
+    #[serde(default)]
+    input_neurons: usize,
+    /// Number of output neurons (the ids right after the inputs).
+    #[serde(default)]
+    output_neurons: usize,
 }
 
 impl ChampionFile {
@@ -42,7 +49,12 @@ impl ChampionFile {
         } else {
             0
         };
-        let mut genome = Genome::from_genes(gene_vec, last_neuron_id);
+        let mut genome = Genome::from_genes_with_io(
+            gene_vec,
+            last_neuron_id,
+            self.input_neurons,
+            self.output_neurons,
+        );
         for (id, bias) in self.biases.iter().enumerate() {
             genome.set_bias(id, *bias);
         }

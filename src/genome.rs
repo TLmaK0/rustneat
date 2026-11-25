@@ -197,21 +197,51 @@ impl std::fmt::Debug for Genome {
 }
 
 impl Genome {
-    /// Create a genome from serialized gene data
+    /// Create a genome from serialized gene data.
+    ///
+    /// The genome does not know which neurons are inputs or outputs (both
+    /// counts are 0), so mutation may connect into an input and crossover
+    /// may drop an unconnected output: use `from_genes_with_io` when they
+    /// are known.
+    ///
+    /// The genome keeps one gene per connection `(in, out)`. Of several
+    /// genes with the same ends it keeps the last enabled one or, if none
+    /// is enabled, the last one: the gene the phenotype already used, so a
+    /// list with duplicates gives the same network as before. The genome
+    /// length is at least the highest neuron id of the genes plus one.
     pub fn from_genes(genes: Vec<Gene>, last_neuron_id: usize) -> Genome {
-        let mut genome = Genome {
-            genes: Vec::new(),
-            last_neuron_id,
-            ..Genome::default()
-        };
+        Genome::from_genes_with_io(genes, last_neuron_id, 0, 0)
+    }
+
+    /// Like `from_genes`, for a genome with `input_neurons` inputs (ids
+    /// `0..input_neurons`) and `output_neurons` outputs (the ids right
+    /// after), as `new_unconnected` would create it: mutation never adds a
+    /// connection into an input and crossover keeps every input and output,
+    /// connected or not.
+    pub fn from_genes_with_io(
+        genes: Vec<Gene>,
+        last_neuron_id: usize,
+        input_neurons: usize,
+        output_neurons: usize,
+    ) -> Genome {
+        let mut genome = Genome::new_unconnected(input_neurons, output_neurons);
+        genome.last_neuron_id = genome.last_neuron_id.max(last_neuron_id);
         for gene in genes {
-            // Directly add gene without validation since we're reconstructing
+            genome.last_neuron_id = genome
+                .last_neuron_id
+                .max(gene.in_neuron_id())
+                .max(gene.out_neuron_id());
             match genome.genes.binary_search(&gene) {
-                Ok(pos) => genome.genes[pos].set_enabled(),
-                Err(_) => genome.genes.push(gene),
+                // A later gene replaces an earlier one unless it is
+                // disabled and the earlier one is enabled.
+                Ok(pos) => {
+                    if gene.enabled() || !genome.genes[pos].enabled() {
+                        genome.genes[pos] = gene;
+                    }
+                }
+                Err(pos) => genome.genes.insert(pos, gene),
             }
         }
-        genome.genes.sort();
         genome
     }
 
@@ -803,11 +833,11 @@ impl Genome {
         if gene.out_neuron_id() > self.last_neuron_id {
             self.last_neuron_id = gene.out_neuron_id();
         }
+        // The genes stay sorted by (in, out): insert in place.
         match self.genes.binary_search(&gene) {
             Ok(pos) => self.genes[pos].set_enabled(),
-            Err(_) => self.genes.push(gene),
+            Err(pos) => self.genes.insert(pos, gene),
         }
-        self.genes.sort();
     }
 
     /// Compare another Genome for species equality
@@ -2116,6 +2146,136 @@ mod tests {
         assert_close(
             a.compatibility_distance_with_config(&b, &config),
             0.5 * (10f64.ln() + 4f64.ln()) / 2f64,
+        );
+    }
+
+    /// 30 genes over 8 distinct (in, out) pairs, in a shuffled order.
+    fn thirty_genes_eight_pairs() -> Vec<Gene> {
+        let pairs = [
+            (0, 2),
+            (1, 2),
+            (0, 3),
+            (1, 3),
+            (2, 4),
+            (4, 3),
+            (0, 4),
+            (3, 2),
+        ];
+        (0..30)
+            .map(|k| {
+                let (i, o) = pairs[(k * 5) % 8];
+                Gene::new(i, o, k as f64, true)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn from_genes_keeps_one_gene_per_connection() {
+        let genome = Genome::from_genes(thirty_genes_eight_pairs(), 4);
+        assert_eq!(genome.get_genes().len(), 8);
+        let mut sorted = connections(&genome);
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(connections(&genome), sorted);
+    }
+
+    #[test]
+    fn from_genes_keeps_the_last_enabled_duplicate_as_the_phenotype_did() {
+        let genes = vec![
+            Gene::new(0, 2, 1.0, true),
+            Gene::new(0, 2, 2.0, true),
+            Gene::new(0, 2, 3.0, false),
+            Gene::new(1, 2, 4.0, false),
+            Gene::new(1, 2, 5.0, false),
+            Gene::new(0, 3, 6.0, true),
+        ];
+        let genome = Genome::from_genes(genes, 3);
+        let kept: Vec<(usize, usize, f64, bool)> = genome
+            .get_genes()
+            .iter()
+            .map(|g| (g.in_neuron_id(), g.out_neuron_id(), g.weight(), g.enabled()))
+            .collect();
+        assert_eq!(
+            kept,
+            vec![(0, 2, 2.0, true), (0, 3, 6.0, true), (1, 2, 5.0, false)]
+        );
+    }
+
+    #[test]
+    fn from_genes_with_duplicates_activates_like_the_original_genes() {
+        // Before deduplicating, the phenotype used the last enabled gene of
+        // each connection; the deduplicated genome must give the same outputs.
+        let genes = thirty_genes_eight_pairs()
+            .into_iter()
+            .enumerate()
+            .map(|(k, g)| {
+                Gene::new(
+                    g.in_neuron_id(),
+                    g.out_neuron_id(),
+                    (k as f64 - 15.0) / 10.0,
+                    k % 3 != 0,
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut expected = Genome::new_unconnected(2, 2);
+        for gene in &genes {
+            if gene.enabled() {
+                expected.genes.retain(|g| g != gene);
+                expected.genes.push(*gene);
+                expected.genes.sort();
+            }
+        }
+        expected.last_neuron_id = 4;
+        let genome = Genome::from_genes_with_io(genes, 4, 2, 2);
+        let mut a = crate::Organism::new(expected);
+        let mut b = crate::Organism::new(genome);
+        let (mut out_a, mut out_b) = (vec![0f64; 2], vec![0f64; 2]);
+        for _ in 0..5 {
+            a.activate(vec![0.3, 0.9], &mut out_a);
+            b.activate(vec![0.3, 0.9], &mut out_b);
+            assert_eq!(out_a, out_b);
+        }
+    }
+
+    #[test]
+    fn from_genes_with_io_knows_its_inputs_and_outputs() {
+        let genes = vec![Gene::new(0, 2, 1.0, true), Gene::new(1, 2, 1.0, true)];
+        let genome = Genome::from_genes_with_io(genes, 2, 2, 1);
+        assert_eq!(genome.input_neurons(), 2);
+        assert_eq!(genome.output_neurons(), 1);
+        assert_eq!(genome.neurons(), vec![0, 1, 2]);
+        // Mutation never connects into an input once the genome knows them.
+        let mut rng = rng();
+        let mut genome = genome;
+        for _ in 0..200 {
+            genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
+        }
+        assert!(genome.get_genes().iter().all(|g| g.out_neuron_id() >= 2));
+    }
+
+    #[test]
+    fn from_genes_with_io_keeps_unconnected_outputs() {
+        let genome = Genome::from_genes_with_io(vec![Gene::new(0, 2, 1.0, true)], 0, 2, 2);
+        assert_eq!(genome.neurons(), vec![0, 1, 2, 3]);
+        assert_eq!(genome.len(), 4);
+    }
+
+    #[test]
+    fn from_genes_never_leaves_last_neuron_id_below_a_gene() {
+        let genome = Genome::from_genes(vec![Gene::new(0, 7, 1.0, true)], 1);
+        assert_eq!(genome.len(), 8);
+    }
+
+    #[test]
+    fn add_gene_keeps_genes_sorted_and_unique() {
+        let mut genome = Genome::new_unconnected(3, 2);
+        let order = [(2, 3), (0, 4), (1, 3), (0, 3), (2, 4), (1, 4), (0, 3)];
+        for &(i, o) in order.iter() {
+            genome.add_gene(Gene::new(i, o, 1.0, true));
+        }
+        assert_eq!(
+            connections(&genome),
+            vec![(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4)]
         );
     }
 }
