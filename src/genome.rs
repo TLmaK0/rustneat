@@ -43,6 +43,10 @@ pub struct Genome {
     /// `None` (or past the end) means the default τ of the organism
     /// (`MutationConfig::tau`).
     taus: Vec<Option<f64>>,
+    /// Ids of the neurons of the genome, sorted: what `neurons()` returns,
+    /// kept up to date as genes are added (genes are never removed and
+    /// never change their ends) so it is not rebuilt on every call.
+    neurons: Vec<usize>,
     /// Neurons `0..input_neurons` are inputs.
     input_neurons: usize,
     /// Neurons `input_neurons..input_neurons + output_neurons` are outputs.
@@ -182,6 +186,25 @@ fn mutated_value<R: Rng + ?Sized>(
     }
 }
 
+/// Merge two lists of genes sorted by their ends, with no gene in both.
+fn merge_sorted(a: Vec<Gene>, b: Vec<Gene>) -> Vec<Gene> {
+    if b.is_empty() {
+        return a;
+    }
+    let mut merged = Vec::with_capacity(a.len() + b.len());
+    let (mut a, mut b) = (a.into_iter().peekable(), b.into_iter().peekable());
+    while let (Some(x), Some(y)) = (a.peek(), b.peek()) {
+        if x < y {
+            merged.push(a.next().unwrap());
+        } else {
+            merged.push(b.next().unwrap());
+        }
+    }
+    merged.extend(a);
+    merged.extend(b);
+    merged
+}
+
 /// The genes; the revision is bookkeeping, not part of the genome.
 impl std::fmt::Debug for Genome {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -239,7 +262,10 @@ impl Genome {
                         genome.genes[pos] = gene;
                     }
                 }
-                Err(pos) => genome.genes.insert(pos, gene),
+                Err(pos) => {
+                    genome.genes.insert(pos, gene);
+                    genome.insert_neurons_of(&gene);
+                }
             }
         }
         genome
@@ -282,6 +308,7 @@ impl Genome {
             },
             biases: Vec::new(),
             taus: Vec::new(),
+            neurons: (0..input_neurons + output_neurons).collect(),
             input_neurons,
             output_neurons,
             revision: Revision::next(),
@@ -316,25 +343,50 @@ impl Genome {
     /// Ids of the neurons of the genome, in increasing order: its inputs and
     /// outputs, connected or not, and every neuron some gene connects.
     pub fn neurons(&self) -> Vec<usize> {
-        let mut ids: Vec<usize> = (0..self.input_neurons + self.output_neurons)
-            .chain(
-                self.genes
-                    .iter()
-                    .flat_map(|gene| [gene.in_neuron_id(), gene.out_neuron_id()]),
-            )
-            .collect();
-        ids.sort_unstable();
-        ids.dedup();
-        ids
+        self.neurons.clone()
+    }
+
+    /// `neurons()` without a copy.
+    pub(crate) fn neuron_ids(&self) -> &[usize] {
+        &self.neurons
     }
 
     /// True if `neuron_id` is one of `neurons()`.
     pub fn has_neuron(&self, neuron_id: usize) -> bool {
-        neuron_id < self.input_neurons + self.output_neurons
-            || self
-                .genes
-                .iter()
-                .any(|gene| gene.in_neuron_id() == neuron_id || gene.out_neuron_id() == neuron_id)
+        self.neurons.binary_search(&neuron_id).is_ok()
+    }
+
+    /// Replace the (empty) genes of a new genome with `genes`, sorted and
+    /// without two genes with the same ends: the same genome as adding them
+    /// one by one with `add_gene`, without inserting them one by one.
+    fn set_sorted_genes(&mut self, genes: Vec<Gene>) {
+        debug_assert!(self.genes.is_empty());
+        debug_assert!(genes.windows(2).all(|pair| pair[0] < pair[1]));
+        self.touch();
+        let fixed = self.input_neurons + self.output_neurons;
+        let mut neurons: Vec<usize> = (0..fixed)
+            .chain(
+                genes
+                    .iter()
+                    .flat_map(|gene| [gene.in_neuron_id(), gene.out_neuron_id()]),
+            )
+            .collect();
+        neurons.sort_unstable();
+        neurons.dedup();
+        if let Some(&highest) = neurons.last() {
+            self.last_neuron_id = self.last_neuron_id.max(highest);
+        }
+        self.neurons = neurons;
+        self.genes = genes;
+    }
+
+    /// Record the ends of a new gene as neurons of the genome.
+    fn insert_neurons_of(&mut self, gene: &Gene) {
+        for id in [gene.in_neuron_id(), gene.out_neuron_id()] {
+            if let Err(position) = self.neurons.binary_search(&id) {
+                self.neurons.insert(position, id);
+            }
+        }
     }
 
     /// Time constant τ of the neuron `neuron_id`, `None` if it has no τ
@@ -507,6 +559,7 @@ impl Genome {
             last_neuron_id: self.last_neuron_id,
             ..Genome::default()
         };
+        genome.neurons = (0..genome.input_neurons + genome.output_neurons).collect();
         if equal_fitness {
             // Keep every neuron of both parents so a randomly inherited gene
             // never references a neuron the child lacks.
@@ -516,9 +569,24 @@ impl Genome {
         // genes (`crossover_weight_averaging_rate`, 0.4 by default).
         let use_average_weights = rng.gen::<f64>() < config.crossover_weight_averaging_rate;
 
+        // The genes of the child: those taken from `self` (in order) and,
+        // with equal fitness, those only `other` has (in order too).
+        let mut genes = Vec::with_capacity(self.genes.len());
+        let mut genes_of_other = vec![];
+        // Both gene lists are sorted: walk `other` along `self` to find the
+        // matching genes.
+        let mut next_of_other = 0;
         for gene in &self.genes {
-            let mut child_gene = match other.genes.binary_search(gene) {
-                Ok(position) => {
+            while next_of_other < other.genes.len() && other.genes[next_of_other] < *gene {
+                next_of_other += 1;
+            }
+            let other_position = other
+                .genes
+                .get(next_of_other)
+                .filter(|other_gene| *other_gene == gene)
+                .map(|_| next_of_other);
+            let mut child_gene = match other_position {
+                Some(position) => {
                     // Matching gene in both parents
                     if use_average_weights {
                         // Inherit average weight from both parents
@@ -531,7 +599,7 @@ impl Genome {
                         other.genes[position]
                     }
                 }
-                Err(_) => {
+                None => {
                     // Disjoint/excess gene: inherit from the fitter parent (self),
                     // or from either parent at random when fitness is equal
                     if equal_fitness && rng.gen::<f64>() < 0.5 {
@@ -543,12 +611,7 @@ impl Genome {
 
             // NEAT rule: a gene disabled in either parent is disabled in
             // the child with probability `disabled_inheritance`.
-            let other_gene_disabled = other
-                .genes
-                .binary_search(gene)
-                .ok()
-                .map(|pos| !other.genes[pos].enabled())
-                .unwrap_or(false);
+            let other_gene_disabled = other_position.is_some_and(|pos| !other.genes[pos].enabled());
 
             if !gene.enabled() || other_gene_disabled {
                 if rng.gen::<f64>() < disabled_inheritance {
@@ -558,12 +621,17 @@ impl Genome {
                 }
             }
 
-            genome.add_gene(child_gene);
+            genes.push(child_gene);
         }
 
         if equal_fitness {
+            let mut next_of_self = 0;
             for gene in &other.genes {
-                if self.genes.binary_search(gene).is_ok() || rng.gen::<f64>() < 0.5 {
+                while next_of_self < self.genes.len() && self.genes[next_of_self] < *gene {
+                    next_of_self += 1;
+                }
+                let in_self = self.genes.get(next_of_self) == Some(gene);
+                if in_self || rng.gen::<f64>() < 0.5 {
                     continue;
                 }
                 let mut child_gene = *gene;
@@ -574,16 +642,17 @@ impl Genome {
                         child_gene.set_enabled();
                     }
                 }
-                genome.add_gene(child_gene);
+                genes_of_other.push(child_gene);
             }
         }
+        genome.set_sorted_genes(merge_sorted(genes, genes_of_other));
 
         // Neuron genes: a neuron of both parents (the same id, so the same
         // innovation) takes the bias of either at random (or their average
         // when weights are averaged); a neuron of only one parent takes its
         // bias.
         let mut biases = vec![0f64; genome.len()];
-        for id in genome.neurons() {
+        for &id in genome.neuron_ids() {
             biases[id] = match (self.has_neuron(id), other.has_neuron(id)) {
                 (true, true) if use_average_weights => (self.bias(id) + other.bias(id)) / 2.0,
                 (true, true) if rng.gen::<f64>() > 0.5 => self.bias(id),
@@ -598,7 +667,7 @@ impl Genome {
         // τ draw nothing, so without τ mutation the random sequence is the
         // same as before τ genes existed.
         let mut taus = vec![None; genome.len()];
-        for id in genome.neurons() {
+        for &id in genome.neuron_ids() {
             taus[id] = match (self.has_neuron(id), other.has_neuron(id)) {
                 (true, true) => match (self.tau(id), other.tau(id)) {
                     (a, b) if a == b => a,
@@ -645,11 +714,11 @@ impl Genome {
         config: &MutationConfig,
         rng: &mut R,
     ) {
-        let candidates = self.new_connection_candidates();
-        if candidates.is_empty() {
+        let count = self.new_connection_count();
+        if count == 0 {
             return;
         }
-        let (in_neuron_id, out_neuron_id) = candidates[rng.gen_range(0..candidates.len())];
+        let (in_neuron_id, out_neuron_id) = self.nth_new_connection(rng.gen_range(0..count));
         let weight = Gene::generate_weight_in_range_with_rng(config.weight_init_range, rng);
         let gene = Gene::new(
             in_neuron_id,
@@ -660,45 +729,100 @@ impl Genome {
         self.add_gene(gene);
     }
 
-    /// Every connection the add-connection mutation may create, as
-    /// `(in_neuron_id, out_neuron_id)`: between two different neurons, not
-    /// ending in an input, and not already in the genome (enabled or not).
-    ///
-    /// Picking one of them uniformly is the same as drawing pairs uniformly
-    /// and retrying until the pair is new. This replaces the reservoir
-    /// sampling kept from rand 0.4 (`sample_iter`), whose pair order depended
-    /// on the ids (with 3 neurons, 1 -> 2 was never chosen), and the old
-    /// behaviour of giving up when the drawn connection already existed.
-    ///
-    /// Only neurons of the genome (`neurons()`) are connected: with ids from
-    /// an `InnovationRegistry` the ids in between belong to other genomes.
-    /// A genome that does not know its inputs (`Genome::default`) with a
-    /// single neuron can still connect it to itself, as before.
-    fn new_connection_candidates(&self) -> Vec<(usize, usize)> {
-        let exists = |from: usize, to: usize| {
-            self.genes
-                .binary_search(&Gene::new_connection(from, to))
-                .is_ok()
-        };
-        if self.input_neurons == 0 && self.len() == 1 {
-            return if exists(0, 0) { vec![] } else { vec![(0, 0)] };
+    // The connections the add-connection mutation may create, as
+    // `(in_neuron_id, out_neuron_id)`: between two different neurons, not
+    // ending in an input, and not already in the genome (enabled or not),
+    // ordered by `in` and then by `out`. The mutation draws one uniformly:
+    // the same as drawing pairs uniformly and retrying until the pair is
+    // new. This replaces the reservoir sampling kept from rand 0.4
+    // (`sample_iter`), whose pair order depended on the ids (with 3
+    // neurons, 1 -> 2 was never chosen), and the old behaviour of giving up
+    // when the drawn connection already existed.
+    //
+    // Only neurons of the genome (`neurons()`) are connected: with ids from
+    // an `InnovationRegistry` the ids in between belong to other genomes.
+    // A genome that does not know its inputs (`Genome::default`) with a
+    // single neuron can still connect it to itself, as before.
+    //
+    // They are counted (`new_connection_count`) and the drawn one is found
+    // (`nth_new_connection`) without listing them: with n neurons there
+    // are about n² of them.
+
+    /// True for a genome that does not know its inputs with a single
+    /// neuron, 0, which can only be connected to itself.
+    fn is_single_neuron_without_inputs(&self) -> bool {
+        self.input_neurons == 0 && self.len() == 1
+    }
+
+    /// Genes leaving neuron `from` (genes are sorted by `in`, then `out`).
+    fn genes_from(&self, from: usize) -> &[Gene] {
+        let start = self
+            .genes
+            .partition_point(|gene| gene.in_neuron_id() < from);
+        let end = self
+            .genes
+            .partition_point(|gene| gene.in_neuron_id() <= from);
+        &self.genes[start..end]
+    }
+
+    /// Neurons a new connection may end in: every neuron but the inputs.
+    fn destinations(&self) -> &[usize] {
+        let inputs = self.neurons.partition_point(|&id| id < self.input_neurons);
+        &self.neurons[inputs..]
+    }
+
+    /// Number of new connections leaving `from`, a neuron of the genome:
+    /// every destination but `from` itself and those it already reaches.
+    fn new_connections_from(&self, from: usize, destinations: usize) -> usize {
+        let existing = self
+            .genes_from(from)
+            .iter()
+            .filter(|gene| gene.out_neuron_id() >= self.input_neurons)
+            .filter(|gene| gene.out_neuron_id() != from)
+            .count();
+        destinations - usize::from(from >= self.input_neurons) - existing
+    }
+
+    /// Number of connections the add-connection mutation may create.
+    fn new_connection_count(&self) -> usize {
+        if self.is_single_neuron_without_inputs() {
+            return usize::from(self.genes_from(0).is_empty());
         }
-        let neurons = self.neurons();
-        let destinations: Vec<usize> = neurons
+        let destinations = self.destinations().len();
+        self.neurons
             .iter()
-            .copied()
-            .filter(|&id| id >= self.input_neurons)
-            .collect();
-        neurons
-            .iter()
-            .flat_map(|&from| {
-                destinations
-                    .iter()
-                    .filter(move |&&to| to != from)
-                    .map(move |&to| (from, to))
-            })
-            .filter(|&(from, to)| !exists(from, to))
-            .collect()
+            .map(|&from| self.new_connections_from(from, destinations))
+            .sum()
+    }
+
+    /// The new connection at position `n` (below `new_connection_count()`),
+    /// ordered by `in` and then by `out`.
+    fn nth_new_connection(&self, mut n: usize) -> (usize, usize) {
+        if self.is_single_neuron_without_inputs() {
+            return (0, 0);
+        }
+        let destinations = self.destinations();
+        for &from in &self.neurons {
+            let count = self.new_connections_from(from, destinations.len());
+            if n >= count {
+                n -= count;
+                continue;
+            }
+            let existing = self.genes_from(from);
+            for &to in destinations {
+                let new = to != from
+                    && existing
+                        .binary_search(&Gene::new_connection(from, to))
+                        .is_err();
+                if new {
+                    if n == 0 {
+                        return (from, to);
+                    }
+                    n -= 1;
+                }
+            }
+        }
+        panic!("there are fewer new connections than {}", n + 1)
     }
 
     fn mutate_connection_weight_with_config<R: Rng + ?Sized>(
@@ -732,7 +856,7 @@ impl Genome {
     /// except those of the inputs, which are sources without bias.
     fn mutate_biases_with_config<R: Rng + ?Sized>(&mut self, config: &MutationConfig, rng: &mut R) {
         self.biases.resize(self.len(), 0f64);
-        for id in self.neurons() {
+        for &id in &self.neurons {
             if id < self.input_neurons {
                 continue;
             }
@@ -755,7 +879,8 @@ impl Genome {
     /// `[tau_min, tau_max]`. A neuron without τ gene starts from the
     /// default `config.tau`.
     fn mutate_taus_with_config<R: Rng + ?Sized>(&mut self, config: &MutationConfig, rng: &mut R) {
-        for id in self.neurons() {
+        for index in 0..self.neurons.len() {
+            let id = self.neurons[index];
             if id < self.input_neurons {
                 continue;
             }
@@ -848,7 +973,10 @@ impl Genome {
         // The genes stay sorted by (in, out): insert in place.
         match self.genes.binary_search(&gene) {
             Ok(pos) => self.genes[pos].set_enabled(),
-            Err(pos) => self.genes.insert(pos, gene),
+            Err(pos) => {
+                self.genes.insert(pos, gene);
+                self.insert_neurons_of(&gene);
+            }
         }
     }
 
@@ -954,33 +1082,37 @@ impl Genome {
 
         // Neurons both genomes have (same id, same innovation), inputs
         // excluded.
-        let first = cmp::max(self.input_neurons, other.input_neurons);
-        let other_neurons = other.neurons();
-        let common: Vec<usize> = self
-            .neurons()
-            .into_iter()
-            .filter(|&id| id >= first && other_neurons.binary_search(&id).is_ok())
-            .collect();
-        let average_bias_difference = if common.is_empty() {
-            0f64
-        } else {
-            common
-                .iter()
-                .map(|&id| (self.bias(id) - other.bias(id)).abs())
-                .sum::<f64>()
-                / common.len() as f64
-        };
-
         // τ acts through dt/τ, so its differences count in log scale.
-        let average_tau_difference = if common.is_empty() {
-            0f64
+        let default_log_tau = config.tau.ln();
+        let log_tau = |genome: &Genome, id| genome.tau(id).map_or(default_log_tau, f64::ln);
+        let first = cmp::max(self.input_neurons, other.input_neurons);
+        let (mut common, mut bias_difference, mut tau_difference) = (0usize, 0f64, 0f64);
+        // Both neuron lists are sorted: walk them together.
+        let (a, b) = (&self.neurons, &other.neurons);
+        let (mut i, mut j) = (0, 0);
+        while i < a.len() && j < b.len() {
+            match a[i].cmp(&b[j]) {
+                cmp::Ordering::Less => i += 1,
+                cmp::Ordering::Greater => j += 1,
+                cmp::Ordering::Equal => {
+                    let id = a[i];
+                    if id >= first {
+                        common += 1;
+                        bias_difference += (self.bias(id) - other.bias(id)).abs();
+                        tau_difference += (log_tau(self, id) - log_tau(other, id)).abs();
+                    }
+                    i += 1;
+                    j += 1;
+                }
+            }
+        }
+        let (average_bias_difference, average_tau_difference) = if common == 0 {
+            (0f64, 0f64)
         } else {
-            let log_tau = |genome: &Genome, id| genome.tau(id).unwrap_or(config.tau).ln();
-            common
-                .iter()
-                .map(|&id| (log_tau(self, id) - log_tau(other, id)).abs())
-                .sum::<f64>()
-                / common.len() as f64
+            (
+                bias_difference / common as f64,
+                tau_difference / common as f64,
+            )
         };
 
         config.compatibility_excess_coefficient * excess as f64 / n
@@ -1115,6 +1247,73 @@ mod tests {
         assert_eq!(seen.len(), 4, "{:?}", seen);
         for &count in seen.values() {
             assert!(count > 850 && count < 1150, "{:?}", seen);
+        }
+    }
+
+    /// Every new connection, listed the way the add-connection mutation
+    /// listed them before #101: every pair (from, to) of neurons of the
+    /// genome, `from` first then `to`, with `to` not an input, `to != from`,
+    /// and no gene `from -> to` yet.
+    fn listed_new_connections(genome: &Genome) -> Vec<(usize, usize)> {
+        let exists = |from: usize, to: usize| {
+            genome
+                .genes
+                .binary_search(&Gene::new_connection(from, to))
+                .is_ok()
+        };
+        if genome.input_neurons == 0 && genome.len() == 1 {
+            return if exists(0, 0) { vec![] } else { vec![(0, 0)] };
+        }
+        let neurons = genome.neurons();
+        let mut pairs = vec![];
+        for &from in &neurons {
+            for &to in neurons.iter().filter(|&&id| id >= genome.input_neurons) {
+                if to != from && !exists(from, to) {
+                    pairs.push((from, to));
+                }
+            }
+        }
+        pairs
+    }
+
+    /// The add-connection mutation counts the new connections and finds the
+    /// one it draws without listing them all, and gives the same pair the
+    /// full list gave at that position: same results, much faster with
+    /// large genomes (#101).
+    #[test]
+    fn new_connections_are_counted_and_found_without_listing_them() {
+        let mut rng = rng();
+        let mut genomes = vec![
+            Genome::default(),
+            Genome::from_genes(vec![Gene::new(0, 0, 1f64, true)], 0),
+            Genome::from_genes(vec![Gene::new(1, 0, 1f64, true)], 3),
+            Genome::new_unconnected(2, 1),
+            Genome::new_initialized(1, 2),
+            // Genes into an input and loops, which the mutation never adds.
+            Genome::from_genes_with_io(
+                vec![
+                    Gene::new(2, 0, 1f64, true),
+                    Gene::new(2, 2, 1f64, true),
+                    Gene::new(0, 7, 1f64, false),
+                    Gene::new(7, 2, 1f64, true),
+                ],
+                7,
+                2,
+                1,
+            ),
+        ];
+        let mut innovations = InnovationRegistry::new(5);
+        let mut genome = Genome::new_initialized(3, 2);
+        for _ in 0..300 {
+            genome.mutate_with_innovations(&MutationConfig::default(), &mut innovations, &mut rng);
+            genomes.push(genome.clone());
+        }
+        for genome in &genomes {
+            let listed = listed_new_connections(genome);
+            assert_eq!(genome.new_connection_count(), listed.len(), "{:?}", genome);
+            for (n, &pair) in listed.iter().enumerate() {
+                assert_eq!(genome.nth_new_connection(n), pair, "{:?}", genome);
+            }
         }
     }
 
@@ -2229,13 +2428,16 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        let mut expected = Genome::new_unconnected(2, 2);
+        let mut last_enabled: Vec<Gene> = vec![];
         for gene in &genes {
             if gene.enabled() {
-                expected.genes.retain(|g| g != gene);
-                expected.genes.push(*gene);
-                expected.genes.sort();
+                last_enabled.retain(|g| g != gene);
+                last_enabled.push(*gene);
             }
+        }
+        let mut expected = Genome::new_unconnected(2, 2);
+        for gene in last_enabled {
+            expected.add_gene(gene);
         }
         expected.last_neuron_id = 4;
         let genome = Genome::from_genes_with_io(genes, 4, 2, 2);

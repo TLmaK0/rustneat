@@ -140,6 +140,17 @@ impl Organism {
         child.output_activation = self.output_activation;
         child
     }
+    /// A copy for crossover only: the genome, fitness and CTRNN settings,
+    /// without the compiled phenotype and the CTRNN state, which crossover
+    /// does not use and are the costly part of a clone.
+    pub(crate) fn clone_for_mating(&self) -> Organism {
+        Organism {
+            genome: self.genome.clone(),
+            ctrnn_state: vec![],
+            phenotype: None,
+            ..*self
+        }
+    }
     /// Mate this organism with another
     pub fn mate(&self, other: &Organism) -> Organism {
         self.mate_with_rng(other, &mut rand::thread_rng())
@@ -399,6 +410,41 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(run(7), run(7));
+    }
+
+    #[test]
+    fn mating_copy_keeps_what_crossover_needs_without_the_phenotype() {
+        let mut organism = Organism::new(Genome::new_initialized(2, 1));
+        organism.fitness = 3.5;
+        organism.adjusted_fitness = 1.5;
+        organism.tau = 0.2;
+        organism.dt = 0.02;
+        organism.step_time = 0.3;
+        organism.output_activation = OutputActivation::Linear;
+        let mut output = vec![0f64];
+        organism.activate(vec![1f64, 0f64], &mut output);
+        assert!(organism.phenotype.is_some());
+
+        let copy = organism.clone_for_mating();
+        assert!(copy.phenotype.is_none());
+        assert!(copy.ctrnn_state.is_empty());
+        assert_eq!(
+            format!("{:?}", copy.genome),
+            format!("{:?}", organism.genome)
+        );
+        assert_eq!(copy.genome.revision(), organism.genome.revision());
+        assert_eq!(
+            (
+                copy.fitness,
+                copy.adjusted_fitness,
+                copy.tau,
+                copy.dt,
+                copy.step_time
+            ),
+            (3.5, 1.5, 0.2, 0.02, 0.3)
+        );
+        assert_eq!(copy.output_activation, OutputActivation::Linear);
+        assert_eq!(copy.evaluations(), organism.evaluations());
     }
 
     #[test]

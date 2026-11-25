@@ -534,12 +534,17 @@ fn compatible_species(
     config: &MutationConfig,
 ) -> Option<usize> {
     match config.species_assignment {
-        SpeciesAssignment::FirstCompatible => species
-            .iter()
-            .enumerate()
-            .filter(|(_, specie)| specie.match_genome_with_config(organism, config))
-            .min_by_key(|(_, specie)| specie.id)
-            .map(|(index, _)| index),
+        SpeciesAssignment::FirstCompatible => {
+            // The compatible species with the lowest id: try them from the
+            // lowest id and stop at the first compatible one. `Population`
+            // keeps its species by increasing id, so this is usually in
+            // order.
+            let mut by_id: Vec<usize> = (0..species.len()).collect();
+            by_id.sort_by_key(|&index| species[index].id);
+            by_id
+                .into_iter()
+                .find(|&index| species[index].match_genome_with_config(organism, config))
+        }
         SpeciesAssignment::Closest => closest_compatible_species(species, organism, config),
     }
 }
@@ -572,11 +577,17 @@ fn closest_compatible_species(
     closest.map(|(index, _)| index)
 }
 
-/// A copy of the parents (`Specie::parents_with_config`) of each species.
+/// A copy of the parents (`Specie::parents_with_config`) of each species,
+/// for crossover only (`Organism::clone_for_mating`).
 fn species_parents(species: &[Specie], config: &MutationConfig) -> Vec<Vec<Organism>> {
     species
         .iter()
-        .map(|specie| specie.parents_with_config(config).cloned().collect())
+        .map(|specie| {
+            specie
+                .parents_with_config(config)
+                .map(Organism::clone_for_mating)
+                .collect()
+        })
         .collect()
 }
 

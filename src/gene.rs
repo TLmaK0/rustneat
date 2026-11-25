@@ -20,20 +20,9 @@ impl PartialEq for Gene {
 }
 
 impl Ord for Gene {
+    /// By `in`, then by `out`.
     fn cmp(&self, other: &Gene) -> Ordering {
-        if self == other {
-            Ordering::Equal
-        } else if self.in_neuron_id == other.in_neuron_id {
-            if self.out_neuron_id > other.out_neuron_id {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            }
-        } else if self.in_neuron_id > other.in_neuron_id {
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        }
+        (self.in_neuron_id, self.out_neuron_id).cmp(&(other.in_neuron_id, other.out_neuron_id))
     }
 }
 
