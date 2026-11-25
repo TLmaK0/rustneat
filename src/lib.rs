@@ -45,6 +45,12 @@ pub use self::specie::Specie;
 pub use self::species_evaluator::SpeciesEvaluator;
 pub use ctrnn::CtrnnNeuralNetwork;
 
+/// The Rust code blocks of `README.md`, compiled and run as doc-tests so
+/// the README cannot drift from the API.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+pub struct ReadmeDoctests;
+
 mod ctrnn;
 /// Trait to define test parameter
 pub mod environment;

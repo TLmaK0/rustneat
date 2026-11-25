@@ -6,13 +6,66 @@ Implementation of **NeuroEvolution of Augmenting Topologies NEAT** http://nn.cs.
 
 This implementation uses a **CTRNN** (Continuous-Time Recurrent Neural Network) based on **On the Dynamics of Small Continuous-Time Recurrent Neural Network** (Beer, 1995) http://www.cs.uvm.edu/~jbongard/2014_CS206/Beer_CTRNNs.pdf
 
-### CTRNN time constant (τ)
+### CTRNN dynamics and time constant (τ)
 
-The time constant τ controls neuron response speed — like biological membrane resistance time. What matters is the ratio `dt/τ` where `dt=0.01` is the simulation step. Configurable via `MutationConfig::tau`:
+Input neurons are sources: their value enters the neurons they connect to as
+`w·x`. Every hidden and output neuron `j` follows
 
-- **Small τ** (e.g. 0.01): `dt/τ = 1.0` — neurons react instantly, state resets each step. Network behaves as **feedforward**. Use for stateless problems like XOR.
-- **Large τ** (e.g. 0.1): `dt/τ = 0.1` — neurons update only 10% per step, retaining 90% of previous state. Network has **temporal memory**. Use for control tasks like Lunar Lander where the agent integrates information over time.
-- **Very large τ** (e.g. 1.0): `dt/τ = 0.01` — neurons barely respond, very strong inertia. Needs many steps to react to new inputs.
+```text
+τ_j · dy_j/dt = -y_j + Σ w_ij · σ(y_i + θ_i) + Σ w_kj · x_k
+```
+
+where `θ` is the neuron's bias. Each `Organism::activate` call integrates
+`step_time` seconds in `round(step_time / dt)` steps of length about `dt`,
+with **exponential Euler**: during a step of length `h` each neuron moves the
+fraction `1 - e^(-h/τ)` of the way to its target,
+`y ← y + (1 - e^(-h/τ))·(target - y)`. That fraction is in (0, 1], so the
+integration is stable for any τ > 0 and has the fixed points of the ODE.
+
+τ sets how fast a neuron follows its input; what matters is the ratio `dt/τ`:
+
+- **Small τ** (τ ≤ dt/10): the neuron reaches its target in a single step and
+  the network behaves as a discrete map. Suited to stateless problems such as
+  XOR.
+- **τ = dt**: the neuron moves about 63 % of the way each step.
+- **Large τ** (τ of 10 to 100 times dt): neurons have inertia and the network
+  keeps **temporal memory**, useful in control tasks such as Lunar Lander,
+  where the agent integrates information over time.
+
+**Propagation depth.** A change travels one connection per integration step,
+so one `activate` call only sees inputs at most `round(step_time / dt)`
+connections upstream; longer paths act on later calls. The CTRNN state
+persists between calls until `Organism::reset_state`, so reset it before each
+case when the cases are independent.
+
+**Per-neuron τ.** τ is a gene: `Genome::tau(id)` / `Genome::set_tau(id, τ)`.
+Neurons without a τ gene use the default `MutationConfig::tau`. τ only evolves
+when `tau_mutation_rate` is above zero (it is zero by default); then each τ is
+perturbed log-normally (`tau_gene_mutation_rate`, `tau_mutate_power`) and
+clipped to `tau_range(min, max)`. `compatibility_tau_coefficient` adds τ
+differences to the speciation distance.
+
+All of these are `MutationConfig` settings, copied into every organism of the
+population:
+
+```rust
+use rustneat::{MutationConfig, Population};
+
+let config = MutationConfig::new()
+    .dt(0.01) // integration step, seconds
+    .step_time(0.1) // simulated time per activate() call: 10 steps
+    .tau(0.1) // default τ: neurons with memory
+    .tau_mutation_rate(0.1) // let τ evolve per neuron...
+    .tau_range(0.01, 1.0) // ...within this range
+    .build();
+let population = Population::create_population_initialized_with_config(150, 2, 1, config);
+assert_eq!(population.size(), 150);
+```
+
+**Explicit Euler.** `Integrator::Euler` (`y ← y + (h/τ)·(target - y)`) is kept
+to reproduce older results. It is only stable for `h/τ < 2` and is available
+through the low-level `Ctrnn::with_integrator(Integrator::Euler)`;
+`Organism::activate`, and so evolution, always uses exponential Euler.
 
 ## Telemetry Dashboard
 
@@ -74,22 +127,23 @@ cargo test --release
 
 ## Sample usage
 
-Create a new cargo project and add rustneat to Cargo.toml:
+This README documents the code in this repository, which can differ from the
+releases published on crates.io. To use it, depend on the repository:
 
 ```toml
 [dependencies]
-rustneat = "0.2.1"
+rustneat = { git = "https://github.com/TLmaK0/rustneat", branch = "develop" }
 ```
+
+The Rust examples in this README are compiled and run as doc-tests by
+`cargo test`, so they match the API of the code next to them.
 
 Then use the library to implement XOR classification. `activate` keeps the
 CTRNN state between calls (useful for control tasks, where one episode is many
 calls); XOR is four independent cases, so the state is reset before each one:
 
 ```rust
-extern crate rustneat;
-use rustneat::Environment;
-use rustneat::Organism;
-use rustneat::Population;
+use rustneat::{Environment, Organism, Population};
 
 const PATTERNS: [([f64; 2], f64); 4] = [
     ([0f64, 0f64], 0f64),
@@ -116,27 +170,37 @@ impl Environment for XORClassification {
 fn main() {
     // 2 inputs connected directly to 1 output, no hidden neurons:
     // NEAT adds neurons and connections as it needs them.
-    let mut population = Population::create_population_initialized(150, 2, 1);
+    // `with_seed` makes the run reproducible; leave it out for a random one.
+    let mut population = Population::create_population_initialized(150, 2, 1).with_seed(42);
     let environment = XORClassification;
     let mut champion: Option<Organism> = None;
-    while champion.is_none() {
+    for _generation in 0..500 {
         population.evolve();
         // Err if the environment returns NaN or an infinite fitness.
         population
             .evaluate_in(&environment)
             .expect("the environment must return a finite fitness");
-        for organism in &population.get_organisms() {
-            if organism.fitness > 15.5f64 {
-                champion = Some(organism.clone());
-            }
+        champion = population
+            .get_organisms()
+            .into_iter()
+            .find(|organism| organism.fitness > 15.5f64);
+        if champion.is_some() {
+            break;
         }
     }
-    println!("{:?}", champion.unwrap().genome);
+    match champion {
+        Some(champion) => println!("{:?}", champion.genome),
+        None => println!("not solved within 500 generations"),
+    }
 }
 ```
 
-For a reproducible run, seed the population:
-`Population::create_population_initialized(150, 2, 1).with_seed(42)`.
+The same program, with the champion's answers printed, is
+`examples/simple_sample.rs`:
+
+```bash
+cargo run --release --example simple_sample
+```
 
 ## Develop
 
