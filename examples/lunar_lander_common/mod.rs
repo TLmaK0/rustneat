@@ -49,6 +49,40 @@ pub fn parse_output_activation(name: &str) -> Result<OutputActivation, String> {
     }
 }
 
+/// A gene as stored in the current format: (in, out, weight, enabled).
+pub type GeneData = (usize, usize, f64, bool);
+
+/// A gene as stored in the files: the current 4 fields, or the 5 fields
+/// written before #60 removed the per-connection `is_bias` flag.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum StoredGene {
+    Current(usize, usize, f64, bool),
+    /// (in, out, weight, enabled, is_bias)
+    Pre60(usize, usize, f64, bool, bool),
+}
+
+/// Reads genes in either format. `is_bias` is dropped: #60 replaced it with
+/// a real bias per neuron, and a champion saved before #60 has no biases,
+/// so all its biases load as 0. Such a champion loads and runs, but it does
+/// not behave as it did when it was saved (#59 changed the output to
+/// σ(y + θ) and #60 the bias), so it should be evolved again.
+fn deserialize_genes<'de, D>(deserializer: D) -> Result<Vec<GeneData>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let stored = Vec::<StoredGene>::deserialize(deserializer)?;
+    Ok(stored
+        .into_iter()
+        .map(|gene| match gene {
+            StoredGene::Current(in_id, out_id, weight, enabled)
+            | StoredGene::Pre60(in_id, out_id, weight, enabled, _) => {
+                (in_id, out_id, weight, enabled)
+            }
+        })
+        .collect())
+}
+
 /// Everything needed to rebuild an organism that behaves exactly like the
 /// original: its genome and the CTRNN settings that are not in the genome
 /// (default τ, dt, step time, output activation). It is what the Python
@@ -57,8 +91,10 @@ pub fn parse_output_activation(name: &str) -> Result<OutputActivation, String> {
 pub struct OrganismData {
     /// `Genome::len()`: highest neuron id + 1
     pub neurons_len: usize,
-    /// (in, out, weight, enabled)
-    pub genes: Vec<(usize, usize, f64, bool)>,
+    /// (in, out, weight, enabled). Champions saved before #60 have a fifth
+    /// field, `is_bias`, which is dropped on load (see `deserialize_genes`).
+    #[serde(deserialize_with = "deserialize_genes")]
+    pub genes: Vec<GeneData>,
     /// Bias of each neuron, by neuron id
     #[serde(default)]
     pub biases: Vec<f64>,

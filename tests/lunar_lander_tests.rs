@@ -15,6 +15,7 @@ use lunar_lander_common::{
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rustneat::{Environment, MutationConfig, Organism, OutputActivation, Population};
+use std::path::Path;
 
 const INPUTS: usize = 8;
 const OUTPUTS: usize = 2;
@@ -157,6 +158,66 @@ fn champions_saved_before_the_ctrnn_settings_load_with_the_lander_dynamics() {
     assert_eq!(organism.dt, MutationConfig::default().dt);
     assert_eq!(organism.output_activation, OutputActivation::Sigmoid);
     assert_eq!(organism.genome.tau(1), Some(0.2));
+}
+
+/// `tests/fixtures/champion_pre_60.json` is a champion in the format the
+/// lander wrote before #60: genes are (in, out, weight, enabled, is_bias)
+/// and there are no biases, taus, input/output counts or CTRNN settings.
+fn pre_60_fixture() -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("champion_pre_60.json")
+        .to_str()
+        .unwrap()
+        .to_string()
+}
+
+#[test]
+fn champions_saved_before_60_load_with_is_bias_dropped_and_zero_biases() {
+    let champion = ChampionFile::load(&pre_60_fixture()).unwrap();
+    assert_eq!(champion.fitness, 231.84617092516303);
+    assert_eq!(champion.generation, 187);
+    let data = &champion.organism;
+    assert_eq!(data.neurons_len, 12);
+    assert_eq!(data.genes.len(), 8);
+    assert_eq!(data.genes[1], (1, 8, -0.6612094471739208, true));
+    assert_eq!(data.genes[3], (5, 10, -1.4413592005063247, false));
+    assert!(data.biases.is_empty());
+
+    let mut organism = data.to_organism().unwrap();
+    assert_eq!(organism.genome.get_genes().len(), 8);
+    for id in 0..data.neurons_len {
+        assert_eq!(organism.genome.bias(id), 0.0, "bias of neuron {}", id);
+    }
+    assert_eq!(organism.tau, LANDER_TAU);
+    assert_eq!(organism.step_time, LANDER_STEP_TIME);
+    assert_eq!(organism.output_activation, OutputActivation::Sigmoid);
+
+    // It runs and gives finite outputs (not the same as before #59/#60).
+    let mut outputs = vec![0f64; OUTPUTS];
+    organism.activate(vec![0.5; INPUTS], &mut outputs);
+    assert!(outputs.iter().all(|o| o.is_finite()), "{:?}", outputs);
+
+    // Saved again, it is written in the current (4-field) format.
+    let json = serde_json::to_string(&champion).unwrap();
+    let reloaded: ChampionFile = serde_json::from_str(&json).unwrap();
+    assert_eq!(reloaded.organism, champion.organism);
+}
+
+#[test]
+fn genes_with_a_wrong_number_of_fields_are_an_error() {
+    for genes in ["[[0, 1, 0.5]]", "[[0, 1, 0.5, true, false, true]]"] {
+        let json = format!(
+            r#"{{"fitness": 1.0, "generation": 1, "neurons_len": 2, "genes": {}}}"#,
+            genes
+        );
+        assert!(
+            serde_json::from_str::<ChampionFile>(&json).is_err(),
+            "{} should not load",
+            genes
+        );
+    }
 }
 
 #[test]

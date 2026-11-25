@@ -118,6 +118,8 @@ cargo build --release --example test_champion --features openai
 ./target/release/examples/test_champion
 ```
 
+Champions saved by older versions still load. A `champion.json` written before the per-neuron bias (#60) stores each gene with a fifth field, `is_bias`; that field is dropped and every bias loads as 0. Such a champion runs, but it does not behave as it did when it was saved: since #59 the outputs are `σ(y + θ)` (inputs are sources and are no longer integrated) and since #60 the bias is a real per-neuron bias instead of the old `is_bias` connection flag. Its saved fitness is therefore not meaningful any more; evolve it again with the current version to get a champion that reproduces its score.
+
 ## Install Rust
 
 ```bash
