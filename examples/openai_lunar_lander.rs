@@ -5,7 +5,6 @@ extern crate rustneat;
 extern crate serde;
 extern crate serde_json;
 
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyModule};
 use pyo3::PyResult;
@@ -64,10 +63,10 @@ struct PyOrganism {
 
 #[pymethods]
 impl PyOrganism {
-    fn activate(&mut self, inputs: Vec<f64>) -> PyResult<Vec<f64>> {
+    fn activate(&mut self, inputs: Vec<f64>) -> Vec<f64> {
         let mut outputs = vec![0.0; 2]; // [main_desire, lateral_direction]
         self.organism.activate(inputs, &mut outputs);
-        Ok(outputs)
+        outputs
     }
 
     fn reset_state(&mut self) {
@@ -75,38 +74,50 @@ impl PyOrganism {
     }
 }
 
-/// Build the organism a worker evaluates. Every argument is required: the
-/// CTRNN settings (`tau`, `dt`, `step_time`, `output_activation`) are those of
-/// the population's organism, so the worker runs the same dynamics.
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-fn create_organism(
-    genes: Vec<(usize, usize, f64, bool)>,
-    neurons_len: usize,
-    biases: Vec<f64>,
-    taus: Vec<Option<f64>>,
-    input_neurons: usize,
-    output_neurons: usize,
-    tau: f64,
-    dt: f64,
-    step_time: f64,
-    output_activation: String,
-) -> PyResult<PyOrganism> {
-    let data = OrganismData {
-        neurons_len,
-        genes,
-        biases,
-        taus,
-        input_neurons,
-        output_neurons,
-        tau,
-        dt,
-        step_time,
-        output_activation,
-    };
-    let organism = data.to_organism().map_err(PyValueError::new_err)?;
-    Ok(PyOrganism { organism })
+/// `create_organism` in a module of its own: clippy flags the code
+/// `#[pyfunction]` generates for a `PyResult` return (pyo3 0.22) as a
+/// useless conversion, and the allow has to cover that generated code.
+mod create {
+    #![allow(clippy::useless_conversion)]
+
+    use super::{OrganismData, PyOrganism};
+    use pyo3::exceptions::PyValueError;
+    use pyo3::prelude::*;
+
+    /// Build the organism a worker evaluates. Every argument is required: the
+    /// CTRNN settings (`tau`, `dt`, `step_time`, `output_activation`) are those of
+    /// the population's organism, so the worker runs the same dynamics.
+    #[pyfunction]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn create_organism(
+        genes: Vec<(usize, usize, f64, bool)>,
+        neurons_len: usize,
+        biases: Vec<f64>,
+        taus: Vec<Option<f64>>,
+        input_neurons: usize,
+        output_neurons: usize,
+        tau: f64,
+        dt: f64,
+        step_time: f64,
+        output_activation: String,
+    ) -> PyResult<PyOrganism> {
+        let data = OrganismData {
+            neurons_len,
+            genes,
+            biases,
+            taus,
+            input_neurons,
+            output_neurons,
+            tau,
+            dt,
+            step_time,
+            output_activation,
+        };
+        let organism = data.to_organism().map_err(PyValueError::new_err)?;
+        Ok(PyOrganism { organism })
+    }
 }
+use create::create_organism;
 
 /// The `genome_data` dict `evaluate_organism` receives: the fields of
 /// `OrganismData`, which it passes on to `create_organism`.
@@ -173,7 +184,7 @@ impl LunarLanderMultiprocess {
             // Create worker module
             let worker_module = PyModule::from_code_bound(
                 py,
-                &worker_code,
+                worker_code,
                 "lunar_lander_worker.py",
                 "lunar_lander_worker",
             )
@@ -305,9 +316,9 @@ impl Environment for LunarLanderMultiprocess {
                 let start = i * EVALS_PER_ORGANISM;
                 let mut avg_fitness = 0.0;
                 let mut avg_behavior = vec![0.0; 8];
-                for j in start..start + EVALS_PER_ORGANISM {
-                    avg_fitness += results_list[j].0;
-                    for (k, v) in results_list[j].1.iter().enumerate() {
+                for (fitness, behavior) in &results_list[start..start + EVALS_PER_ORGANISM] {
+                    avg_fitness += fitness;
+                    for (k, v) in behavior.iter().enumerate() {
                         if k < avg_behavior.len() {
                             avg_behavior[k] += v;
                         }

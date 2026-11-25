@@ -83,6 +83,14 @@ Then go to `http://localhost:3000` to see how the neural network evolves.
 
 ![cart pole](docs/results/cart_pole.gif)
 
+NEAT+CTRNN agent for the gymnasium CartPole-v1 environment (4 inputs, 1
+output: push right above 0.5). It needs a Python with gymnasium:
+
+```bash
+pip install "gymnasium[classic-control]"
+cargo run --release --example openai --features openai
+```
+
 ## Lunar Lander
 
 NEAT+CTRNN agent evolved to land on the OpenAI Gym LunarLander-v3 environment using discrete actions with independent threshold-based output control.
