@@ -73,16 +73,22 @@ def evaluate_organism(genome_data, render=False, max_steps=400, num_episodes=1):
     """
     global _worker_env
 
-    genes = genome_data['genes']
-    neurons_len = genome_data['neurons_len']
-    biases = genome_data.get('biases', [])
-    taus = genome_data.get('taus', [])
-
-    # Create organism using rustneat_py (Rust implementation)
-    input_neurons = genome_data.get('input_neurons', 0)
-    output_neurons = genome_data.get('output_neurons', 0)
+    # Build the organism with the Rust implementation. genome_data carries the
+    # population organism's CTRNN settings (tau, dt, step_time,
+    # output_activation) as well as its genome, so the worker evaluates the
+    # same dynamics that was evolved. Every key is required.
     organism = rustneat_py.create_organism(
-        genes, neurons_len, biases, taus, input_neurons, output_neurons)
+        genome_data['genes'],
+        genome_data['neurons_len'],
+        genome_data['biases'],
+        genome_data['taus'],
+        genome_data['input_neurons'],
+        genome_data['output_neurons'],
+        genome_data['tau'],
+        genome_data['dt'],
+        genome_data['step_time'],
+        genome_data['output_activation'],
+    )
 
     if render:
         # For rendering, just run one episode with visualization

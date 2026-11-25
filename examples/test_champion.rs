@@ -5,70 +5,13 @@ extern crate serde_json;
 
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
-use rustneat::{Gene, Genome, Organism};
-use serde::Deserialize;
-use std::fs;
+use rustneat::Organism;
+
+#[allow(dead_code)]
+mod lunar_lander_common;
+use lunar_lander_common::ChampionFile;
 
 const CHAMPION_FILE: &str = "champion.json";
-
-#[derive(Debug, Deserialize)]
-struct ChampionFile {
-    fitness: f64,
-    generation: usize,
-    neurons_len: usize,
-    genes: Vec<(usize, usize, f64, bool)>,
-    /// Bias of each neuron, by neuron id
-    #[serde(default)]
-    biases: Vec<f64>,
-    /// Time constant τ of each neuron, by neuron id; `null` = default τ
-    #[serde(default)]
-    taus: Vec<Option<f64>>,
-    /// Number of input neurons (ids `0..input_neurons`). Missing (0) in
-    /// champions saved before it was stored.
-    #[serde(default)]
-    input_neurons: usize,
-    /// Number of output neurons (the ids right after the inputs).
-    #[serde(default)]
-    output_neurons: usize,
-}
-
-impl ChampionFile {
-    fn load(path: &str) -> Option<Self> {
-        let content = fs::read_to_string(path).ok()?;
-        serde_json::from_str(&content).ok()
-    }
-
-    fn to_organism(&self) -> Organism {
-        let gene_vec: Vec<Gene> = self
-            .genes
-            .iter()
-            .map(|(i, o, w, e)| Gene::new(*i, *o, *w, *e))
-            .collect();
-        let last_neuron_id = if self.neurons_len > 0 {
-            self.neurons_len - 1
-        } else {
-            0
-        };
-        let mut genome = Genome::from_genes_with_io(
-            gene_vec,
-            last_neuron_id,
-            self.input_neurons,
-            self.output_neurons,
-        );
-        for (id, bias) in self.biases.iter().enumerate() {
-            genome.set_bias(id, *bias);
-        }
-        for (id, tau) in self.taus.iter().enumerate() {
-            if let Some(tau) = tau {
-                genome.set_tau(id, *tau);
-            }
-        }
-        let mut org = Organism::new(genome);
-        org.tau = 0.1;
-        org.step_time = 0.5;
-        org
-    }
-}
 
 fn run_episode(
     organism: &mut Organism,
@@ -140,16 +83,33 @@ fn main() {
 
     println!("Loading champion from {}...", CHAMPION_FILE);
 
-    let champion_data = ChampionFile::load(CHAMPION_FILE).expect("Failed to load champion.json");
+    let champion_data = ChampionFile::load(CHAMPION_FILE).unwrap_or_else(|error| {
+        eprintln!("Failed to load champion: {}", error);
+        std::process::exit(1);
+    });
 
     println!("Champion info:");
     println!("  Fitness: {:.2}", champion_data.fitness);
     println!("  Generation: {}", champion_data.generation);
-    println!("  Neurons: {}", champion_data.neurons_len);
-    println!("  Genes: {}", champion_data.genes.len());
+    println!("  Neurons: {}", champion_data.organism.neurons_len);
+    println!("  Genes: {}", champion_data.organism.genes.len());
+    println!(
+        "  CTRNN: tau {}, dt {}, step_time {}, output {}",
+        champion_data.organism.tau,
+        champion_data.organism.dt,
+        champion_data.organism.step_time,
+        champion_data.organism.output_activation
+    );
     println!();
 
-    let mut organism = champion_data.to_organism();
+    // Same construction as the training workers
+    let mut organism = champion_data
+        .organism
+        .to_organism()
+        .unwrap_or_else(|error| {
+            eprintln!("Invalid champion: {}", error);
+            std::process::exit(1);
+        });
 
     pyo3::prepare_freethreaded_python();
 

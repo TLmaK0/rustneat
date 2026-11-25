@@ -23,10 +23,17 @@ rusty_dashed = { version = "0.3.0", optional = true }
 open = { version = "1.2.1", optional = true }
 clippy = { version = "0.0.103", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
-serde_json = { version = "1.0", optional = true }
+# float_roundtrip: champion.json must give back the exact weights
+serde_json = { version = "1.0", features = ["float_roundtrip"], optional = true }
 
 pyo3 = { version = "0.22", features = ["auto-initialize"], optional = true }
 ctrlc = { version = "3.1.4", optional = true }
+
+[dev-dependencies]
+# The lunar lander example's files (examples/lunar_lander_common) are tested
+# without the `openai` feature (tests/lunar_lander_tests.rs).
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
 
 [features]
 default = []

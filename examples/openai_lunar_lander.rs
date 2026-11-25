@@ -5,14 +5,16 @@ extern crate rustneat;
 extern crate serde;
 extern crate serde_json;
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{IntoPyDict, PyModule};
+use pyo3::types::{IntoPyDict, PyDict, PyModule};
 use pyo3::PyResult;
-use rustneat::{Environment, Gene, Genome, MutationConfig, Organism, Population};
-use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
+use rustneat::{Environment, Organism, Population};
 use std::process;
+
+#[allow(dead_code)]
+mod lunar_lander_common;
+use lunar_lander_common::{ChampionFile, ConfigFile, OrganismData};
 
 /// Compute novelty score: average distance to k-nearest neighbors
 fn compute_novelty(behavior: &[f64], all_behaviors: &[&Vec<f64>], k: usize) -> f64 {
@@ -48,132 +50,6 @@ fn compute_novelty(behavior: &[f64], all_behaviors: &[&Vec<f64>], k: usize) -> f
 const CONFIG_FILE: &str = "best_config.json";
 const CHAMPION_FILE: &str = "champion.json";
 
-/// Serializable champion genome
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ChampionFile {
-    fitness: f64,
-    generation: usize,
-    neurons_len: usize,
-    genes: Vec<(usize, usize, f64, bool)>, // (in, out, weight, enabled)
-    /// Bias of each neuron, by neuron id
-    #[serde(default)]
-    biases: Vec<f64>,
-    /// Time constant τ of each neuron, by neuron id; `null` = default τ.
-    /// Missing in champions saved before τ was a gene (all default).
-    #[serde(default)]
-    taus: Vec<Option<f64>>,
-    /// Number of input neurons (ids `0..input_neurons`). Missing (0) in
-    /// champions saved before it was stored.
-    #[serde(default)]
-    input_neurons: usize,
-    /// Number of output neurons (the ids right after the inputs).
-    #[serde(default)]
-    output_neurons: usize,
-}
-
-impl ChampionFile {
-    fn save(&self, path: &str) {
-        let content = serde_json::to_string_pretty(self).unwrap();
-        fs::write(path, content).expect("Failed to save champion");
-        println!("Champion saved to {}", path);
-    }
-
-    fn from_organism(organism: &Organism, fitness: f64, generation: usize) -> Self {
-        let genes = organism
-            .genome
-            .get_genes()
-            .iter()
-            .map(|g| (g.in_neuron_id(), g.out_neuron_id(), g.weight(), g.enabled()))
-            .collect();
-        ChampionFile {
-            fitness,
-            generation,
-            neurons_len: organism.genome.len(),
-            genes,
-            biases: neuron_biases(organism),
-            taus: neuron_taus(organism),
-            input_neurons: organism.genome.input_neurons(),
-            output_neurons: organism.genome.output_neurons(),
-        }
-    }
-}
-
-/// Serializable configuration file
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ConfigFile {
-    weight_mutation_rate: f64,
-    add_connection_rate: f64,
-    add_neuron_rate: f64,
-    toggle_expression_rate: f64,
-    weight_perturbation_rate: f64,
-    #[serde(default = "default_bias_mutation_rate")]
-    bias_mutation_rate: f64,
-    #[serde(default = "default_bias_mutate_power")]
-    bias_mutate_power: f64,
-    compatibility_threshold: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    best_fitness: Option<f64>,
-    #[serde(default = "default_weight_init_range")]
-    weight_init_range: f64,
-    #[serde(default = "default_weight_mutate_power")]
-    weight_mutate_power: f64,
-}
-
-fn default_weight_init_range() -> f64 {
-    3.0
-}
-fn default_weight_mutate_power() -> f64 {
-    1.5
-}
-fn default_bias_mutation_rate() -> f64 {
-    MutationConfig::default().bias_mutation_rate
-}
-fn default_bias_mutate_power() -> f64 {
-    MutationConfig::default().bias_mutate_power
-}
-
-/// Bias of every neuron of the organism, by neuron id
-fn neuron_biases(organism: &Organism) -> Vec<f64> {
-    (0..organism.genome.len())
-        .map(|id| organism.genome.bias(id))
-        .collect()
-}
-
-/// τ gene of every neuron of the organism, by neuron id (`None` = default τ)
-fn neuron_taus(organism: &Organism) -> Vec<Option<f64>> {
-    (0..organism.genome.len())
-        .map(|id| organism.genome.tau(id))
-        .collect()
-}
-
-impl ConfigFile {
-    fn load(path: &str) -> Option<Self> {
-        if Path::new(path).exists() {
-            let content = fs::read_to_string(path).ok()?;
-            serde_json::from_str(&content).ok()
-        } else {
-            None
-        }
-    }
-
-    fn to_mutation_config(&self) -> MutationConfig {
-        MutationConfig::new()
-            .weight_mutation_rate(self.weight_mutation_rate)
-            .add_connection_rate(self.add_connection_rate)
-            .add_neuron_rate(self.add_neuron_rate)
-            .toggle_expression_rate(self.toggle_expression_rate)
-            .weight_perturbation_rate(self.weight_perturbation_rate)
-            .bias_mutation_rate(self.bias_mutation_rate)
-            .bias_mutate_power(self.bias_mutate_power)
-            .compatibility_threshold(self.compatibility_threshold)
-            .weight_init_range(self.weight_init_range)
-            .weight_mutate_power(self.weight_mutate_power)
-            .tau(0.1)
-            .step_time(0.5)
-            .build()
-    }
-}
-
 #[cfg(feature = "telemetry")]
 mod telemetry_helper;
 
@@ -199,8 +75,11 @@ impl PyOrganism {
     }
 }
 
+/// Build the organism a worker evaluates. Every argument is required: the
+/// CTRNN settings (`tau`, `dt`, `step_time`, `output_activation`) are those of
+/// the population's organism, so the worker runs the same dynamics.
 #[pyfunction]
-#[pyo3(signature = (genes, neurons_len, biases, taus=Vec::new(), input_neurons=0, output_neurons=0))]
+#[allow(clippy::too_many_arguments)]
 fn create_organism(
     genes: Vec<(usize, usize, f64, bool)>,
     neurons_len: usize,
@@ -208,28 +87,45 @@ fn create_organism(
     taus: Vec<Option<f64>>,
     input_neurons: usize,
     output_neurons: usize,
+    tau: f64,
+    dt: f64,
+    step_time: f64,
+    output_activation: String,
 ) -> PyResult<PyOrganism> {
-    // Reconstruct genes from serialized data
-    let gene_vec: Vec<Gene> = genes
-        .into_iter()
-        .map(|(in_id, out_id, weight, enabled)| Gene::new(in_id, out_id, weight, enabled))
-        .collect();
-
-    // Reconstruct genome with proper neuron count (neurons_len = last_neuron_id + 1)
-    let last_neuron_id = if neurons_len > 0 { neurons_len - 1 } else { 0 };
-    let mut genome =
-        Genome::from_genes_with_io(gene_vec, last_neuron_id, input_neurons, output_neurons);
-    for (id, bias) in biases.into_iter().enumerate() {
-        genome.set_bias(id, bias);
-    }
-    for (id, tau) in taus.into_iter().enumerate() {
-        if let Some(tau) = tau {
-            genome.set_tau(id, tau);
-        }
-    }
-    let organism = Organism::new(genome);
-
+    let data = OrganismData {
+        neurons_len,
+        genes,
+        biases,
+        taus,
+        input_neurons,
+        output_neurons,
+        tau,
+        dt,
+        step_time,
+        output_activation,
+    };
+    let organism = data.to_organism().map_err(PyValueError::new_err)?;
     Ok(PyOrganism { organism })
+}
+
+/// The `genome_data` dict `evaluate_organism` receives: the fields of
+/// `OrganismData`, which it passes on to `create_organism`.
+fn organism_dict<'py>(py: Python<'py>, organism: &Organism) -> Bound<'py, PyDict> {
+    let data = OrganismData::of(organism);
+    let dict = PyDict::new_bound(py);
+    dict.set_item("genes", data.genes).unwrap();
+    dict.set_item("neurons_len", data.neurons_len).unwrap();
+    dict.set_item("biases", data.biases).unwrap();
+    dict.set_item("taus", data.taus).unwrap();
+    dict.set_item("input_neurons", data.input_neurons).unwrap();
+    dict.set_item("output_neurons", data.output_neurons)
+        .unwrap();
+    dict.set_item("tau", data.tau).unwrap();
+    dict.set_item("dt", data.dt).unwrap();
+    dict.set_item("step_time", data.step_time).unwrap();
+    dict.set_item("output_activation", data.output_activation)
+        .unwrap();
+    dict
 }
 
 #[pymodule]
@@ -325,32 +221,7 @@ impl LunarLanderMultiprocess {
         render: bool,
     ) -> (f64, Vec<f64>) {
         Python::with_gil(|py| {
-            let neurons_len = organism.genome.len();
-
-            let genes_list = organism
-                .genome
-                .get_genes()
-                .iter()
-                .map(|gene| {
-                    (
-                        gene.in_neuron_id(),
-                        gene.out_neuron_id(),
-                        gene.weight(),
-                        gene.enabled(),
-                    )
-                })
-                .collect::<Vec<_>>();
-
-            let builtins = py.import_bound("builtins").unwrap();
-            let dict = builtins.call_method0("dict").unwrap();
-            dict.set_item("genes", genes_list).unwrap();
-            dict.set_item("neurons_len", neurons_len).unwrap();
-            dict.set_item("biases", neuron_biases(organism)).unwrap();
-            dict.set_item("taus", neuron_taus(organism)).unwrap();
-            dict.set_item("input_neurons", organism.genome.input_neurons())
-                .unwrap();
-            dict.set_item("output_neurons", organism.genome.output_neurons())
-                .unwrap();
+            let dict = organism_dict(py, organism);
 
             let worker_fn = self
                 .worker_module
@@ -408,34 +279,8 @@ impl Environment for LunarLanderMultiprocess {
             let mut batch_data: Vec<_> = Vec::with_capacity(to_evaluate.len() * EVALS_PER_ORGANISM);
 
             for &idx in &to_evaluate {
-                let organism = &organisms[idx];
-                let neurons_len = organism.genome.len();
-                let genes_list = organism
-                    .genome
-                    .get_genes()
-                    .iter()
-                    .map(|gene| {
-                        (
-                            gene.in_neuron_id(),
-                            gene.out_neuron_id(),
-                            gene.weight(),
-                            gene.enabled(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-
                 for _ in 0..EVALS_PER_ORGANISM {
-                    let builtins = py.import_bound("builtins").unwrap();
-                    let dict = builtins.call_method0("dict").unwrap();
-                    dict.set_item("genes", &genes_list).unwrap();
-                    dict.set_item("neurons_len", neurons_len).unwrap();
-                    dict.set_item("biases", neuron_biases(organism)).unwrap();
-                    dict.set_item("taus", neuron_taus(organism)).unwrap();
-                    dict.set_item("input_neurons", organism.genome.input_neurons())
-                        .unwrap();
-                    dict.set_item("output_neurons", organism.genome.output_neurons())
-                        .unwrap();
-                    batch_data.push((dict, false));
+                    batch_data.push((organism_dict(py, &organisms[idx]), false));
                 }
             }
 
@@ -543,38 +388,43 @@ fn main() {
     telemetry_helper::enable_telemetry(format!("?max_fitness={}", max_fitness).as_str(), true);
 
     // Load config from file or use defaults
-    let mut population = if let Some(config_file) = ConfigFile::load(CONFIG_FILE) {
-        println!("Loaded config from {}", CONFIG_FILE);
-        println!(
-            "  add_connection_rate: {:.4}",
-            config_file.add_connection_rate
-        );
-        println!("  add_neuron_rate: {:.4}", config_file.add_neuron_rate);
-        println!(
-            "  weight_mutation_rate: {:.4}",
-            config_file.weight_mutation_rate
-        );
-        if let Some(fitness) = config_file.best_fitness {
-            println!("  (tuned with fitness: {:.2})", fitness);
+    let config_file = match ConfigFile::load(CONFIG_FILE) {
+        Ok(Some(config_file)) => {
+            println!("Loaded config from {}", CONFIG_FILE);
+            println!(
+                "  add_connection_rate: {:.4}",
+                config_file.add_connection_rate
+            );
+            println!("  add_neuron_rate: {:.4}", config_file.add_neuron_rate);
+            println!(
+                "  weight_mutation_rate: {:.4}",
+                config_file.weight_mutation_rate
+            );
+            println!(
+                "  weight_mutate_power (gaussian σ): {:.4}",
+                config_file.weight_mutate_power
+            );
+            if let Some(fitness) = config_file.best_fitness {
+                println!("  (tuned with fitness: {:.2})", fitness);
+            }
+            println!();
+            config_file
         }
-        println!();
-        let config = config_file.to_mutation_config();
-        println!();
-        Population::create_population_initialized_with_config(150, 8, 2, config)
-    } else {
-        println!("No {} found, using default config\n", CONFIG_FILE);
-        let mut config = MutationConfig::default();
-        config.add_connection_rate = 0.20;
-        config.add_neuron_rate = 0.10;
-        config.weight_mutation_rate = 0.80;
-        config.toggle_expression_rate = 0.005;
-        config.compatibility_threshold = 1.5;
-        config.weight_init_range = 3.0;
-        config.weight_mutate_power = 1.5;
-        config.tau = 0.1;
-        config.step_time = 0.5;
-        Population::create_population_initialized_with_config(150, 8, 2, config)
+        Ok(None) => {
+            println!("No {} found, using default config\n", CONFIG_FILE);
+            ConfigFile::default()
+        }
+        Err(error) => {
+            eprintln!("Invalid config file {}", error);
+            process::exit(1);
+        }
     };
+    let mut population = Population::create_population_initialized_with_config(
+        150,
+        8,
+        2,
+        config_file.to_mutation_config(),
+    );
 
     let environment = LunarLanderMultiprocess::new();
     let mut champion: Option<Organism> = None;
