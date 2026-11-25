@@ -29,6 +29,9 @@ pub struct Organism {
     pub preserve_fitness: bool,
     /// True once `SpeciesEvaluator` has evaluated this organism.
     evaluated: bool,
+    /// Evaluations the environment did of this genome (elite copies that
+    /// kept their fitness are not evaluated again).
+    evaluations: u32,
     /// Persistent CTRNN state across activate() calls within an episode
     ctrnn_state: Vec<f64>,
     /// The CTRNN compiled by the last `activate`; compiled again when the
@@ -85,6 +88,7 @@ impl Organism {
             adjusted_fitness: 0f64,
             preserve_fitness: false,
             evaluated: false,
+            evaluations: 0,
             ctrnn_state: vec![],
             phenotype: None,
             tau: 0.01,
@@ -181,8 +185,20 @@ impl Organism {
     pub fn is_evaluated(&self) -> bool {
         self.evaluated
     }
+    /// How many times the environment evaluated this organism: 0 before
+    /// its first evaluation, 1 after it. Elites copied into the next
+    /// generation keep their count, which only grows if they are evaluated
+    /// again (`MutationConfig::reevaluate_elites`).
+    pub fn evaluations(&self) -> u32 {
+        self.evaluations
+    }
+    /// Record an evaluation by `SpeciesEvaluator`: elite copies that kept
+    /// their fitness (`preserve_fitness`) were not evaluated again.
     pub(crate) fn mark_evaluated(&mut self) {
         self.evaluated = true;
+        if !self.preserve_fitness {
+            self.evaluations += 1;
+        }
     }
     /// The organism with the highest fitness, ignoring NaN; ties go to the
     /// first one. None if there is no organism with a fitness that is not NaN.

@@ -234,6 +234,7 @@ fn new_config_parameters_default_to_the_library_defaults() {
         base.species_stagnation_generations
     );
     assert_eq!(config.species_elitism, base.species_elitism);
+    assert_eq!(config.reevaluate_elites, base.reevaluate_elites);
     assert_eq!(config.output_activation, OutputActivation::Sigmoid);
     // The lander's own choices
     assert_eq!(config.weight_mutate_power, LANDER_WEIGHT_MUTATE_POWER);
@@ -286,8 +287,17 @@ fn a_saved_config_loads_back_unchanged() {
     let file = ConfigFile {
         tau_mutation_rate: 0.1,
         species_elitism: 3,
+        reevaluate_elites: true,
         ..ConfigFile::default()
     };
     let json = serde_json::to_string_pretty(&file).unwrap();
     assert_eq!(ConfigFile::from_json(&json).unwrap(), file);
+}
+
+#[test]
+fn reevaluate_elites_is_read_from_the_config_file() {
+    let config = ConfigFile::from_json(r#"{"reevaluate_elites": true}"#)
+        .unwrap()
+        .to_mutation_config();
+    assert!(config.reevaluate_elites);
 }

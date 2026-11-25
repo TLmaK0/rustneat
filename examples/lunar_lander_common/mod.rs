@@ -232,6 +232,12 @@ pub struct ConfigFile {
     pub tau_max: f64,
     pub species_stagnation_generations: usize,
     pub species_elitism: usize,
+    /// Evaluate the elites again every generation and average their
+    /// evaluations, so a lucky episode does not keep an organism as elite
+    /// and champion (see `MutationConfig::reevaluate_elites`). The lander
+    /// is noisy (random terrain and initial push), so this is where it
+    /// matters; off by default like in the library.
+    pub reevaluate_elites: bool,
 }
 
 /// σ of the gaussian weight perturbation `N(0, σ²)` for the lander.
@@ -290,6 +296,7 @@ impl Default for ConfigFile {
             tau_max: base.tau_max,
             species_stagnation_generations: base.species_stagnation_generations,
             species_elitism: base.species_elitism,
+            reevaluate_elites: base.reevaluate_elites,
         }
     }
 }
@@ -355,6 +362,7 @@ impl ConfigFile {
             output_activation: OutputActivation::Sigmoid,
             species_stagnation_generations: self.species_stagnation_generations,
             species_elitism: self.species_elitism,
+            reevaluate_elites: self.reevaluate_elites,
         }
     }
 }

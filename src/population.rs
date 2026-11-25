@@ -23,14 +23,18 @@ use crate::species_evaluator::SpeciesEvaluator;
 pub struct Population {
     /// container of species
     pub species: Vec<Specie>,
-    /// Fitness of `champion` (-inf before the first evaluation).
+    /// Best fitness `champion` has had (-inf before the first evaluation):
+    /// the fitness of `champion` unless `reevaluate_elites` is on.
     champion_fitness: f64,
     epochs_without_improvements: usize,
     /// Id for the next new species: ids are never reused, so a species
     /// keeps its id for its whole life.
     next_species_id: i64,
     /// Best organism ever evaluated in the population (the historical
-    /// champion): it is only replaced by a strictly fitter one.
+    /// champion): it is only replaced by a strictly fitter one. With
+    /// `MutationConfig::reevaluate_elites` (noisy fitness) it is instead the
+    /// best organism of the latest evaluation whose fitness is confirmed by
+    /// at least two evaluations (see there).
     pub champion: Option<Organism>,
     /// Mutation configuration
     pub mutation_config: MutationConfig,
@@ -193,7 +197,9 @@ impl Population {
 
     /// Evaluate all organisms in the population using the given environment
     /// and update `champion`, the best organism ever evaluated. Fitness can
-    /// be negative.
+    /// be negative. With `MutationConfig::reevaluate_elites` the elites are
+    /// evaluated again, their fitness is the mean of all their evaluations,
+    /// and `champion` is the best confirmed organism of this evaluation.
     ///
     /// # Errors
     ///
@@ -203,7 +209,22 @@ impl Population {
     /// size: `evolve` still works, and treats those organisms as the worst
     /// ones.
     pub fn evaluate_in(&mut self, environment: &dyn Environment) -> Result<(), FitnessError> {
+        let reevaluate = self.mutation_config.reevaluate_elites;
+        // Fitness and evaluations of every organism before this evaluation,
+        // to average the new score of the elites evaluated again.
+        let previous: Vec<(f64, u32)> = if reevaluate {
+            self.species
+                .iter()
+                .flat_map(|specie| specie.organisms.iter())
+                .map(|organism| (organism.fitness, organism.evaluations()))
+                .collect()
+        } else {
+            vec![]
+        };
         let champion = SpeciesEvaluator::new(environment).evaluate(&mut self.species);
+        if reevaluate {
+            self.average_repeated_evaluations(&previous);
+        }
 
         let invalid: Vec<f64> = self
             .species
@@ -230,7 +251,9 @@ impl Population {
         #[cfg(feature = "telemetry")]
         telemetry!("fitness1", 1.0, format!("{}", self.champion_fitness));
 
-        if champion.fitness <= self.champion_fitness {
+        if reevaluate {
+            self.update_confirmed_champion(champion);
+        } else if champion.fitness <= self.champion_fitness {
             self.epochs_without_improvements += 1;
         } else {
             #[cfg(feature = "telemetry")]
@@ -244,6 +267,54 @@ impl Population {
             self.champion_fitness = champion.fitness;
         }
         Ok(())
+    }
+
+    /// Give every organism evaluated again (an elite, with
+    /// `reevaluate_elites`) the mean of all its evaluations: `previous` has
+    /// the fitness and evaluations of each organism before this evaluation,
+    /// in the same order.
+    fn average_repeated_evaluations(&mut self, previous: &[(f64, u32)]) {
+        let organisms = self
+            .species
+            .iter_mut()
+            .flat_map(|specie| specie.organisms.iter_mut());
+        for (organism, &(mean, count)) in organisms.zip(previous) {
+            let evaluated_again = count > 0 && organism.evaluations() == count + 1;
+            if evaluated_again && mean.is_finite() {
+                let n = f64::from(count);
+                organism.fitness = (mean * n + organism.fitness) / (n + 1.0);
+            }
+        }
+    }
+
+    /// With `reevaluate_elites`: the champion is the best organism of this
+    /// evaluation among those evaluated at least twice (a confirmed
+    /// fitness), or the best one if none is confirmed yet. `best` is the
+    /// best one, used when there are no organisms at all.
+    fn update_confirmed_champion(&mut self, best: Organism) {
+        let champion = {
+            let organisms: Vec<&Organism> = self
+                .species
+                .iter()
+                .flat_map(|specie| specie.organisms.iter())
+                .collect();
+            Organism::fittest(organisms.iter().copied().filter(|o| o.evaluations() >= 2))
+                .or_else(|| Organism::fittest(organisms.iter().copied()))
+                .cloned()
+                .unwrap_or(best)
+        };
+        if !champion.is_evaluated() {
+            // No organism: keep the champion there was.
+            self.epochs_without_improvements += 1;
+            return;
+        }
+        if champion.fitness <= self.champion_fitness {
+            self.epochs_without_improvements += 1;
+        } else {
+            self.epochs_without_improvements = 0;
+            self.champion_fitness = champion.fitness;
+        }
+        self.champion = Some(champion);
     }
 
     /// Remove the species that are stagnant (see

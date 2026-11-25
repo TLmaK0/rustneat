@@ -249,8 +249,10 @@ impl Specie {
             // Keep the fitness of the elite copy (skip re-evaluation) only if
             // it is a real one: an organism that was never evaluated (as in
             // the first `evolve`) or got a non finite fitness is evaluated
-            // again.
-            elite.preserve_fitness = elite.is_evaluated() && elite.fitness.is_finite();
+            // again. With noisy fitness (`reevaluate_elites`) elites are
+            // always evaluated again.
+            elite.preserve_fitness =
+                !base_config.reevaluate_elites && elite.is_evaluated() && elite.fitness.is_finite();
             offspring.push(elite);
         }
         self.organisms = offspring;

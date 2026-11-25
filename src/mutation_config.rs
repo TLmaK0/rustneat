@@ -189,6 +189,23 @@ pub struct MutationConfig {
     /// species, ranked by their current champion) are never removed for
     /// stagnation, so the best solution found is never lost.
     pub species_elitism: usize,
+    /// For noisy fitness (default false). When false, the elite copied
+    /// into the next generation keeps its fitness and is not evaluated
+    /// again, and `Population::champion` is the best organism ever
+    /// evaluated: right for deterministic environments, but a single lucky
+    /// score then keeps an organism as elite and champion for ever.
+    ///
+    /// When true:
+    /// - the elites are evaluated again every generation and their fitness
+    ///   is the mean of all their evaluations (`Organism::evaluations`), so
+    ///   it converges to their true fitness;
+    /// - `Population::champion` is the organism with the best fitness of
+    ///   the latest evaluation among those evaluated at least twice (a
+    ///   confirmed score), or the best one if none is confirmed yet (the
+    ///   first evaluation). It is no longer a historical maximum, so its
+    ///   fitness can go down. `Population::epochs_without_improvements`
+    ///   still counts against the best champion fitness seen.
+    pub reevaluate_elites: bool,
 }
 
 /// Probability that a gene disabled in either parent stays disabled.
@@ -243,6 +260,7 @@ impl Default for MutationConfig {
             output_activation: OutputActivation::Sigmoid,
             species_stagnation_generations: SPECIES_STAGNATION_GENERATIONS,
             species_elitism: SPECIES_ELITISM,
+            reevaluate_elites: false,
         }
     }
 }
@@ -506,6 +524,13 @@ impl MutationConfigBuilder {
     pub fn species_stagnation(mut self, generations: usize, protected: usize) -> Self {
         self.config.species_stagnation_generations = generations;
         self.config.species_elitism = protected;
+        self
+    }
+
+    /// Evaluate the elites again every generation, for noisy fitness
+    /// (see `MutationConfig::reevaluate_elites`)
+    pub fn reevaluate_elites(mut self, reevaluate: bool) -> Self {
+        self.config.reevaluate_elites = reevaluate;
         self
     }
 
