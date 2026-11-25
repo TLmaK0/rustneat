@@ -33,3 +33,6 @@ experiment_results.json
 plan.md
 CLAUDE.md
 AGENT.md
+
+# Claude Code local session state
+.claude/*.lock
