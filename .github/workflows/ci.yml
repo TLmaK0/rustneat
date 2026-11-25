@@ -53,3 +53,40 @@ jobs:
 
       - name: Run tests
         run: cargo test --release --verbose
+
+  features:
+    name: Check feature examples (openai, telemetry)
+    needs: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pyo3 0.22 (openai feature) supports CPython 3.7-3.13; build.rs and
+      # pyo3's build script both need a real python3 on PATH.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-features-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check openai examples
+        run: cargo check --release --features openai --examples
+
+      - name: Check telemetry examples
+        run: cargo check --release --features telemetry --examples
+
+      - name: Check telemetry + ctrnn_telemetry examples
+        run: cargo check --release --features "telemetry ctrnn_telemetry" --examples
