@@ -207,7 +207,8 @@ impl Specie {
     }
 
     /// Generates the offspring; `other_species_parents` are the candidates
-    /// for an interspecies crossover.
+    /// for an interspecies crossover. A species without organisms has no
+    /// parents, so it gets no offspring and stays empty (#19).
     pub(crate) fn generate_offspring_with_mates<R: Rng + ?Sized>(
         &mut self,
         num_of_organisms: usize,
@@ -216,6 +217,9 @@ impl Specie {
         mut innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
     ) {
+        if self.organisms.is_empty() {
+            return;
+        }
         self.age += 1;
 
         // Always copy champion (elitism)
@@ -541,6 +545,25 @@ mod tests {
         let mut single = Specie::new(Genome::default());
         single.add(Organism::new(Genome::default()));
         assert_eq!(single.parents().count(), 1);
+    }
+
+    /// #19: generating offspring from a species without organisms panicked
+    /// (`gen_range` on an empty range). Without parents there are no
+    /// children: the species stays empty.
+    #[test]
+    fn generate_offspring_of_an_empty_species_does_not_panic() {
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        let config = MutationConfig::default();
+        let mates = vec![Organism::new(Genome::new_initialized(2, 1))];
+        for size in [0, 1, 2, 10] {
+            let mut specie = Specie::new(Genome::new_initialized(2, 1));
+            assert!(specie.is_empty());
+            specie.generate_offspring_with_config_and_rng(size, &mates, &config, &mut rng);
+            assert!(specie.is_empty(), "offspring size {}", size);
+            specie.generate_offspring_with_config_and_rng(size, &[], &config, &mut rng);
+            assert!(specie.is_empty(), "offspring size {} without mates", size);
+        }
     }
 
     #[test]

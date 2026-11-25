@@ -868,6 +868,27 @@ mod tests {
         assert_eq!(config.species_elitism, 2);
     }
 
+    /// #19 / #45: a species left without organisms (as happens when it gets
+    /// no offspring) must not make `evolve` panic; it is dropped and the
+    /// population keeps its size.
+    #[test]
+    fn evolve_with_empty_species_does_not_panic_and_drops_them() {
+        let mut population = Population::create_population_initialized(20, 2, 1).with_seed(1);
+        let representative = population.species[0].get_representative_genome();
+        population.add_species(Specie::new(representative.clone()));
+        population.species.insert(0, Specie::new(representative));
+        assert_eq!(
+            population.species.iter().filter(|s| s.is_empty()).count(),
+            2
+        );
+        for _ in 0..5 {
+            population.generate_offspring();
+            assert_eq!(population.size(), 20);
+            population.speciate();
+            assert!(population.species.iter().all(|s| !s.is_empty()));
+        }
+    }
+
     #[test]
     fn after_population_evolve_population_should_be_the_same() {
         let mut population = Population::create_population_initialized(150, 2, 1);
