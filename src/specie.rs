@@ -42,15 +42,21 @@ impl Specie {
         self.organisms.push(organism);
     }
 
-    /// Check if another organism is of the same species as this one.
+    /// Check if another organism is of the same species as this one, with
+    /// the default coefficients and threshold (those of
+    /// `MutationConfig::default()`), not those of the population.
+    #[deprecated(note = "ignores the population's config: use `Specie::match_genome_with_config`")]
     pub fn match_genome(&self, organism: &Organism) -> bool {
-        self.representative.is_same_specie(&organism.genome)
+        self.match_genome_with_config(organism, &MutationConfig::default())
     }
 
-    /// Check if another organism is of the same species using a custom threshold.
+    /// Check if another organism is of the same species using a custom
+    /// threshold and the default coefficients.
+    #[deprecated(
+        note = "ignores the population's coefficients: use `Specie::match_genome_with_config`"
+    )]
     pub fn match_genome_with_threshold(&self, organism: &Organism, threshold: f64) -> bool {
-        self.representative
-            .is_same_specie_with_threshold(&organism.genome, threshold)
+        self.distance_with_config(organism, &MutationConfig::default()) < threshold
     }
 
     /// Check if another organism is of the same species with the
@@ -125,38 +131,57 @@ impl Specie {
     /// Mate and generate offspring, delete old organisms and use the children
     /// as "new" species. `population_organisms` are the candidates for an
     /// interspecies crossover (see `MutationConfig::interspecies_mate_rate`):
-    /// the parents of the other species (`Specie::parents`).
+    /// the parents of the other species (`Specie::parents_with_config`).
+    /// Uses the default `MutationConfig`, an entropy-seeded generator
+    /// (`rand::thread_rng`) and no innovation registry.
+    #[deprecated(
+        note = "use `Specie::generate_offspring_with_innovations` with the population's config, registry and generator"
+    )]
     pub fn generate_offspring(
         &mut self,
         num_of_organisms: usize,
         population_organisms: &[Organism],
     ) {
-        self.generate_offspring_with_config(
+        let mates: Vec<&Organism> = population_organisms.iter().collect();
+        self.generate_offspring_with_mates(
             num_of_organisms,
-            population_organisms,
+            &mates,
             &MutationConfig::default(),
+            None,
+            &mut rand::thread_rng(),
         );
     }
 
-    /// Generate offspring with a specific mutation config (supports adaptive mutation)
+    /// Generate offspring with a specific mutation config, an entropy-seeded
+    /// generator (`rand::thread_rng`) and no innovation registry.
+    #[deprecated(
+        note = "use `Specie::generate_offspring_with_innovations` with the population's registry and generator"
+    )]
     pub fn generate_offspring_with_config(
         &mut self,
         num_of_organisms: usize,
         population_organisms: &[Organism],
         base_config: &MutationConfig,
     ) {
-        self.generate_offspring_with_config_and_rng(
+        let mates: Vec<&Organism> = population_organisms.iter().collect();
+        self.generate_offspring_with_mates(
             num_of_organisms,
-            population_organisms,
+            &mates,
             base_config,
+            None,
             &mut rand::thread_rng(),
         );
     }
 
     /// Generate offspring with a specific mutation config, drawing every random
-    /// decision (selection, crossover, mutation) from `rng`. New neurons are
-    /// numbered by each genome on its own; `Population` uses
-    /// `generate_offspring_with_innovations`.
+    /// decision (selection, crossover, mutation) from `rng`, without
+    /// innovation registry: each genome numbers its new neurons on its own,
+    /// so the same split in two children may get different ids and
+    /// different splits the same id. The random draws are those of
+    /// `generate_offspring_with_innovations`, which `Population` uses.
+    #[deprecated(
+        note = "neuron ids are per genome: use `Specie::generate_offspring_with_innovations` with the population's registry (`Population::innovations`)"
+    )]
     pub fn generate_offspring_with_config_and_rng<R: Rng + ?Sized>(
         &mut self,
         num_of_organisms: usize,
@@ -168,8 +193,13 @@ impl Specie {
         self.generate_offspring_with_mates(num_of_organisms, &mates, base_config, None, rng);
     }
 
-    /// Like `generate_offspring_with_config_and_rng`, taking the ids of new
-    /// neurons from `innovations`, the registry of the population.
+    /// Mate and generate offspring with the mutation config `base_config`,
+    /// drawing every random decision (selection, crossover, mutation) from
+    /// `rng` and taking the ids of new neurons from `innovations`, the
+    /// registry of the population. The old organisms are replaced by the
+    /// children. `population_organisms` are the candidates for an
+    /// interspecies crossover (see `MutationConfig::interspecies_mate_rate`):
+    /// the parents of the other species (`Specie::parents_with_config`).
     pub fn generate_offspring_with_innovations<R: Rng + ?Sized>(
         &mut self,
         num_of_organisms: usize,
@@ -189,8 +219,10 @@ impl Specie {
     }
 
     /// Organisms allowed to reproduce with the default configuration: the
-    /// fittest half (at least one), the ones `generate_offspring` keeps as
-    /// parents.
+    /// fittest half (at least one).
+    #[deprecated(
+        note = "ignores the population's `survival_threshold`: use `Specie::parents_with_config`"
+    )]
     pub fn parents(&self) -> impl Iterator<Item = &Organism> {
         self.parents_with_config(&MutationConfig::default())
     }
@@ -301,7 +333,9 @@ impl Specie {
             .collect()
     }
 
-    /// Choice a new representative of the specie at random
+    /// Choice a new representative of the specie at random, from an
+    /// entropy-seeded generator (`rand::thread_rng`).
+    #[deprecated(note = "not seedable: use `Specie::choose_new_representative_with_rng`")]
     pub fn choose_new_representative(&mut self) {
         self.choose_new_representative_with_rng(&mut rand::thread_rng());
     }
@@ -349,19 +383,15 @@ impl Specie {
         innovations: Option<&mut InnovationRegistry>,
         rng: &mut R,
     ) -> Organism {
-        let mutate = |parent: &Organism, rng: &mut R| match innovations {
-            Some(registry) => parent.mutate_with_innovations(config, registry, rng),
-            None => parent.mutate_with_config_and_rng(config, rng),
-        };
         if rng.gen::<f64>() < config.mutation_probability
             || self.organisms.len() + other_species_parents.len() < 2
         {
             // Mutation only (asexual reproduction)
-            mutate(organism, rng)
+            organism.mutate_with_registry(config, innovations, rng)
         } else {
             // Crossover, then mutation
             let child = self.create_child_by_mate(organism, other_species_parents, config, rng);
-            mutate(&child, rng)
+            child.mutate_with_registry(config, innovations, rng)
         }
     }
 
@@ -434,10 +464,11 @@ mod tests {
 
         for generation in 1..=16 {
             let organisms = specie.organisms.clone();
-            specie.generate_offspring_with_config_and_rng(
+            specie.generate_offspring_with_innovations(
                 4,
                 &organisms,
                 &MutationConfig::default(),
+                &mut InnovationRegistry::default(),
                 &mut rng,
             );
             // The average rises every generation, the best stays below 10.
@@ -474,7 +505,7 @@ mod tests {
     /// `0 -> 3`, `3 -> 2`: a child with neuron 3 has a parent of the other
     /// species.
     fn two_species() -> (Specie, Vec<Organism>) {
-        let genome = Genome::new_initialized(2, 1);
+        let genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         let mut specie = Specie::new(genome.clone());
         for fitness in 1..=10 {
             let mut organism = Organism::new(genome.clone());
@@ -496,7 +527,7 @@ mod tests {
 
     /// Only crossover, no mutation, the given interspecies rate.
     fn crossover_only(interspecies: f64) -> MutationConfig {
-        MutationConfig::new()
+        MutationConfig::builder()
             .mutation_probability(0.0)
             .add_connection_rate(0.0)
             .add_neuron_rate(0.0)
@@ -526,10 +557,11 @@ mod tests {
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
         for (rate, low, high) in [(0.0, 0, 0), (1.0, 999, 999), (0.3, 250, 350)] {
             let (mut specie, others) = two_species();
-            specie.generate_offspring_with_config_and_rng(
+            specie.generate_offspring_with_innovations(
                 1000,
                 &others,
                 &crossover_only(rate),
+                &mut InnovationRegistry::default(),
                 &mut rng,
             );
             // 999 children and the copy of the champion.
@@ -548,7 +580,13 @@ mod tests {
         use rand::SeedableRng;
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
         let (mut specie, _) = two_species();
-        specie.generate_offspring_with_config_and_rng(50, &[], &crossover_only(1.0), &mut rng);
+        specie.generate_offspring_with_innovations(
+            50,
+            &[],
+            &crossover_only(1.0),
+            &mut InnovationRegistry::default(),
+            &mut rng,
+        );
         assert_eq!(specie.organisms.len(), 50);
         assert_eq!(children_with_foreign_parent(&specie), 0);
     }
@@ -556,12 +594,20 @@ mod tests {
     #[test]
     fn parents_are_the_fittest_half() {
         let (specie, _) = two_species();
-        let mut fitnesses: Vec<f64> = specie.parents().map(|o| o.fitness).collect();
+        let mut fitnesses: Vec<f64> = specie
+            .parents_with_config(&MutationConfig::default())
+            .map(|o| o.fitness)
+            .collect();
         fitnesses.sort_by(|a, b| a.partial_cmp(b).unwrap());
         assert_eq!(fitnesses, vec![6.0, 7.0, 8.0, 9.0, 10.0]);
         let mut single = Specie::new(Genome::default());
         single.add(Organism::new(Genome::default()));
-        assert_eq!(single.parents().count(), 1);
+        assert_eq!(
+            single
+                .parents_with_config(&MutationConfig::default())
+                .count(),
+            1
+        );
     }
 
     /// #19: generating offspring from a species without organisms panicked
@@ -572,13 +618,33 @@ mod tests {
         use rand::SeedableRng;
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
         let config = MutationConfig::default();
-        let mates = vec![Organism::new(Genome::new_initialized(2, 1))];
+        let mates = vec![Organism::new(Genome::new_initialized_with_rng(
+            2,
+            1,
+            &mut rand::thread_rng(),
+        ))];
         for size in [0, 1, 2, 10] {
-            let mut specie = Specie::new(Genome::new_initialized(2, 1));
+            let mut specie = Specie::new(Genome::new_initialized_with_rng(
+                2,
+                1,
+                &mut rand::thread_rng(),
+            ));
             assert!(specie.is_empty());
-            specie.generate_offspring_with_config_and_rng(size, &mates, &config, &mut rng);
+            specie.generate_offspring_with_innovations(
+                size,
+                &mates,
+                &config,
+                &mut InnovationRegistry::default(),
+                &mut rng,
+            );
             assert!(specie.is_empty(), "offspring size {}", size);
-            specie.generate_offspring_with_config_and_rng(size, &[], &config, &mut rng);
+            specie.generate_offspring_with_innovations(
+                size,
+                &[],
+                &config,
+                &mut InnovationRegistry::default(),
+                &mut rng,
+            );
             assert!(specie.is_empty(), "offspring size {} without mates", size);
         }
     }

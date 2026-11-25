@@ -7,7 +7,7 @@ extern crate rustneat;
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use rustneat::{Gene, Genome, MutationConfig, Organism, Specie};
+use rustneat::{Gene, Genome, InnovationRegistry, MutationConfig, Organism, Specie};
 
 #[test]
 fn defaults_are_the_values_that_were_hardcoded() {
@@ -21,7 +21,7 @@ fn defaults_are_the_values_that_were_hardcoded() {
 
 #[test]
 fn builders_set_the_new_fields() {
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .crossover_weight_averaging_rate(0.1)
         .survival_threshold(0.2)
         .champion_copy_min_offspring(6)
@@ -57,7 +57,7 @@ fn weights(genome: &Genome) -> Vec<f64> {
 #[test]
 fn crossover_always_averages_matching_weights_with_rate_one() {
     let (a, b) = parents();
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .crossover_weight_averaging_rate(1.0)
         .build();
     let mut rng = ChaCha8Rng::seed_from_u64(1);
@@ -70,7 +70,7 @@ fn crossover_always_averages_matching_weights_with_rate_one() {
 #[test]
 fn crossover_never_averages_matching_weights_with_rate_zero() {
     let (a, b) = parents();
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .crossover_weight_averaging_rate(0.0)
         .build();
     let (wa, wb) = (weights(&a), weights(&b));
@@ -85,7 +85,7 @@ fn crossover_never_averages_matching_weights_with_rate_zero() {
 
 #[test]
 fn a_split_uses_the_configured_weight_and_bias() {
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .add_connection_rate(0.0)
         .add_neuron_rate(1.0)
         .weight_mutation_rate(0.0)
@@ -95,7 +95,11 @@ fn a_split_uses_the_configured_weight_and_bias() {
         .build();
     let mut rng = ChaCha8Rng::seed_from_u64(1);
     let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rng);
-    genome.mutate_with_config_and_rng(&config, &mut rng);
+    genome.mutate_with_innovations(
+        &config,
+        &mut InnovationRegistry::new(genome.len()),
+        &mut rng,
+    );
     let new = genome
         .neurons()
         .into_iter()
@@ -126,7 +130,9 @@ fn species_of(fitnesses: &[f64]) -> Specie {
 fn survival_threshold_sets_how_many_organisms_reproduce() {
     let specie = species_of(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
     let count = |threshold: f64| {
-        let config = MutationConfig::new().survival_threshold(threshold).build();
+        let config = MutationConfig::builder()
+            .survival_threshold(threshold)
+            .build();
         specie.parents_with_config(&config).count()
     };
     assert_eq!(count(0.5), 5);
@@ -135,9 +141,14 @@ fn survival_threshold_sets_how_many_organisms_reproduce() {
     // At least one organism always reproduces.
     assert_eq!(count(0.0), 1);
     // The default is the fittest half.
-    assert_eq!(specie.parents().count(), 5);
+    assert_eq!(
+        specie
+            .parents_with_config(&MutationConfig::default())
+            .count(),
+        5
+    );
     let mut best: Vec<f64> = specie
-        .parents_with_config(&MutationConfig::new().survival_threshold(0.3).build())
+        .parents_with_config(&MutationConfig::builder().survival_threshold(0.3).build())
         .map(|o| o.fitness)
         .collect();
     best.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -164,7 +175,7 @@ fn survival_threshold_limits_the_parents_of_the_offspring() {
         organism.fitness = fitness as f64;
         specie.add(organism);
     }
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .mutation_probability(1.0)
         .add_connection_rate(0.0)
         .add_neuron_rate(0.0)
@@ -173,7 +184,13 @@ fn survival_threshold_limits_the_parents_of_the_offspring() {
         .toggle_expression_rate(0.0)
         .survival_threshold(0.2)
         .build();
-    specie.generate_offspring_with_config_and_rng(40, &[], &config, &mut rng);
+    specie.generate_offspring_with_innovations(
+        40,
+        &[],
+        &config,
+        &mut InnovationRegistry::default(),
+        &mut rng,
+    );
     assert_eq!(specie.organisms.len(), 40);
     for organism in &specie.organisms {
         let w = organism.genome.get_genes()[0].weight();
@@ -191,11 +208,17 @@ fn the_champion_is_copied_only_from_the_configured_offspring_size() {
         let mut specie = species_of(&[1.0, 2.0, 3.0, 4.0]);
         // The elite copy keeps the champion's fitness (4.0); every other
         // child is a new organism with fitness 0.
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .champion_copy_min_offspring(min)
             .build();
         let mut rng = ChaCha8Rng::seed_from_u64(1);
-        specie.generate_offspring_with_config_and_rng(offspring, &[], &config, &mut rng);
+        specie.generate_offspring_with_innovations(
+            offspring,
+            &[],
+            &config,
+            &mut InnovationRegistry::default(),
+            &mut rng,
+        );
         assert_eq!(specie.organisms.len(), offspring);
         specie
             .organisms

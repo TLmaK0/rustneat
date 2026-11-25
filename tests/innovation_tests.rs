@@ -14,7 +14,7 @@ use rustneat::{
 
 /// Only the add-neuron mutation, always.
 fn only_add_neuron() -> MutationConfig {
-    MutationConfig::new()
+    MutationConfig::builder()
         .add_connection_rate(0f64)
         .add_neuron_rate(1f64)
         .weight_mutation_rate(0f64)
@@ -66,7 +66,10 @@ fn the_same_split_in_two_lineages_gets_the_same_neuron_id() {
     assert_eq!(id_a, id_b);
     assert_eq!(connections(&a), connections(&b));
     // Same genes, same weights: nothing is disjoint or excess.
-    assert_eq!(a.compatibility_distance(&b), 0f64);
+    assert_eq!(
+        a.compatibility_distance_with_config(&b, &MutationConfig::default()),
+        0f64
+    );
 }
 
 #[test]
@@ -120,19 +123,22 @@ fn bias_crossover_mixes_only_the_same_innovation() {
     // Different splits: the hidden neuron of the structure donor keeps its
     // own bias, never the other's.
     for _ in 0..200 {
-        let child = a.mate_with_rng(&b, true, &mut rng);
+        let child = a.mate_with_config_and_rng(&b, true, &MutationConfig::default(), &mut rng);
         assert_eq!(child.bias(id_a), 1f64);
     }
     // The same split: the bias comes from either parent (or their average).
     let mut seen = std::collections::BTreeSet::new();
     for _ in 0..200 {
-        let child = a.mate_with_rng(&c, true, &mut rng);
+        let child = a.mate_with_config_and_rng(&c, true, &MutationConfig::default(), &mut rng);
         seen.insert(child.bias(id_a).to_string());
     }
     assert!(seen.contains("1") && seen.contains("3"), "{:?}", seen);
 }
 
+/// The deprecated mutation without registry keeps numbering new neurons by
+/// the genome alone (issue #103).
 #[test]
+#[allow(deprecated)]
 fn genomes_without_registry_still_get_new_ids_of_their_own() {
     let mut genome = ancestor(0);
     let mut rng = ChaCha8Rng::seed_from_u64(1);
@@ -157,7 +163,7 @@ impl Environment for Growth {
 
 #[test]
 fn population_hidden_neurons_come_from_its_registry() {
-    let config = MutationConfig::new().add_neuron_rate(0.5f64).build();
+    let config = MutationConfig::builder().add_neuron_rate(0.5f64).build();
     let mut population =
         Population::create_population_initialized_with_config(30, 2, 1, config).with_seed(5);
     for _ in 0..15 {

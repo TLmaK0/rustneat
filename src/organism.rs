@@ -80,7 +80,11 @@ impl Organism {
     /// Integration scheme of `activate`.
     pub(crate) const INTEGRATOR: Integrator = Integrator::ExponentialEuler;
 
-    /// Create a new organmism form a single genome.
+    /// Create a new organism from a single genome, with the CTRNN settings
+    /// (τ, dt, step time, output activation) of `MutationConfig::default()`:
+    /// the same as `Organism::with_config(genome, &MutationConfig::default())`.
+    /// Use `with_config` for an organism that must behave like those of a
+    /// population with another config.
     pub fn new(genome: Genome) -> Organism {
         Organism {
             genome,
@@ -97,28 +101,51 @@ impl Organism {
             output_activation: OutputActivation::default(),
         }
     }
-    /// Return a new Orgnaism by mutating this Genome and fitness of zero
-    pub fn mutate(&self) -> Organism {
-        let mut new_genome = self.genome.clone();
-        new_genome.mutate();
-        self.child(new_genome)
+    /// Create a new organism from a single genome, with the CTRNN settings
+    /// of `config` (`tau`, `dt`, `step_time`, `output_activation`), as the
+    /// population creates its initial organisms.
+    pub fn with_config(genome: Genome, config: &MutationConfig) -> Organism {
+        let mut organism = Organism::new(genome);
+        organism.tau = config.tau;
+        organism.dt = config.dt;
+        organism.step_time = config.step_time;
+        organism.output_activation = config.output_activation;
+        organism
     }
-    /// Return a new Organism by mutating with specific config
+    /// Return a new Orgnaism by mutating this Genome and fitness of zero,
+    /// with the default `MutationConfig`, an entropy-seeded generator
+    /// (`rand::thread_rng`) and no innovation registry.
+    #[deprecated(
+        note = "use `Organism::mutate_with_innovations` with the population's config, registry and generator"
+    )]
+    pub fn mutate(&self) -> Organism {
+        self.mutate_with_registry(&MutationConfig::default(), None, &mut rand::thread_rng())
+    }
+    /// Return a new Organism by mutating with specific config, with an
+    /// entropy-seeded generator (`rand::thread_rng`) and no innovation
+    /// registry.
+    #[deprecated(
+        note = "use `Organism::mutate_with_innovations` with the population's registry and generator"
+    )]
     pub fn mutate_with_config(&self, config: &MutationConfig) -> Organism {
-        self.mutate_with_config_and_rng(config, &mut rand::thread_rng())
+        self.mutate_with_registry(config, None, &mut rand::thread_rng())
     }
     /// Return a new Organism by mutating with specific config, drawing every
-    /// random decision from `rng`
+    /// random decision from `rng`, without innovation registry: new neurons
+    /// are numbered by the genome alone (see
+    /// `Genome::mutate_with_config_and_rng`).
+    #[deprecated(
+        note = "neuron ids are per genome: use `Organism::mutate_with_innovations` with the population's registry (`Population::innovations`)"
+    )]
     pub fn mutate_with_config_and_rng<R: Rng + ?Sized>(
         &self,
         config: &MutationConfig,
         rng: &mut R,
     ) -> Organism {
-        let mut new_genome = self.genome.clone();
-        new_genome.mutate_with_config_and_rng(config, rng);
-        self.child(new_genome)
+        self.mutate_with_registry(config, None, rng)
     }
-    /// Like `mutate_with_config_and_rng`, taking the ids of new neurons from
+    /// Return a new Organism by mutating with specific config, drawing every
+    /// random decision from `rng` and taking the ids of new neurons from
     /// `innovations` (see `Genome::mutate_with_innovations`).
     pub fn mutate_with_innovations<R: Rng + ?Sized>(
         &self,
@@ -126,8 +153,18 @@ impl Organism {
         innovations: &mut InnovationRegistry,
         rng: &mut R,
     ) -> Organism {
+        self.mutate_with_registry(config, Some(innovations), rng)
+    }
+    /// A mutated child, with the ids of new neurons from `innovations` or,
+    /// without registry, numbered by the genome alone.
+    pub(crate) fn mutate_with_registry<R: Rng + ?Sized>(
+        &self,
+        config: &MutationConfig,
+        innovations: Option<&mut InnovationRegistry>,
+        rng: &mut R,
+    ) -> Organism {
         let mut new_genome = self.genome.clone();
-        new_genome.mutate_with_innovations(config, innovations, rng);
+        new_genome.mutate_with_registry(config, innovations, rng);
         self.child(new_genome)
     }
     /// A new organism with `genome` and the CTRNN settings of `self`
@@ -151,16 +188,26 @@ impl Organism {
             ..*self
         }
     }
-    /// Mate this organism with another
+    /// Mate this organism with another, with the default `MutationConfig`
+    /// and an entropy-seeded generator (`rand::thread_rng`).
+    #[deprecated(
+        note = "use `Organism::mate_with_config_and_rng` with the population's config and generator"
+    )]
     pub fn mate(&self, other: &Organism) -> Organism {
-        self.mate_with_rng(other, &mut rand::thread_rng())
+        self.mate_with_config_and_rng(other, &MutationConfig::default(), &mut rand::thread_rng())
     }
-    /// Mate this organism with another, drawing every random decision from `rng`
+    /// Mate this organism with another, drawing every random decision from
+    /// `rng`, with the crossover settings of the default `MutationConfig`.
+    #[deprecated(
+        note = "ignores the population's config: use `Organism::mate_with_config_and_rng`"
+    )]
     pub fn mate_with_rng<R: Rng + ?Sized>(&self, other: &Organism, rng: &mut R) -> Organism {
         self.mate_with_config_and_rng(other, &MutationConfig::default(), rng)
     }
-    /// Like `mate_with_rng`, with the crossover settings of `config`
-    /// (`MutationConfig::disabled_gene_inheritance`).
+    /// Mate this organism with another, drawing every random decision from
+    /// `rng`, with the crossover settings of `config`
+    /// (`MutationConfig::disabled_gene_inheritance`,
+    /// `crossover_weight_averaging_rate`).
     pub fn mate_with_config_and_rng<R: Rng + ?Sized>(
         &self,
         other: &Organism,
@@ -359,7 +406,17 @@ mod tests {
             let mut rng = ChaCha8Rng::seed_from_u64(1);
             for (first, second) in [(&a, &b), (&b, &a)] {
                 let matching = (0..1000)
-                    .filter(|_| topology(&first.mate_with_rng(second, &mut rng).genome) == expected)
+                    .filter(|_| {
+                        topology(
+                            &first
+                                .mate_with_config_and_rng(
+                                    second,
+                                    &MutationConfig::default(),
+                                    &mut rng,
+                                )
+                                .genome,
+                        ) == expected
+                    })
                     .count();
                 assert_eq!(
                     matching, 1000,
@@ -377,7 +434,8 @@ mod tests {
         for (first, second) in [(&a, &b), (&b, &a)] {
             let mut with_excess = [0usize; 2];
             for _ in 0..1000 {
-                let child = first.mate_with_rng(second, &mut rng);
+                let child =
+                    first.mate_with_config_and_rng(second, &MutationConfig::default(), &mut rng);
                 let genes = topology(&child.genome);
                 assert!(
                     genes.contains(&(0, 1)),
@@ -406,7 +464,12 @@ mod tests {
         let run = |seed| {
             let mut rng = ChaCha8Rng::seed_from_u64(seed);
             (0..50)
-                .map(|_| topology(&a.mate_with_rng(&b, &mut rng).genome))
+                .map(|_| {
+                    topology(
+                        &a.mate_with_config_and_rng(&b, &MutationConfig::default(), &mut rng)
+                            .genome,
+                    )
+                })
                 .collect::<Vec<_>>()
         };
         assert_eq!(run(7), run(7));
@@ -414,7 +477,11 @@ mod tests {
 
     #[test]
     fn mating_copy_keeps_what_crossover_needs_without_the_phenotype() {
-        let mut organism = Organism::new(Genome::new_initialized(2, 1));
+        let mut organism = Organism::new(Genome::new_initialized_with_rng(
+            2,
+            1,
+            &mut rand::thread_rng(),
+        ));
         organism.fitness = 3.5;
         organism.adjusted_fitness = 1.5;
         organism.tau = 0.2;
@@ -764,12 +831,14 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(1);
         assert_eq!(
             parent
-                .mutate_with_config_and_rng(&config, &mut rng)
+                .mutate_with_registry(&config, None, &mut rng)
                 .output_activation,
             OutputActivation::Linear
         );
         assert_eq!(
-            parent.mate_with_rng(&parent, &mut rng).output_activation,
+            parent
+                .mate_with_config_and_rng(&parent, &MutationConfig::default(), &mut rng)
+                .output_activation,
             OutputActivation::Linear
         );
     }
@@ -876,13 +945,14 @@ mod tests {
         b.fitness = 10f64;
         let mut rng = ChaCha8Rng::seed_from_u64(1);
         for (first, second) in [(&a, &b), (&b, &a)] {
-            let child = first.mate_with_rng(second, &mut rng);
+            let child =
+                first.mate_with_config_and_rng(second, &MutationConfig::default(), &mut rng);
             assert_eq!(child.tau, b.tau);
             assert_eq!(child.dt, b.dt);
             assert_eq!(child.step_time, b.step_time);
             assert_eq!(child.output_activation, b.output_activation);
         }
-        let child = a.mutate_with_config_and_rng(&MutationConfig::default(), &mut rng);
+        let child = a.mutate_with_registry(&MutationConfig::default(), None, &mut rng);
         assert_eq!((child.tau, child.dt, child.step_time), (0.5, 0.02, 0.4));
     }
 }

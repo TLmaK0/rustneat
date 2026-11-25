@@ -33,7 +33,7 @@ impl Environment for Xor {
 fn thousand_generations_with_many_species_and_empty_ones_do_not_panic() {
     const SIZE: usize = 30;
     const GENERATIONS: usize = 1000;
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .target_species(5)
         .species_stagnation(3, 1)
         .build();

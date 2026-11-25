@@ -139,7 +139,7 @@ fn parse_args(args: &[String]) -> Result<Bench, String> {
     if !["default", "init", "initb", "uncon"].contains(&mode.as_str()) {
         return Err(format!("unknown mode {}\n{}", mode, USAGE));
     }
-    let mut b = MutationConfig::new();
+    let mut b = MutationConfig::builder();
     let mut pop_size = 150usize;
     let mut reset = false;
     let mut target = 15.5f64;

@@ -319,11 +319,27 @@ impl Default for MutationConfig {
 }
 
 impl MutationConfig {
-    /// Create a new configuration with custom values
+    /// A builder starting from `MutationConfig::default()`: set the values
+    /// that differ and call `build()`.
+    ///
+    /// ```
+    /// use rustneat::MutationConfig;
+    /// let config = MutationConfig::builder().add_neuron_rate(0.1).build();
+    /// assert_eq!(config.add_neuron_rate, 0.1);
+    /// ```
+    pub fn builder() -> MutationConfigBuilder {
+        MutationConfigBuilder::default()
+    }
+
+    /// The same as `MutationConfig::builder()`: despite its name it returns
+    /// a `MutationConfigBuilder`, not a `MutationConfig`.
     // Public API: `new()` has always returned the builder.
     #[allow(clippy::new_ret_no_self)]
+    #[deprecated(
+        note = "returns a builder, not a `MutationConfig`: use `MutationConfig::builder()` (or `MutationConfig::default()`)"
+    )]
     pub fn new() -> MutationConfigBuilder {
-        MutationConfigBuilder::default()
+        MutationConfig::builder()
     }
 }
 

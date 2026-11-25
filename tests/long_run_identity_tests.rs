@@ -32,7 +32,7 @@ fn fnv1a(hash: &mut u64, bytes: &[u8]) {
 /// species ids, every genome (genes, biases, τ genes), every fitness and
 /// the champion fitness.
 fn run_digest(generations: usize) -> u64 {
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .target_species(5)
         .species_stagnation(3, 1)
         .build();

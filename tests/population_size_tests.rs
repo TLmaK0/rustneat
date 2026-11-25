@@ -21,7 +21,9 @@ impl Environment for Xor {
 /// every generation, also when stagnant species are removed.
 #[test]
 fn population_size_is_exact_for_500_generations_with_many_species() {
-    let config = MutationConfig::new().compatibility_threshold(0.6).build();
+    let config = MutationConfig::builder()
+        .compatibility_threshold(0.6)
+        .build();
     let mut population =
         Population::create_population_initialized_with_config(150, 2, 1, config).with_seed(1);
     assert_eq!(population.target_size(), 150);

@@ -51,7 +51,7 @@ population:
 ```rust
 use rustneat::{MutationConfig, Population};
 
-let config = MutationConfig::new()
+let config = MutationConfig::builder()
     .dt(0.01) // integration step, seconds
     .step_time(0.1) // simulated time per activate() call: 10 steps
     .tau(0.1) // default τ: neurons with memory

@@ -50,7 +50,7 @@ impl Environment for FunctionApproximation {
 
 fn main() {
     // Regression: the target goes beyond (0, 1), so read the output linearly.
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .output_activation(OutputActivation::Linear)
         .build();
     let mut population = Population::create_population_initialized_with_config(150, 1, 1, config);

@@ -511,12 +511,7 @@ impl Population {
             } else {
                 Genome::new_unconnected(input_neurons, output_neurons)
             };
-            let mut org = Organism::new(genome);
-            org.tau = self.mutation_config.tau;
-            org.dt = self.mutation_config.dt;
-            org.step_time = self.mutation_config.step_time;
-            org.output_activation = self.mutation_config.output_activation;
-            organisms.push(org);
+            organisms.push(Organism::with_config(genome, &self.mutation_config));
         }
 
         let mut specie = Specie::new(organisms.first().unwrap().genome.clone());
@@ -789,7 +784,7 @@ mod tests {
 
     #[test]
     fn dynamic_threshold_rises_with_too_many_species() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_threshold(0.01)
             .target_species(3)
             .compatibility_threshold_adjustment(0.3, 0.001)
@@ -801,7 +796,7 @@ mod tests {
 
     #[test]
     fn dynamic_threshold_drops_with_too_few_species_down_to_its_minimum() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_threshold(3.0)
             .target_species(10)
             .compatibility_threshold_adjustment(0.25, 0.3)
@@ -809,7 +804,7 @@ mod tests {
         let (threshold, species) = threshold_after_one_speciation(config);
         assert_eq!(species, 1);
         assert!((threshold - 2.75).abs() < 1e-9, "threshold = {}", threshold);
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_threshold(0.4)
             .target_species(1000)
             .compatibility_threshold_adjustment(0.25, 0.3)
@@ -820,7 +815,7 @@ mod tests {
 
     #[test]
     fn dynamic_threshold_does_not_rise_over_its_maximum() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_threshold(0.01)
             .target_species(3)
             .compatibility_threshold_adjustment(0.3, 0.001)
@@ -837,12 +832,12 @@ mod tests {
 
     #[test]
     fn dynamic_threshold_stays_when_on_target_or_disabled() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_threshold(3.0)
             .target_species(1)
             .build();
         assert_eq!(threshold_after_one_speciation(config), (3.0, 1));
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_threshold(0.01)
             .fixed_compatibility_threshold()
             .build();
@@ -897,7 +892,7 @@ mod tests {
     /// reproduction without any mutation (children are clones), so the
     /// species stay apart.
     fn three_species_population(protected: usize) -> (Population, [i64; 3]) {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .fixed_compatibility_threshold()
             .compatibility_threshold(2.0)
             .weight_mutation_rate(0.0)
@@ -1025,7 +1020,7 @@ mod tests {
         assignment: SpeciesAssignment,
         seed: u64,
     ) -> Population {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .fixed_compatibility_threshold()
             .compatibility_threshold(threshold)
             .species_assignment(assignment)
@@ -1215,7 +1210,7 @@ mod tests {
     #[test]
     fn initial_organisms_take_output_activation_from_config() {
         use crate::organism::OutputActivation;
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .output_activation(OutputActivation::Linear)
             .build();
         let population = Population::create_population_initialized_with_config(10, 2, 1, config);
@@ -1232,7 +1227,7 @@ mod tests {
 
     #[test]
     fn initial_organisms_take_ctrnn_settings_from_config() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .tau(0.2)
             .dt(0.005)
             .step_time(0.3)

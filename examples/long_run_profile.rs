@@ -131,7 +131,7 @@ struct Run {
 }
 
 fn run(args: &Args) -> Run {
-    let config = MutationConfig::new()
+    let config = MutationConfig::builder()
         .target_species(5)
         .species_stagnation(3, 1)
         .build();

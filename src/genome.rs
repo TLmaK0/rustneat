@@ -30,8 +30,14 @@ impl Default for Revision {
 ///
 /// Neuron ids are the historical markings: inside a `Population` the id of a
 /// new neuron comes from its `InnovationRegistry`, so a genome's hidden ids
-/// need not be consecutive. A genome mutated on its own (without registry)
-/// numbers its new neurons after its highest id.
+/// need not be consecutive. A genome mutated on its own (without registry,
+/// the deprecated `mutate_with_config_and_rng`) numbers its new neurons
+/// after its highest id.
+///
+/// The methods without generator (`rand::thread_rng`), without
+/// `MutationConfig` (the defaults) or without `InnovationRegistry` are
+/// deprecated: use the `*_with_rng`, `*_with_config*` and
+/// `*_with_innovations` variants, which are what `Population` uses.
 #[derive(Default, Clone)]
 pub struct Genome {
     genes: Vec<Gene>,
@@ -271,7 +277,10 @@ impl Genome {
         genome
     }
 
-    ///Add initial input and output neurons interconnected
+    /// Add initial input and output neurons interconnected, drawing the
+    /// weights from an entropy-seeded generator (`rand::thread_rng`), so
+    /// the genome cannot be reproduced with a seed.
+    #[deprecated(note = "not seedable: use `Genome::new_initialized_with_rng`")]
     pub fn new_initialized(input_neurons: usize, output_neurons: usize) -> Genome {
         Genome::new_initialized_with_rng(input_neurons, output_neurons, &mut rand::thread_rng())
     }
@@ -418,18 +427,36 @@ impl Genome {
     }
 
     /// May add a connection &| neuron &| mutat connection weight &|
-    /// enable/disable connection
+    /// enable/disable connection, with the default `MutationConfig`, an
+    /// entropy-seeded generator (`rand::thread_rng`) and no innovation
+    /// registry: not reproducible with a seed, and a new neuron is numbered
+    /// by this genome alone (see `mutate_with_config_and_rng`).
+    #[deprecated(
+        note = "use `Genome::mutate_with_innovations` with the population's config, registry and generator"
+    )]
     pub fn mutate(&mut self) {
-        self.mutate_with_config(&MutationConfig::default());
+        self.mutate_with_registry(&MutationConfig::default(), None, &mut rand::thread_rng());
     }
 
-    /// Mutate using specific mutation rates from config
+    /// Mutate using specific mutation rates from config, with an
+    /// entropy-seeded generator (`rand::thread_rng`) and no innovation
+    /// registry (see `mutate_with_config_and_rng`).
+    #[deprecated(
+        note = "use `Genome::mutate_with_innovations` with the population's registry and generator"
+    )]
     pub fn mutate_with_config(&mut self, config: &MutationConfig) {
-        self.mutate_with_config_and_rng(config, &mut rand::thread_rng());
+        self.mutate_with_registry(config, None, &mut rand::thread_rng());
     }
 
     /// Mutate using specific mutation rates from config, drawing every random
-    /// decision from `rng`
+    /// decision from `rng`, without innovation registry: a new neuron gets
+    /// the id after the highest id of this genome, so the same split in two
+    /// genomes may get different ids and different splits the same id. The
+    /// same as `mutate_with_innovations` with a fresh
+    /// `InnovationRegistry::new(self.len())` for every call.
+    #[deprecated(
+        note = "neuron ids are per genome: use `Genome::mutate_with_innovations` with the population's registry (`Population::innovations`)"
+    )]
     pub fn mutate_with_config_and_rng<R: Rng + ?Sized>(
         &mut self,
         config: &MutationConfig,
@@ -451,7 +478,9 @@ impl Genome {
         self.mutate_with_registry(config, Some(innovations), rng);
     }
 
-    fn mutate_with_registry<R: Rng + ?Sized>(
+    /// Mutation with the ids of new neurons from `innovations` or, without
+    /// registry, numbered by this genome alone.
+    pub(crate) fn mutate_with_registry<R: Rng + ?Sized>(
         &mut self,
         config: &MutationConfig,
         innovations: Option<&mut InnovationRegistry>,
@@ -487,13 +516,25 @@ impl Genome {
 
     /// Mate two genomes. If `self_is_fitter` is true the child inherits the
     /// structure (disjoint and excess genes) of `self`, otherwise of `other`.
+    /// Uses the default `MutationConfig` and an entropy-seeded generator
+    /// (`rand::thread_rng`): not reproducible with a seed.
+    #[deprecated(
+        note = "use `Genome::mate_with_config_and_rng` with the population's config and generator"
+    )]
     pub fn mate(&self, other: &Genome, self_is_fitter: bool) -> Genome {
-        self.mate_with_rng(other, self_is_fitter, &mut rand::thread_rng())
+        self.mate_with_config_and_rng(
+            other,
+            self_is_fitter,
+            &MutationConfig::default(),
+            &mut rand::thread_rng(),
+        )
     }
 
-    /// Mate two genomes, drawing every random decision from `rng`.
+    /// Mate two genomes, drawing every random decision from `rng`, with the
+    /// crossover settings of the default `MutationConfig`.
     /// If `self_is_fitter` is true the child inherits the structure
     /// (disjoint and excess genes) of `self`, otherwise of `other`.
+    #[deprecated(note = "ignores the population's config: use `Genome::mate_with_config_and_rng`")]
     pub fn mate_with_rng<R: Rng + ?Sized>(
         &self,
         other: &Genome,
@@ -503,8 +544,11 @@ impl Genome {
         self.mate_with_config_and_rng(other, self_is_fitter, &MutationConfig::default(), rng)
     }
 
-    /// Like `mate_with_rng`, with the crossover settings of `config`
-    /// (`disabled_gene_inheritance`).
+    /// Mate two genomes, drawing every random decision from `rng`, with the
+    /// crossover settings of `config` (`disabled_gene_inheritance`,
+    /// `crossover_weight_averaging_rate`). If `self_is_fitter` is true the
+    /// child inherits the structure (disjoint and excess genes) of `self`,
+    /// otherwise of `other`.
     pub fn mate_with_config_and_rng<R: Rng + ?Sized>(
         &self,
         other: &Genome,
@@ -521,13 +565,19 @@ impl Genome {
 
     /// Mate two genomes of equal fitness, drawing every random decision from
     /// `rng`: disjoint and excess genes are inherited from either parent at
-    /// random (NEAT paper, section 3.2).
+    /// random (NEAT paper, section 3.2). Uses the crossover settings of the
+    /// default `MutationConfig`.
+    #[deprecated(
+        note = "ignores the population's config: use `Genome::mate_equal_with_config_and_rng`"
+    )]
     pub fn mate_equal_with_rng<R: Rng + ?Sized>(&self, other: &Genome, rng: &mut R) -> Genome {
         self.mate_equal_with_config_and_rng(other, &MutationConfig::default(), rng)
     }
 
-    /// Like `mate_equal_with_rng`, with the crossover settings of `config`
-    /// (`disabled_gene_inheritance`).
+    /// Mate two genomes of equal fitness, drawing every random decision from
+    /// `rng`: disjoint and excess genes are inherited from either parent at
+    /// random (NEAT paper, section 3.2). Uses the crossover settings of
+    /// `config`.
     pub fn mate_equal_with_config_and_rng<R: Rng + ?Sized>(
         &self,
         other: &Genome,
@@ -810,10 +860,7 @@ impl Genome {
             }
             let existing = self.genes_from(from);
             for &to in destinations {
-                let new = to != from
-                    && existing
-                        .binary_search(&Gene::new_connection(from, to))
-                        .is_err();
+                let new = to != from && existing.binary_search(&Gene::key(from, to)).is_err();
                 if new {
                     if n == 0 {
                         return (from, to);
@@ -949,8 +996,17 @@ impl Genome {
         neuron_id
     }
 
-    /// Add a new gene and checks if is allowd. Only can connect next neuron or already connected
-    /// neurons.
+    /// Add a connection gene: a construction primitive, not a mutation.
+    ///
+    /// If the genome already has a gene for the connection `(in, out)`, that
+    /// gene is enabled and keeps its weight: `gene` is otherwise ignored
+    /// (its weight and its enabled flag included). The add-connection
+    /// mutation never does this, because it only picks connections the
+    /// genome does not have. To build a genome from genes where a later
+    /// gene replaces an earlier one, use `Genome::from_genes_with_io`.
+    ///
+    /// Panics if `gene` is a self-connection of a neuron more than one id
+    /// past the highest neuron id of the genome.
     pub fn add_gene(&mut self, gene: Gene) {
         self.touch();
         let max_neuron_id = self.last_neuron_id + 1;
@@ -980,16 +1036,24 @@ impl Genome {
         }
     }
 
-    /// Compare another Genome for species equality
-    // TODO This should be impl Eq
+    /// Compare another Genome for species equality with the default
+    /// coefficients and threshold (those of `MutationConfig::default()`),
+    /// not those of the population.
+    #[deprecated(
+        note = "ignores the population's config: use `Genome::is_same_specie_with_config`"
+    )]
     pub fn is_same_specie(&self, other: &Genome) -> bool {
-        self.is_same_specie_with_threshold(other, COMPATIBILITY_THRESHOLD)
+        self.compatibility_distance_with_config(other, &MutationConfig::default())
+            < COMPATIBILITY_THRESHOLD
     }
 
     /// Compare another Genome for species equality using a custom threshold
     /// and the default coefficients
+    #[deprecated(
+        note = "ignores the population's coefficients: use `Genome::is_same_specie_with_config`"
+    )]
     pub fn is_same_specie_with_threshold(&self, other: &Genome, threshold: f64) -> bool {
-        self.compatibility_distance(other) < threshold
+        self.compatibility_distance_with_config(other, &MutationConfig::default()) < threshold
     }
 
     /// Compare another Genome for species equality with the coefficients and
@@ -1013,7 +1077,11 @@ impl Genome {
         self.genes.len()
     }
 
-    /// Compatibility distance with the default coefficients
+    /// Compatibility distance with the default coefficients (those of
+    /// `MutationConfig::default()`), not those of the population.
+    #[deprecated(
+        note = "ignores the population's coefficients: use `Genome::compatibility_distance_with_config`"
+    )]
     pub fn compatibility_distance(&self, other: &Genome) -> f64 {
         self.compatibility_distance_with_config(other, &MutationConfig::default())
     }
@@ -1140,7 +1208,7 @@ mod tests {
 
         /// Mutates every weight (default config except the per-gene rate).
         fn mutate_connection_weight(&mut self) {
-            let config = MutationConfig::new()
+            let config = MutationConfig::builder()
                 .weight_gene_mutation_rate(1f64)
                 .build();
             self.mutate_connection_weight_with_config(&config, &mut rng());
@@ -1183,7 +1251,7 @@ mod tests {
 
     #[test]
     fn genome_knows_its_inputs_and_outputs() {
-        let genome = Genome::new_initialized(2, 3);
+        let genome = Genome::new_initialized_with_rng(2, 3, &mut rand::thread_rng());
         assert_eq!((genome.input_neurons(), genome.output_neurons()), (2, 3));
         assert_eq!(genome.len(), 5);
         let genome = Genome::new_unconnected(3, 1);
@@ -1216,7 +1284,7 @@ mod tests {
         // only new connections are 1->2 and 2->1.
         for seed in 0..50 {
             let mut rng = ChaCha8Rng::seed_from_u64(seed);
-            let mut genome = Genome::new_initialized(1, 2);
+            let mut genome = Genome::new_initialized_with_rng(1, 2, &mut rand::thread_rng());
             genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
             assert_eq!(genome.total_genes(), 3, "seed {}", seed);
             genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
@@ -1255,12 +1323,8 @@ mod tests {
     /// genome, `from` first then `to`, with `to` not an input, `to != from`,
     /// and no gene `from -> to` yet.
     fn listed_new_connections(genome: &Genome) -> Vec<(usize, usize)> {
-        let exists = |from: usize, to: usize| {
-            genome
-                .genes
-                .binary_search(&Gene::new_connection(from, to))
-                .is_ok()
-        };
+        let exists =
+            |from: usize, to: usize| genome.genes.binary_search(&Gene::key(from, to)).is_ok();
         if genome.input_neurons == 0 && genome.len() == 1 {
             return if exists(0, 0) { vec![] } else { vec![(0, 0)] };
         }
@@ -1288,7 +1352,7 @@ mod tests {
             Genome::from_genes(vec![Gene::new(0, 0, 1f64, true)], 0),
             Genome::from_genes(vec![Gene::new(1, 0, 1f64, true)], 3),
             Genome::new_unconnected(2, 1),
-            Genome::new_initialized(1, 2),
+            Genome::new_initialized_with_rng(1, 2, &mut rand::thread_rng()),
             // Genes into an input and loops, which the mutation never adds.
             Genome::from_genes_with_io(
                 vec![
@@ -1303,7 +1367,7 @@ mod tests {
             ),
         ];
         let mut innovations = InnovationRegistry::new(5);
-        let mut genome = Genome::new_initialized(3, 2);
+        let mut genome = Genome::new_initialized_with_rng(3, 2, &mut rand::thread_rng());
         for _ in 0..300 {
             genome.mutate_with_innovations(&MutationConfig::default(), &mut innovations, &mut rng);
             genomes.push(genome.clone());
@@ -1319,10 +1383,10 @@ mod tests {
 
     #[test]
     fn bias_mutation_leaves_inputs_untouched() {
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         let mut rng = rng();
         for _ in 0..20 {
-            genome.mutate_with_config_and_rng(&only_bias_mutation(1f64), &mut rng);
+            genome.mutate_with_registry(&only_bias_mutation(1f64), None, &mut rng);
         }
         assert_eq!(genome.bias(0), 0f64);
         assert_eq!(genome.bias(1), 0f64);
@@ -1346,9 +1410,9 @@ mod tests {
         let mut rng = rng();
         for _ in 0..50 {
             for mut child in [
-                a.mate_with_rng(&b, true, &mut rng),
-                a.mate_with_rng(&b, false, &mut rng),
-                a.mate_equal_with_rng(&b, &mut rng),
+                a.mate_with_config_and_rng(&b, true, &MutationConfig::default(), &mut rng),
+                a.mate_with_config_and_rng(&b, false, &MutationConfig::default(), &mut rng),
+                a.mate_equal_with_config_and_rng(&b, &MutationConfig::default(), &mut rng),
             ] {
                 assert_eq!((child.input_neurons(), child.output_neurons()), (2, 2));
                 assert_eq!(child.len(), 4);
@@ -1407,7 +1471,7 @@ mod tests {
         genome2.add_gene(Gene::new(0, 0, 0f64, true));
         genome2.add_gene(Gene::new(0, 1, 0f64, true));
         genome2.add_gene(Gene::new(0, 2, 0f64, true));
-        assert!(genome1.is_same_specie(&genome2));
+        assert!(genome1.is_same_specie_with_config(&genome2, &MutationConfig::default()));
     }
 
     #[test]
@@ -1420,7 +1484,7 @@ mod tests {
         genome2.add_gene(Gene::new(0, 1, 20f64, true));
         genome2.add_gene(Gene::new(0, 2, 1f64, true));
         genome2.add_gene(Gene::new(0, 3, 1f64, true));
-        assert!(!genome1.is_same_specie(&genome2));
+        assert!(!genome1.is_same_specie_with_config(&genome2, &MutationConfig::default()));
     }
 
     #[test]
@@ -1451,7 +1515,7 @@ mod tests {
         genome1.add_gene(Gene::new(0, 0, 16f64, true));
         let mut genome2 = Genome::default();
         genome2.add_gene(Gene::new(0, 0, 16.1f64, true));
-        assert!(genome1.is_same_specie(&genome2));
+        assert!(genome1.is_same_specie_with_config(&genome2, &MutationConfig::default()));
     }
 
     #[test]
@@ -1460,7 +1524,7 @@ mod tests {
         genome1.add_gene(Gene::new(0, 0, 5f64, true));
         let mut genome2 = Genome::default();
         genome2.add_gene(Gene::new(0, 0, 25f64, true));
-        assert!(!genome1.is_same_specie(&genome2));
+        assert!(!genome1.is_same_specie_with_config(&genome2, &MutationConfig::default()));
     }
 
     /// Genome with neurons `0..inputs` as inputs and one connection per
@@ -1493,11 +1557,11 @@ mod tests {
                 let a = genome_with(2, &a_conn, 1f64);
                 let b = genome_with(2, &b_conn, 1f64);
                 assert!(
-                    !a.is_same_specie(&b),
+                    !a.is_same_specie_with_config(&b, &MutationConfig::default()),
                     "{} vs {} genes: distance {}",
                     size_a,
                     size_b,
-                    a.compatibility_distance(&b)
+                    a.compatibility_distance_with_config(&b, &MutationConfig::default())
                 );
             }
         }
@@ -1509,12 +1573,15 @@ mod tests {
         // W = 0 (no special value when nothing matches), N = 1.
         let a = genome_with(2, &[(0, 2)], 5f64);
         let b = genome_with(2, &[(1, 2)], -5f64);
-        assert_close(a.compatibility_distance(&b), 2f64);
+        assert_close(
+            a.compatibility_distance_with_config(&b, &MutationConfig::default()),
+            2f64,
+        );
     }
 
     #[test]
     fn compatibility_distance_follows_the_paper_formula() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_coefficients(2f64, 3f64, 0.5f64, 0f64)
             .build();
         // Genes aligned by (in, out), the order they are kept in.
@@ -1534,7 +1601,7 @@ mod tests {
     #[test]
     fn compatibility_distance_normalizes_large_genomes() {
         // The paper criterion: N = 1 if both genomes have fewer than 20 genes.
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_coefficients(1f64, 1f64, 0f64, 0f64)
             .compatibility_small_genome_genes(20)
             .build();
@@ -1556,7 +1623,7 @@ mod tests {
             small_a.compatibility_distance_with_config(&small_b, &config),
             1f64,
         );
-        let always = MutationConfig::new()
+        let always = MutationConfig::builder()
             .compatibility_coefficients(1f64, 1f64, 0f64, 0f64)
             .compatibility_small_genome_genes(0)
             .build();
@@ -1565,7 +1632,7 @@ mod tests {
             0.5f64,
         );
         // Default: never normalized (N = 1).
-        let default = MutationConfig::new()
+        let default = MutationConfig::builder()
             .compatibility_coefficients(1f64, 1f64, 0f64, 0f64)
             .build();
         assert_close(a.compatibility_distance_with_config(&b, &default), 5f64);
@@ -1573,7 +1640,7 @@ mod tests {
 
     #[test]
     fn compatibility_distance_counts_bias_differences_of_common_neurons() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .compatibility_coefficients(1f64, 1f64, 0.4f64, 0.5f64)
             .build();
         // Same genes and weights; neurons 0, 1 inputs, 2 output, 3 hidden.
@@ -1594,7 +1661,7 @@ mod tests {
 
     #[test]
     fn genomes_initialized_has_correct_neurons() {
-        let genome1 = Genome::new_initialized(2, 3);
+        let genome1 = Genome::new_initialized_with_rng(2, 3, &mut rand::thread_rng());
         assert_eq!(genome1.total_genes(), 6);
         assert_eq!(genome1.genes[0].in_neuron_id(), 0);
         assert_eq!(genome1.genes[0].out_neuron_id(), 2);
@@ -1611,7 +1678,7 @@ mod tests {
     }
 
     fn only_bias_mutation(rate: f64) -> MutationConfig {
-        MutationConfig::new()
+        MutationConfig::builder()
             .add_connection_rate(0f64)
             .add_neuron_rate(0f64)
             .weight_mutation_rate(0f64)
@@ -1644,7 +1711,7 @@ mod tests {
         let mut seen_negative = false;
         for _ in 0..20 {
             let before: Vec<f64> = (0..genome.len()).map(|id| genome.bias(id)).collect();
-            genome.mutate_with_config_and_rng(&config, &mut rng);
+            genome.mutate_with_registry(&config, None, &mut rng);
             for (id, old) in before.iter().enumerate() {
                 let new = genome.bias(id);
                 assert!(new != *old, "bias of neuron {} not perturbed", id);
@@ -1661,7 +1728,7 @@ mod tests {
         genome.set_bias(1, 0.7);
         let mut rng = rng();
         for _ in 0..50 {
-            genome.mutate_with_config_and_rng(&only_bias_mutation(0f64), &mut rng);
+            genome.mutate_with_registry(&only_bias_mutation(0f64), None, &mut rng);
         }
         assert_eq!(genome.bias(0), 0f64);
         assert_eq!(genome.bias(1), 0.7);
@@ -1674,7 +1741,7 @@ mod tests {
             genome.add_gene(Gene::new(0, 1, 1f64, true));
             let mut rng = ChaCha8Rng::seed_from_u64(seed);
             for _ in 0..10 {
-                genome.mutate_with_config_and_rng(&only_bias_mutation(1f64), &mut rng);
+                genome.mutate_with_registry(&only_bias_mutation(1f64), None, &mut rng);
             }
             (genome.bias(0), genome.bias(1))
         };
@@ -1701,14 +1768,11 @@ mod tests {
     fn split_neuron_is_close_to_the_identity_on_the_unit_interval() {
         // in -> new has weight SPLIT_INPUT_WEIGHT, the new neuron has bias
         // SPLIT_BIAS and new -> out keeps the old weight.
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         genome.genes[0].set_weight(-3.0);
         let id = split(&mut genome, 0, 2, None);
         let weight = |from, to| {
-            let pos = genome
-                .genes
-                .binary_search(&Gene::new_connection(from, to))
-                .unwrap();
+            let pos = genome.genes.binary_search(&Gene::key(from, to)).unwrap();
             genome.genes[pos].weight()
         };
         assert_eq!(weight(0, id), SPLIT_INPUT_WEIGHT);
@@ -1733,15 +1797,12 @@ mod tests {
         };
         // Inputs 0, 1, hidden 3, output 2: split an input connection and a
         // connection between CTRNN neurons.
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         genome.genes[0].set_weight(3.0);
         genome.genes[1].set_weight(-2.0);
         split(&mut genome, 1, 2, None);
         genome.set_bias(3, 0.5);
-        let index = genome
-            .genes
-            .binary_search(&Gene::new_connection(3, 2))
-            .unwrap();
+        let index = genome.genes.binary_search(&Gene::key(3, 2)).unwrap();
         genome.genes[index].set_weight(4.0);
         for (from, to) in [(0, 2), (3, 2)] {
             let mut child = genome.clone();
@@ -1769,17 +1830,14 @@ mod tests {
         to: usize,
         innovations: Option<&mut InnovationRegistry>,
     ) -> usize {
-        let index = genome
-            .genes
-            .binary_search(&Gene::new_connection(from, to))
-            .unwrap();
+        let index = genome.genes.binary_search(&Gene::key(from, to)).unwrap();
         genome.split_gene(index, &MutationConfig::default(), innovations)
     }
 
     #[test]
     fn splitting_the_same_connection_twice_gives_two_neurons_shared_by_lineages() {
         let mut registry = InnovationRegistry::new(3);
-        let mut a = Genome::new_initialized(2, 1);
+        let mut a = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         let mut b = a.clone();
         let first = split(&mut a, 0, 2, Some(&mut registry));
         // 0 -> 2 is now disabled; splitting it again must not collide.
@@ -1799,10 +1857,10 @@ mod tests {
 
     #[test]
     fn splitting_without_registry_numbers_after_the_highest_id() {
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         let mut registry = InnovationRegistry::new(3);
         // Another genome takes id 3, so this one gets 4 and has no neuron 3.
-        let mut other = Genome::new_initialized(2, 1);
+        let mut other = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         split(&mut other, 1, 2, Some(&mut registry));
         let far = split(&mut genome, 0, 2, Some(&mut registry));
         assert_eq!(far, 4);
@@ -1813,7 +1871,7 @@ mod tests {
 
     #[test]
     fn registry_never_gives_an_id_the_genome_already_has() {
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         // Neurons 3 and 4 numbered without registry.
         split(&mut genome, 0, 2, None);
         split(&mut genome, 1, 2, None);
@@ -1844,9 +1902,15 @@ mod tests {
         let mut from = std::collections::BTreeMap::new();
         for (fitter, child) in (0..1000).map(|i| {
             if i % 2 == 0 {
-                ("a", a.mate_with_rng(&b, true, &mut rng))
+                (
+                    "a",
+                    a.mate_with_config_and_rng(&b, true, &MutationConfig::default(), &mut rng),
+                )
             } else {
-                ("b", a.mate_with_rng(&b, false, &mut rng))
+                (
+                    "b",
+                    a.mate_with_config_and_rng(&b, false, &MutationConfig::default(), &mut rng),
+                )
             }
         }) {
             let bias = child.bias(1);
@@ -1873,8 +1937,12 @@ mod tests {
         let (a, b) = bias_parents();
         let mut rng = rng();
         for _ in 0..200 {
-            assert_eq!(a.mate_with_rng(&b, false, &mut rng).bias(2), -4f64);
-            let child = a.mate_equal_with_rng(&b, &mut rng);
+            assert_eq!(
+                a.mate_with_config_and_rng(&b, false, &MutationConfig::default(), &mut rng)
+                    .bias(2),
+                -4f64
+            );
+            let child = a.mate_equal_with_config_and_rng(&b, &MutationConfig::default(), &mut rng);
             if child.has_neuron(2) {
                 assert_eq!(child.bias(2), -4f64);
             }
@@ -1895,7 +1963,7 @@ mod tests {
                 };
                 let gene = child
                     .genes
-                    .binary_search(&Gene::new_connection(0, 1))
+                    .binary_search(&Gene::key(0, 1))
                     .map(|pos| child.genes[pos]);
                 matches!(gene, Ok(g) if !g.enabled())
             })
@@ -1924,7 +1992,9 @@ mod tests {
             let ratio = disabled_ratio(a, b, &default, false);
             assert!(ratio > 0.71 && ratio < 0.79, "default: {}", ratio);
             for p in [0.0, 0.3, 1.0] {
-                let config = MutationConfig::new().disabled_gene_inheritance(p).build();
+                let config = MutationConfig::builder()
+                    .disabled_gene_inheritance(p)
+                    .build();
                 let ratio = disabled_ratio(a, b, &config, false);
                 assert!((ratio - p).abs() < 0.04, "p {}: {}", p, ratio);
             }
@@ -1934,7 +2004,12 @@ mod tests {
         // The old entry points use the default probability.
         let mut rng = rng();
         let old = (0..2000)
-            .filter(|_| !disabled.mate_with_rng(&enabled, true, &mut rng).genes[0].enabled())
+            .filter(|_| {
+                !disabled
+                    .mate_with_config_and_rng(&enabled, true, &MutationConfig::default(), &mut rng)
+                    .genes[0]
+                    .enabled()
+            })
             .count() as f64
             / 2000.0;
         assert!(old > 0.71 && old < 0.79, "mate_with_rng: {}", old);
@@ -1950,7 +2025,9 @@ mod tests {
         let mut b = Genome::default();
         b.add_gene(Gene::new(0, 2, 1.0, true));
         for p in [0.0, 0.75, 1.0] {
-            let config = MutationConfig::new().disabled_gene_inheritance(p).build();
+            let config = MutationConfig::builder()
+                .disabled_gene_inheritance(p)
+                .build();
             let ratio = disabled_ratio(&a, &b, &config, true);
             assert!(
                 (ratio - p / 2.0).abs() < 0.04,
@@ -1971,7 +2048,7 @@ mod tests {
     #[test]
     fn add_neuron_only_splits_enabled_genes() {
         // Inputs 0, 1, output 2: 0 -> 2 is disabled, 1 -> 2 is enabled.
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         genome.genes[0].set_disabled();
         let mut rng = rng();
         for _ in 0..200 {
@@ -1997,7 +2074,7 @@ mod tests {
     fn add_connection_never_reenables_a_disabled_gene() {
         // Inputs 0, 1, output 2: 0 -> 2 disabled. The only new connections
         // would end in an input or be 2 -> 2, so there is nothing to add.
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         genome.genes[0].set_disabled();
         let mut rng = rng();
         for _ in 0..100 {
@@ -2007,21 +2084,18 @@ mod tests {
         assert!(!genome.genes[0].enabled());
         // With a hidden neuron there are new connections: they are added
         // and the disabled gene stays disabled.
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         split(&mut genome, 0, 2, None);
         for _ in 0..20 {
             genome.mutate_add_connection_with_config(&MutationConfig::default(), &mut rng);
-            let old = genome
-                .genes
-                .binary_search(&Gene::new_connection(0, 2))
-                .unwrap();
+            let old = genome.genes.binary_search(&Gene::key(0, 2)).unwrap();
             assert!(!genome.genes[old].enabled(), "0 -> 2 was re-enabled");
         }
         assert_eq!(genome.total_genes(), 6);
     }
 
     fn only_weight_mutation(gene_rate: f64) -> MutationConfig {
-        MutationConfig::new()
+        MutationConfig::builder()
             .add_connection_rate(0f64)
             .add_neuron_rate(0f64)
             .weight_mutation_rate(1f64)
@@ -2038,7 +2112,7 @@ mod tests {
             // 40 inputs x 25 outputs = 1000 connection genes.
             let mut genome = Genome::new_initialized_with_rng(40, 25, &mut rng);
             let before: Vec<f64> = genome.genes.iter().map(|g| g.weight()).collect();
-            genome.mutate_with_config_and_rng(&only_weight_mutation(rate), &mut rng);
+            genome.mutate_with_registry(&only_weight_mutation(rate), None, &mut rng);
             let changed = genome
                 .genes
                 .iter()
@@ -2057,7 +2131,7 @@ mod tests {
 
     #[test]
     fn weights_never_exceed_weight_max() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .add_connection_rate(0.5)
             .add_neuron_rate(0.2)
             .weight_mutation_rate(1f64)
@@ -2071,7 +2145,7 @@ mod tests {
         let mut genome = Genome::new_initialized_with_rng(3, 2, &mut rng);
         let mut seen_at_limit = false;
         for _ in 0..500 {
-            genome.mutate_with_config_and_rng(&config, &mut rng);
+            genome.mutate_with_registry(&config, None, &mut rng);
             for gene in &genome.genes {
                 assert!(gene.weight().abs() <= 3f64, "weight {}", gene.weight());
                 seen_at_limit |= gene.weight().abs() == 3f64;
@@ -2082,7 +2156,7 @@ mod tests {
 
     #[test]
     fn weight_perturbation_is_gaussian_with_the_configured_deviation() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .weight_gene_mutation_rate(1f64)
             .weight_perturbation_rate(1f64)
             .weight_mutate_power(0.5)
@@ -2111,7 +2185,7 @@ mod tests {
         let mut rng = rng();
         for &rate in &[0.1, 0.5, 0.8] {
             let mut genome = Genome::new_unconnected(2, 1000);
-            let config = MutationConfig::new()
+            let config = MutationConfig::builder()
                 .add_connection_rate(0f64)
                 .add_neuron_rate(0f64)
                 .weight_mutation_rate(0f64)
@@ -2120,7 +2194,7 @@ mod tests {
                 .bias_gene_mutation_rate(rate)
                 .build();
             genome.add_gene(Gene::new(0, 2, 1f64, true));
-            genome.mutate_with_config_and_rng(&config, &mut rng);
+            genome.mutate_with_registry(&config, None, &mut rng);
             let changed = (2..1002).filter(|&id| genome.bias(id) != 0f64).count();
             let fraction = changed as f64 / 1000f64;
             assert!(
@@ -2135,7 +2209,7 @@ mod tests {
 
     #[test]
     fn biases_never_exceed_bias_max() {
-        let config = MutationConfig::new()
+        let config = MutationConfig::builder()
             .add_connection_rate(0f64)
             .add_neuron_rate(0f64)
             .weight_mutation_rate(0f64)
@@ -2151,7 +2225,7 @@ mod tests {
         let mut genome = Genome::new_initialized_with_rng(2, 3, &mut rng);
         let mut seen_at_limit = false;
         for _ in 0..500 {
-            genome.mutate_with_config_and_rng(&config, &mut rng);
+            genome.mutate_with_registry(&config, None, &mut rng);
             for id in 0..genome.len() {
                 assert!(genome.bias(id).abs() <= 2f64, "bias {}", genome.bias(id));
                 seen_at_limit |= genome.bias(id).abs() == 2f64;
@@ -2163,7 +2237,7 @@ mod tests {
     // Time constant τ per neuron (issue #69).
 
     fn only_tau_mutation(rate: f64) -> MutationConfig {
-        MutationConfig::new()
+        MutationConfig::builder()
             .add_connection_rate(0f64)
             .add_neuron_rate(0f64)
             .weight_mutation_rate(0f64)
@@ -2176,7 +2250,7 @@ mod tests {
 
     #[test]
     fn neuron_without_tau_gene_uses_the_default_tau() {
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         for id in 0..10 {
             assert_eq!(genome.tau(id), None);
         }
@@ -2187,20 +2261,20 @@ mod tests {
 
     #[test]
     fn tau_mutation_perturbs_every_tau_within_bounds_except_inputs() {
-        let config = MutationConfig::new().tau_range(0.005, 0.05).build();
+        let config = MutationConfig::builder().tau_range(0.005, 0.05).build();
         let config = MutationConfig {
             tau_mutation_rate: 1f64,
             tau_gene_mutation_rate: 1f64,
             tau_mutate_power: 2f64,
             ..only_tau_mutation_fields(config)
         };
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         let id = split(&mut genome, 0, 2, None);
         let mut rng = rng();
         let (mut seen_min, mut seen_max) = (false, false);
         for _ in 0..200 {
             let before = [genome.tau(2), genome.tau(id)];
-            genome.mutate_with_config_and_rng(&config, &mut rng);
+            genome.mutate_with_registry(&config, None, &mut rng);
             assert_eq!(genome.tau(0), None);
             assert_eq!(genome.tau(1), None);
             for (n, &neuron) in [2, id].iter().enumerate() {
@@ -2240,8 +2314,8 @@ mod tests {
             tau_mutate_power: 0.01,
             ..only_tau_mutation(1f64)
         };
-        let mut genome = Genome::new_initialized(1, 1);
-        genome.mutate_with_config_and_rng(&config, &mut rng());
+        let mut genome = Genome::new_initialized_with_rng(1, 1, &mut rand::thread_rng());
+        genome.mutate_with_registry(&config, None, &mut rng());
         let tau = genome.tau(1).unwrap();
         assert!((tau - 0.2).abs() < 0.02, "{}", tau);
     }
@@ -2251,10 +2325,10 @@ mod tests {
         // With τ mutation off the random draws are those of a genome
         // without τ genes (one per kind of mutation), so older seeds
         // reproduce.
-        let mut genome = Genome::new_initialized(2, 1);
+        let mut genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
         genome.set_tau(2, 0.3);
         let mut used = rng();
-        genome.mutate_with_config_and_rng(&only_tau_mutation(0f64), &mut used);
+        genome.mutate_with_registry(&only_tau_mutation(0f64), None, &mut used);
         assert_eq!(genome.tau(2), Some(0.3));
         assert_eq!(genome.tau(1), None);
         let mut expected = rng();
@@ -2267,10 +2341,10 @@ mod tests {
     #[test]
     fn tau_mutation_is_reproducible_with_same_seed() {
         let run = |seed| {
-            let mut genome = Genome::new_initialized(2, 2);
+            let mut genome = Genome::new_initialized_with_rng(2, 2, &mut rand::thread_rng());
             let mut rng = ChaCha8Rng::seed_from_u64(seed);
             for _ in 0..20 {
-                genome.mutate_with_config_and_rng(&only_tau_mutation(1f64), &mut rng);
+                genome.mutate_with_registry(&only_tau_mutation(1f64), None, &mut rng);
             }
             (genome.tau(2), genome.tau(3))
         };
@@ -2307,7 +2381,8 @@ mod tests {
         let mut rng = rng();
         let mut seen = std::collections::BTreeMap::new();
         for i in 0..1000 {
-            let child = a.mate_with_rng(&b, i % 2 == 0, &mut rng);
+            let child =
+                a.mate_with_config_and_rng(&b, i % 2 == 0, &MutationConfig::default(), &mut rng);
             let tau = child.tau(1).unwrap();
             assert!(
                 tau == 0.1 || tau == 0.3 || (tau - 0.2).abs() < 1e-12,
@@ -2326,15 +2401,23 @@ mod tests {
         a.set_tau(1, 0.1);
         let mut rng = rng();
         for _ in 0..200 {
-            assert_eq!(a.mate_with_rng(&b, false, &mut rng).tau(2), Some(0.7));
-            let child = a.mate_equal_with_rng(&b, &mut rng);
+            assert_eq!(
+                a.mate_with_config_and_rng(&b, false, &MutationConfig::default(), &mut rng)
+                    .tau(2),
+                Some(0.7)
+            );
+            let child = a.mate_equal_with_config_and_rng(&b, &MutationConfig::default(), &mut rng);
             if child.has_neuron(2) {
                 assert_eq!(child.tau(2), Some(0.7));
             }
         }
         // A neuron without τ gene in both parents keeps the default.
         let (c, d) = bias_parents();
-        assert_eq!(c.mate_with_rng(&d, false, &mut rng).tau(1), None);
+        assert_eq!(
+            c.mate_with_config_and_rng(&d, false, &MutationConfig::default(), &mut rng)
+                .tau(1),
+            None
+        );
     }
 
     #[test]
@@ -2347,7 +2430,10 @@ mod tests {
         a.set_tau(3, 0.04);
         // Input τ never counts.
         a.set_tau(0, 100f64);
-        assert_close(a.compatibility_distance(&b), 0f64);
+        assert_close(
+            a.compatibility_distance_with_config(&b, &MutationConfig::default()),
+            0f64,
+        );
         let config = MutationConfig {
             compatibility_tau_coefficient: 0.5,
             tau: 0.01,

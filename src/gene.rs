@@ -43,7 +43,12 @@ impl Gene {
         }
     }
 
-    /// Create a new gene with a specific connection
+    /// Create a new enabled gene for the connection `in -> out` with a
+    /// weight in [-1, 1] drawn from an entropy-seeded generator
+    /// (`rand::thread_rng`), so the weight cannot be reproduced with a seed.
+    #[deprecated(
+        note = "not seedable: use `Gene::new(in, out, Gene::generate_weight_with_rng(rng), true)`"
+    )]
     pub fn new_connection(in_neuron_id: usize, out_neuron_id: usize) -> Gene {
         Gene {
             in_neuron_id,
@@ -52,7 +57,17 @@ impl Gene {
         }
     }
 
+    /// A gene to look up the connection `in -> out` in a sorted gene list
+    /// (genes compare by their ends only): no random draw.
+    pub(crate) fn key(in_neuron_id: usize, out_neuron_id: usize) -> Gene {
+        Gene::new(in_neuron_id, out_neuron_id, 0f64, true)
+    }
+
     /// Generate a weight in [-1, 1] using an entropy-seeded generator
+    /// (`rand::thread_rng`), so the result cannot be reproduced with a seed.
+    #[deprecated(
+        note = "not seedable: use `Gene::generate_weight_with_rng` with the population's generator"
+    )]
     pub fn generate_weight() -> f64 {
         Gene::generate_weight_with_rng(&mut rand::thread_rng())
     }
@@ -62,7 +77,12 @@ impl Gene {
         Gene::generate_weight_in_range_with_rng(crate::mutation_config::WEIGHT_INIT_RANGE, rng)
     }
 
-    /// Generate a weight in [-range, range] using an entropy-seeded generator
+    /// Generate a weight in [-range, range] using an entropy-seeded
+    /// generator (`rand::thread_rng`), so the result cannot be reproduced
+    /// with a seed.
+    #[deprecated(
+        note = "not seedable: use `Gene::generate_weight_in_range_with_rng` with the population's generator"
+    )]
     pub fn generate_weight_in_range(range: f64) -> f64 {
         Gene::generate_weight_in_range_with_rng(range, &mut rand::thread_rng())
     }
@@ -110,12 +130,16 @@ impl Gene {
     }
 }
 
+/// The enabled gene `1 -> 1` with a weight in [-1, 1] drawn from an
+/// entropy-seeded generator (`rand::thread_rng`): not reproducible with a
+/// seed. Use `Gene::new` with a weight from
+/// `Gene::generate_weight_with_rng` for a reproducible gene.
 impl Default for Gene {
     fn default() -> Gene {
         Gene {
             in_neuron_id: 1,
             out_neuron_id: 1,
-            weight: Gene::generate_weight(),
+            weight: Gene::generate_weight_with_rng(&mut rand::thread_rng()),
             enabled: true,
         }
     }

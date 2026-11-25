@@ -52,7 +52,7 @@ fn run(make: &dyn Fn() -> Population, generations: usize, threads: usize) -> Str
 fn config() -> MutationConfig {
     // Higher structural rates than default so 50 generations exercise
     // add-neuron, add-connection, toggles and crossover.
-    MutationConfig::new()
+    MutationConfig::builder()
         .add_connection_rate(0.2)
         .add_neuron_rate(0.1)
         .toggle_expression_rate(0.05)

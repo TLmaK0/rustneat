@@ -161,7 +161,11 @@ fn phenotype_is_recompiled_when_the_genome_or_the_settings_change() {
     step(&mut organism, &mut dense, &mut rng, "set_tau");
     both(&mut organism, &mut dense, &|g| {
         let mut rng = ChaCha8Rng::seed_from_u64(11);
-        g.mutate_with_config_and_rng(&MutationConfig::default(), &mut rng)
+        g.mutate_with_innovations(
+            &MutationConfig::default(),
+            &mut InnovationRegistry::new(g.len()),
+            &mut rng,
+        )
     });
     step(
         &mut organism,
@@ -234,10 +238,14 @@ fn offspring_never_use_the_phenotype_of_their_parents() {
 
     let mut registry = InnovationRegistry::new(3);
     let mut children = vec![
-        parent.mutate_with_config_and_rng(&config, &mut rng),
+        parent.mutate_with_innovations(
+            &config,
+            &mut InnovationRegistry::new(parent.genome.len()),
+            &mut rng,
+        ),
         parent.mutate_with_innovations(&config, &mut registry, &mut rng),
-        parent.mate_with_rng(&other, &mut rng),
-        other.mate_with_rng(&parent, &mut rng),
+        parent.mate_with_config_and_rng(&other, &MutationConfig::default(), &mut rng),
+        other.mate_with_config_and_rng(&parent, &MutationConfig::default(), &mut rng),
     ];
     // A clone shares the phenotype until its genome changes.
     let mut clone = parent.clone();
