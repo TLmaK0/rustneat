@@ -344,6 +344,19 @@ impl Population {
         }
     }
 
+    /// Assign every organism again to the compatible species (distance to
+    /// its representative under the threshold) closest to it; ties go to
+    /// the oldest species (lowest id). An organism compatible with none
+    /// founds a new species, with itself as representative, that the next
+    /// organisms can join.
+    ///
+    /// As in the NEAT paper, each species is represented by a random genome
+    /// of the species from the previous generation: once everybody is
+    /// assigned, every species takes as representative for the next
+    /// speciation a random member it got here. The representative is never
+    /// an unassigned child (e.g. from an interspecies crossover) that could
+    /// belong to another species, so it does not drift away from its
+    /// species.
     fn speciate(&mut self) {
         self.species.retain(|specie| !specie.is_empty());
         // Every organism leaves its species (moved, not cloned) and is
@@ -367,21 +380,13 @@ impl Population {
                 )
             );
 
-            specie.choose_new_representative_with_rng(&mut self.rng);
-
             organisms.append(&mut specie.organisms);
         }
 
         let config = self.mutation_config;
         for organism in organisms {
-            match self
-                .species
-                .iter_mut()
-                .find(|specie| specie.match_genome_with_config(&organism, &config))
-            {
-                Some(specie) => {
-                    specie.add(organism);
-                }
+            match closest_compatible_species(&self.species, &organism, &config) {
+                Some(index) => self.species[index].add(organism),
                 None => {
                     let mut specie = Specie::new(organism.genome.clone());
                     specie.add(organism);
@@ -390,6 +395,9 @@ impl Population {
             };
         }
         self.species.retain(|specie| !specie.is_empty());
+        for specie in &mut self.species {
+            specie.choose_new_representative_with_rng(&mut self.rng);
+        }
         self.adjust_compatibility_threshold();
     }
 
@@ -442,6 +450,34 @@ impl Population {
         self.next_species_id = 0;
         self.add_species(specie);
     }
+}
+
+/// Position in `species` of the species whose representative is closest to
+/// `organism` among those under the compatibility threshold of `config`
+/// (ties: the lowest id), or `None` if no species is compatible.
+fn closest_compatible_species(
+    species: &[Specie],
+    organism: &Organism,
+    config: &MutationConfig,
+) -> Option<usize> {
+    let mut closest: Option<(usize, f64)> = None;
+    for (index, specie) in species.iter().enumerate() {
+        let distance = specie.distance_with_config(organism, config);
+        if distance.is_nan() || distance >= config.compatibility_threshold {
+            continue;
+        }
+        let better = match closest {
+            None => true,
+            Some((best, best_distance)) => {
+                distance < best_distance
+                    || (distance == best_distance && specie.id < species[best].id)
+            }
+        };
+        if better {
+            closest = Some((index, distance));
+        }
+    }
+    closest.map(|(index, _)| index)
 }
 
 /// A copy of the parents (`Specie::parents`) of each species.
@@ -859,6 +895,95 @@ mod tests {
             .collect();
         assert_eq!(new_ids.len(), 1);
         assert!(new_ids[0] > *ids.iter().max().unwrap());
+    }
+
+    /// Population with one species per weight in `weights` (one member
+    /// each, a clone of its representative), fixed threshold `threshold`.
+    fn species_by_weight(weights: &[f64], threshold: f64, seed: u64) -> Population {
+        let config = MutationConfig::new()
+            .fixed_compatibility_threshold()
+            .compatibility_threshold(threshold)
+            .build();
+        let mut population =
+            Population::create_population_initialized_with_config(10, 2, 1, config).with_seed(seed);
+        population.species = vec![];
+        for &w in weights {
+            let genome = genome_with_weights(w);
+            let mut specie = Specie::new(genome.clone());
+            specie.add(Organism::new(genome));
+            population.add_species(specie);
+        }
+        population
+    }
+
+    /// Id of the species that has an organism with weights `w`.
+    fn species_of(population: &Population, w: f64) -> i64 {
+        population
+            .species
+            .iter()
+            .find(|specie| {
+                specie
+                    .organisms
+                    .iter()
+                    .any(|o| o.genome.get_genes()[0].weight() == w)
+            })
+            .unwrap()
+            .id
+    }
+
+    #[test]
+    fn organism_compatible_with_two_species_goes_to_the_closest_one() {
+        // Species 0 (w = 0) and 1 (w = 1); the organism (w = 0.8) is
+        // compatible with both (distances 0.64 and 0.16 < 2) but closer to
+        // species 1, although it comes from species 0.
+        let mut population = species_by_weight(&[0.0, 1.0], 2.0, 1);
+        population.species[0].add(Organism::new(genome_with_weights(0.8)));
+        population.speciate();
+        assert_eq!(population.species.len(), 2);
+        assert_eq!(species_of(&population, 0.8), population.species[1].id);
+        assert_eq!(population.species[1].organisms.len(), 2);
+    }
+
+    #[test]
+    fn organism_at_the_same_distance_of_two_species_goes_to_the_oldest_one() {
+        // w = 0.5 is as far from w = 0 as from w = 1: the oldest species
+        // (lowest id) wins, wherever it is in the list.
+        let mut population = species_by_weight(&[0.0, 1.0], 2.0, 1);
+        let (oldest, newest) = (population.species[0].id, population.species[1].id);
+        assert!(oldest < newest);
+        population.species.swap(0, 1);
+        population.species[1].add(Organism::new(genome_with_weights(0.5)));
+        population.speciate();
+        assert_eq!(species_of(&population, 0.0), oldest);
+        assert_eq!(species_of(&population, 1.0), newest);
+        assert_eq!(species_of(&population, 0.5), oldest);
+    }
+
+    #[test]
+    fn the_representative_is_a_member_the_species_kept() {
+        // Species 0 (w = 0) got a child far from it (w = 10, e.g. by an
+        // interspecies crossover) that belongs to species 1 (w = 10.2). The
+        // child must not become the representative of species 0: after
+        // speciating, each representative is one of its species' members.
+        for seed in 0..20 {
+            let mut population = species_by_weight(&[0.0, 10.2], 2.0, seed);
+            population.species[0].add(Organism::new(genome_with_weights(10.0)));
+            population.speciate();
+            assert_eq!(species_of(&population, 10.0), population.species[1].id);
+            let config = population.mutation_config;
+            for specie in &population.species {
+                let representative = specie.get_representative_genome();
+                assert!(
+                    specie.organisms.iter().any(|o| o
+                        .genome
+                        .compatibility_distance_with_config(&representative, &config)
+                        == 0.0),
+                    "seed {}: representative of species {} is not a member",
+                    seed,
+                    specie.id
+                );
+            }
+        }
     }
 
     #[test]

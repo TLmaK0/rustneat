@@ -72,6 +72,13 @@ impl Specie {
             .is_same_specie_with_config(&organism.genome, config)
     }
 
+    /// Compatibility distance between the representative of this species
+    /// and `organism`, with the coefficients of `config`.
+    pub fn distance_with_config(&self, organism: &Organism, config: &MutationConfig) -> f64 {
+        self.representative
+            .compatibility_distance_with_config(&organism.genome, config)
+    }
+
     /// Fitness of the most performant organism, whatever its sign (NaN
     /// is ignored; `-inf` if there is none).
     pub fn calculate_champion_fitness(&self) -> f64 {
