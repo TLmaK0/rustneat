@@ -24,12 +24,16 @@ keys (every key not given keeps the library default, MutationConfig::default()):
   bench:       `pop` (population size, default 150), `reset` (0/1: reset the
                CTRNN state before each pattern during training, default 0),
                `target` (fitness that counts as solved, default 15.5 of 16),
+               `inlo`, `inhi` (values the XOR inputs 0 and 1 are presented
+               as, default 0 and 1; `inlo=-1` gives signed inputs),
                `seed` (run i uses Population::with_seed(seed + i), so every
                run is reproducible and independent; without it each run
                seeds from entropy)
   structure:   `addc`, `addn` (add connection / add neuron rate), `tog`
                (toggle expression rate), `splitw`, `splitb` (weight into and
-               bias of the neuron added by a split)
+               bias of the neuron added by a split), `splitlo`, `splithi`
+               (range of the input values a split from an input is fit
+               to, default 0 and 1)
   weights:     `wrate` (weight mutation rate), `wgene` (per-gene weight
                mutation probability), `wpert` (perturbation vs replacement
                probability), `wpow` (gaussian sigma), `winit` (initial
@@ -94,6 +98,9 @@ pub struct Xor {
     pub bias_input: bool,
     /// Reset the CTRNN state before each pattern during training.
     pub reset: bool,
+    /// Values `(lo, hi)` the XOR inputs 0 and 1 are presented as (default
+    /// `(0, 1)`; e.g. `(-1, 1)` for signed inputs).
+    pub input_range: (f64, f64),
 }
 
 impl Xor {
@@ -103,6 +110,8 @@ impl Xor {
         let mut res = [0f64; 4];
         for &k in order {
             let (a, b, _) = PATTERNS[k];
+            let (lo, hi) = self.input_range;
+            let (a, b) = (lo + (hi - lo) * a, lo + (hi - lo) * b);
             if reset_each {
                 o.reset_state();
             }
@@ -238,6 +247,7 @@ pub fn parse_args(args: &[String]) -> Result<Bench, String> {
     let mut reset = false;
     let mut target = 15.5f64;
     let mut seed = None;
+    let mut input_range = (0f64, 1f64);
     for kv in &args[4..] {
         let (k, v) = kv
             .split_once('=')
@@ -296,6 +306,18 @@ pub fn parse_args(args: &[String]) -> Result<Bench, String> {
                 } else {
                     b.split_neuron(c.split_input_weight, v)
                 }
+            }
+            "splitlo" | "splithi" => {
+                let (lo, hi) = b.build().split_input_range;
+                let (lo, hi) = if k == "splitlo" { (v, hi) } else { (lo, v) };
+                if !(lo.is_finite() && hi.is_finite() && lo < hi) {
+                    return Err(format!(
+                        "bad split input range [{}, {}]: need finite splitlo < splithi \
+                         (give splithi first to move the range up)",
+                        lo, hi
+                    ));
+                }
+                b.split_input_range(lo, hi)
             }
             "step" => b.step_time(v),
             "integ" if v == 0.0 => b.integrator(Integrator::ExponentialEuler),
@@ -356,8 +378,22 @@ pub fn parse_args(args: &[String]) -> Result<Bench, String> {
                 target = v;
                 b
             }
+            "inlo" | "inhi" => {
+                if k == "inlo" {
+                    input_range.0 = v;
+                } else {
+                    input_range.1 = v;
+                }
+                b
+            }
             _ => return Err(format!("unknown key {}", k)),
         };
+    }
+    if !(input_range.0.is_finite() && input_range.1.is_finite() && input_range.0 < input_range.1) {
+        return Err(format!(
+            "bad input range [{}, {}]: need finite inlo < inhi",
+            input_range.0, input_range.1
+        ));
     }
     Ok(Bench {
         runs,
@@ -365,6 +401,7 @@ pub fn parse_args(args: &[String]) -> Result<Bench, String> {
         env: Xor {
             bias_input: mode == "initb",
             reset,
+            input_range,
         },
         mode,
         pop_size,

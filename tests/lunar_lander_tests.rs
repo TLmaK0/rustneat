@@ -295,6 +295,7 @@ fn new_config_parameters_default_to_the_library_defaults() {
     );
     assert_eq!(config.split_input_weight, base.split_input_weight);
     assert_eq!(config.split_bias, base.split_bias);
+    assert_eq!(config.split_input_range, base.split_input_range);
     assert_eq!(config.dt, base.dt);
     assert_eq!(config.tau_mutation_rate, base.tau_mutation_rate);
     assert_eq!(config.tau_gene_mutation_rate, base.tau_gene_mutation_rate);
@@ -365,6 +366,7 @@ fn a_saved_config_loads_back_unchanged() {
         champion_copy_min_offspring: 6,
         split_input_weight: 1.0,
         split_bias: 0.0,
+        split_input_range: (-1.0, 1.0),
         ..ConfigFile::default()
     };
     let json = serde_json::to_string_pretty(&file).unwrap();
@@ -384,7 +386,7 @@ fn crossover_selection_and_split_settings_are_read_from_the_config_file() {
     let config = ConfigFile::from_json(
         r#"{"crossover_weight_averaging_rate": 0.1, "survival_threshold": 0.3,
             "champion_copy_min_offspring": 6, "split_input_weight": 1.0,
-            "split_bias": 0.5}"#,
+            "split_bias": 0.5, "split_input_range": [-1.0, 1.0]}"#,
     )
     .unwrap()
     .to_mutation_config();
@@ -393,4 +395,5 @@ fn crossover_selection_and_split_settings_are_read_from_the_config_file() {
     assert_eq!(config.champion_copy_min_offspring, 6);
     assert_eq!(config.split_input_weight, 1.0);
     assert_eq!(config.split_bias, 0.5);
+    assert_eq!(config.split_input_range, (-1.0, 1.0));
 }

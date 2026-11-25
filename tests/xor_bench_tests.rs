@@ -90,6 +90,38 @@ fn split_keys_are_independent() {
 }
 
 #[test]
+fn split_range_keys_set_the_input_range() {
+    assert_eq!(config(&["splitlo=-1"]).split_input_range, (-1.0, 1.0));
+    assert_eq!(
+        config(&["splitlo=-3", "splithi=3"]).split_input_range,
+        (-3.0, 3.0)
+    );
+    // An empty range is an error, not a panic.
+    assert!(parse_args(&args(&["splitlo=2"])).is_err());
+}
+
+#[test]
+fn input_range_keys_present_xor_with_signed_inputs() {
+    let bench = parse_args(&args(&[])).unwrap();
+    assert_eq!(bench.env.input_range, (0.0, 1.0));
+    let bench = parse_args(&args(&["inlo=-1"])).unwrap();
+    assert_eq!(bench.env.input_range, (-1.0, 1.0));
+    // A linear organism: the output is the first input.
+    let genome = Genome::from_genes_with_io(vec![Gene::new(0, 2, 1.0, true)], 2, 2, 1);
+    let mut o = Organism::with_config(
+        genome,
+        &MutationConfig::builder()
+            .output_activation(OutputActivation::Linear)
+            .build(),
+    );
+    let out = bench.env.outputs(&mut o, &[0, 1, 2, 3], true);
+    for (k, expected) in [-1.0, -1.0, 1.0, 1.0].iter().enumerate() {
+        assert!((out[k] - expected).abs() < 1e-3, "{:?}", out);
+    }
+    assert!(parse_args(&args(&["inlo=1"])).is_err());
+}
+
+#[test]
 fn champion_elitism_can_be_turned_off() {
     assert_eq!(
         config(&["champ=inf"]).champion_copy_min_offspring,
@@ -107,8 +139,8 @@ fn enumerated_keys_reject_unknown_values() {
 #[test]
 fn every_key_is_documented_in_the_usage() {
     for key in [
-        "xavg", "surv", "champ", "splitw", "splitb", "integ", "step", "out", "stag", "elit",
-        "reeval",
+        "xavg", "surv", "champ", "splitw", "splitb", "splitlo", "splithi", "inlo", "inhi", "integ",
+        "step", "out", "stag", "elit", "reeval",
     ] {
         assert!(
             USAGE.contains(&format!("`{}`", key)),
@@ -136,6 +168,7 @@ fn checks_with_reset_do_not_depend_on_the_order() {
     let env = Xor {
         bias_input: false,
         reset: true,
+        input_range: (0.0, 1.0),
     };
     let mut o = stateful_organism();
     let c = champion_checks(&env, &mut o);
@@ -150,6 +183,7 @@ fn the_reversed_check_without_reset_sees_the_state() {
     let env = Xor {
         bias_input: false,
         reset: true,
+        input_range: (0.0, 1.0),
     };
     let mut o = stateful_organism();
     let c = champion_checks(&env, &mut o);
@@ -161,6 +195,7 @@ fn trained_without_reset_the_reference_check_keeps_the_state() {
     let env = Xor {
         bias_input: false,
         reset: false,
+        input_range: (0.0, 1.0),
     };
     let mut o = stateful_organism();
     let c = champion_checks(&env, &mut o);

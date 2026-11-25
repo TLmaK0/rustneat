@@ -84,6 +84,25 @@ pub(crate) const MUTATE_ADD_NEURON: f64 = 0.03f64;
 // Bench A medians, seeds 1/101/201/301: 66/64/63/64, 53/52/57/54,
 // 50/52/52/53. (a = 7 is a bit faster in XOR, 48/51/52/52, but less
 // neutral: it makes the new neuron a step.)
+//
+// Signed inputs (#107). CTRNN neurons emit σ(y + θ) in (0, 1), so only a
+// split of a connection from an input sees other values. For inputs in
+// [lo, hi] `MutationConfig::split_input_range` rescales the rule to
+// u = (s - lo) / (hi - lo): s ≈ lo + (hi - lo)·σ(a·u + θ), i.e. weight
+// a / r into the new neuron, bias θ - a·lo / r, weight r·w out of it and
+// lo·w added to the bias of the destination (r = hi - lo). The default
+// [0, 1] is the plain rule. `split_probe 50 1 2 3 4 5` (XOR with inputs
+// 0, 1 presented as lo, hi): mean |Δoutput| on the patterns / splits that
+// lower the fitness by more than 0.5, plain rule vs rescaled:
+// [-1, 1] 0.038 / 21 % vs 0.013 / 7 %; [-3, 3] 0.028 / 10 % vs 0.007 / 2 %;
+// [-10, 10] 0.028 / 6 % vs 0.016 / 4 % (r·w clipped to weight_max). Without
+// the destination bias shift the rescaled rule is worse than the plain one.
+// A more neutral split is not a faster search, so the default stays [0, 1]:
+// `xor_bench 50 500 init reset=1 seed=S inlo=lo inhi=hi`, medians for
+// seeds 1/101/201/301, plain vs `splitlo=lo splithi=hi`: [-1, 1] 45/50/48/45
+// vs 54/61/58/56; [-3, 3] 77/77/71/86 vs 75/78/79/75; [-10, 10] 131/123/
+// 122/133 (198/200 solved) vs 89/82/74/73 (188/200 solved). Bench A with
+// the [-1, 1] rule on its [0, 1] inputs: 59/59/61/63 (plain 52/53/53/51).
 pub(crate) const SPLIT_INPUT_WEIGHT: f64 = 5f64;
 pub(crate) const SPLIT_BIAS: f64 = -2.5f64;
 pub(crate) const MUTATE_TOGGLE_EXPRESSION: f64 = 0.001f64;
@@ -981,14 +1000,34 @@ impl Genome {
             Some(registry) => registry.split_neuron_id(self, in_neuron_id, out_neuron_id),
             None => self.last_neuron_id + 1,
         };
-        let (gene1, gene2) = <dyn Mutation>::add_neuron(
-            &mut self.genes[index],
-            neuron_id,
-            config.split_input_weight,
-        );
+        let (lo, hi) = config.split_input_range;
+        // A connection from an input carries the raw input value s, in
+        // [lo, hi]: the rule is rescaled to u = (s - lo) / (hi - lo) in
+        // [0, 1] (see SPLIT_INPUT_WEIGHT). The default range [0, 1] leaves
+        // it unchanged.
+        let rescale = in_neuron_id < self.input_neurons && (lo, hi) != (0f64, 1f64);
+        let (input_weight, bias) = if rescale {
+            let a = config.split_input_weight / (hi - lo);
+            (a, config.split_bias - a * lo)
+        } else {
+            (config.split_input_weight, config.split_bias)
+        };
+        let (gene1, mut gene2) =
+            <dyn Mutation>::add_neuron(&mut self.genes[index], neuron_id, input_weight);
+        if rescale {
+            let w = gene2.weight();
+            gene2.set_weight(((hi - lo) * w).clamp(-config.weight_max, config.weight_max));
+            if lo != 0f64 {
+                let shifted = self.bias(out_neuron_id) + lo * w;
+                self.set_bias(
+                    out_neuron_id,
+                    shifted.clamp(-config.bias_max, config.bias_max),
+                );
+            }
+        }
         // The new neuron is born with the split bias (see SPLIT_BIAS), even
         // if its id held a bias before.
-        self.set_bias(neuron_id, config.split_bias);
+        self.set_bias(neuron_id, bias);
         // ... and with the default τ.
         self.store_tau(neuron_id, None);
         self.add_gene(gene1);

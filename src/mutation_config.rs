@@ -173,6 +173,17 @@ pub struct MutationConfig {
     pub split_input_weight: f64,
     /// Bias of the neuron added by a split (see `split_input_weight`).
     pub split_bias: f64,
+    /// Range `(lo, hi)` of the input values (default `(0, 1)`). A split of a
+    /// connection from an input rescales the split rule to it: with
+    /// `r = hi - lo`, `i -> new` gets weight `split_input_weight / r`, the
+    /// new neuron bias `split_bias - split_input_weight·lo / r`, `new -> o`
+    /// weight `r·w` and the bias of `o` is shifted by `lo·w`, so the new
+    /// neuron relays signed inputs (e.g. `(-1, 1)`) almost unchanged. CTRNN
+    /// neurons emit `σ(y + θ)` in (0, 1), so splits of their connections
+    /// always use the plain rule. A more neutral split is not always a
+    /// faster search (slower on XOR with inputs in [-1, 1], faster in
+    /// [-10, 10]; measurements in `genome.rs`): set it when it helps.
+    pub split_input_range: (f64, f64),
     /// Range for initial weight generation: [-weight_init_range, weight_init_range]
     pub weight_init_range: f64,
     /// Standard deviation σ of the gaussian weight perturbation `N(0, σ²)`.
@@ -307,6 +318,7 @@ impl Default for MutationConfig {
             champion_copy_min_offspring: CHAMPION_COPY_MIN_OFFSPRING,
             split_input_weight: SPLIT_INPUT_WEIGHT,
             split_bias: SPLIT_BIAS,
+            split_input_range: (0f64, 1f64),
             weight_init_range: WEIGHT_INIT_RANGE,
             weight_mutate_power: WEIGHT_MUTATE_POWER,
             tau: TAU,
@@ -397,6 +409,24 @@ impl MutationConfigBuilder {
     pub fn split_neuron(mut self, input_weight: f64, bias: f64) -> Self {
         self.config.split_input_weight = input_weight;
         self.config.split_bias = bias;
+        self
+    }
+
+    /// Set the range `[lo, hi]` of the input values the split of a
+    /// connection from an input is fit to (see
+    /// `MutationConfig::split_input_range`).
+    ///
+    /// # Panics
+    ///
+    /// If `lo >= hi` or either bound is not finite.
+    pub fn split_input_range(mut self, lo: f64, hi: f64) -> Self {
+        assert!(
+            lo.is_finite() && hi.is_finite() && lo < hi,
+            "split_input_range: need finite lo < hi, got [{}, {}]",
+            lo,
+            hi
+        );
+        self.config.split_input_range = (lo, hi);
         self
     }
 

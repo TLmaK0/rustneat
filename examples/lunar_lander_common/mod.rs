@@ -265,6 +265,9 @@ pub struct ConfigFile {
     pub champion_copy_min_offspring: usize,
     pub split_input_weight: f64,
     pub split_bias: f64,
+    /// Range `[lo, hi]` of the observations a split from an input is fit
+    /// to (see `MutationConfig::split_input_range`), as a JSON array
+    pub split_input_range: (f64, f64),
     pub dt: f64,
     pub tau_mutation_rate: f64,
     pub tau_gene_mutation_rate: f64,
@@ -334,6 +337,7 @@ impl Default for ConfigFile {
             champion_copy_min_offspring: base.champion_copy_min_offspring,
             split_input_weight: base.split_input_weight,
             split_bias: base.split_bias,
+            split_input_range: base.split_input_range,
             dt: base.dt,
             tau_mutation_rate: base.tau_mutation_rate,
             tau_gene_mutation_rate: base.tau_gene_mutation_rate,
@@ -399,6 +403,7 @@ impl ConfigFile {
             champion_copy_min_offspring: self.champion_copy_min_offspring,
             split_input_weight: self.split_input_weight,
             split_bias: self.split_bias,
+            split_input_range: self.split_input_range,
             weight_init_range: self.weight_init_range,
             weight_mutate_power: self.weight_mutate_power,
             tau: self.tau,
