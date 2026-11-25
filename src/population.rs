@@ -524,7 +524,7 @@ fn other_species_parents(parents: &[Vec<Organism>], index: usize) -> Vec<&Organi
 /// leave them as they are, so non negative fitness keeps the proportions it
 /// always had. Non finite values (only after an evaluation that returned a
 /// `FitnessError`) become 0: those species get no share.
-fn shift_to_non_negative(values: &[f64]) -> Vec<f64> {
+pub(crate) fn shift_to_non_negative(values: &[f64]) -> Vec<f64> {
     let lowest = values
         .iter()
         .copied()

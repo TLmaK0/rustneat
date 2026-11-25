@@ -2,6 +2,7 @@ use crate::genome::Genome;
 use crate::innovation::InnovationRegistry;
 use crate::mutation_config::MutationConfig;
 use crate::organism::Organism;
+use crate::population::shift_to_non_negative;
 use conv::prelude::*;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -24,17 +25,6 @@ pub struct Specie {
 }
 
 const BEST_ORGANISMS_THRESHOLD: f64 = 0.5f64; // Only top 50% can reproduce
-
-/// Weight of an organism in the roulette: its adjusted fitness, or 0 if it
-/// is not a positive finite number.
-fn selection_weight(organism: &Organism) -> f64 {
-    let weight = organism.adjusted_fitness;
-    if weight.is_finite() && weight > 0.0 {
-        weight
-    } else {
-        0.0
-    }
-}
 
 impl Specie {
     /// Create a new species from a Genome
@@ -237,31 +227,7 @@ impl Specie {
         self.organisms.truncate(organisms_to_mate);
 
         let mut offspring: Vec<Organism> = {
-            // Fitness-proportionate selection (roulette wheel) using adjusted_fitness
-
-            // Calculate total adjusted fitness for roulette wheel
-            let total_adjusted_fitness: f64 = self.organisms.iter().map(selection_weight).sum();
-
-            let mut selected_organisms = vec![];
-            for _ in 0..num_of_organisms - copy_champion {
-                if total_adjusted_fitness <= 0.0 {
-                    // Fallback to uniform selection if no positive fitness
-                    selected_organisms.push(rng.gen_range(0..self.organisms.len()));
-                } else {
-                    // Roulette wheel selection
-                    let spin = rng.gen_range(0.0..total_adjusted_fitness);
-                    let mut cumulative = 0.0;
-                    let mut selected = 0;
-                    for (i, organism) in self.organisms.iter().enumerate() {
-                        cumulative += selection_weight(organism);
-                        if cumulative >= spin {
-                            selected = i;
-                            break;
-                        }
-                    }
-                    selected_organisms.push(selected);
-                }
-            }
+            let selected_organisms = self.select_parents(num_of_organisms - copy_champion, rng);
             selected_organisms
                 .iter()
                 .map(|organism_pos| {
@@ -288,6 +254,40 @@ impl Specie {
             offspring.push(elite);
         }
         self.organisms = offspring;
+    }
+
+    /// Indices of `count` organisms drawn by fitness-proportionate
+    /// selection (roulette wheel) on their adjusted fitness, shifted like
+    /// the offspring shares between species: if any is negative, the worst
+    /// gets weight 0 and the rest their distance to it, so the fittest is
+    /// favoured whatever the sign; non-negative fitness is used as is. Non
+    /// finite fitness gets weight 0.
+    fn select_parents<R: Rng + ?Sized>(&self, count: usize, rng: &mut R) -> Vec<usize> {
+        let adjusted: Vec<f64> = self
+            .organisms
+            .iter()
+            .map(|organism| organism.adjusted_fitness)
+            .collect();
+        let weights = shift_to_non_negative(&adjusted);
+        let total: f64 = weights.iter().sum();
+        (0..count)
+            .map(|_| {
+                if total <= 0.0 {
+                    // Uniform selection if no organism has a positive weight
+                    rng.gen_range(0..weights.len())
+                } else {
+                    let spin = rng.gen_range(0.0..total);
+                    let mut cumulative = 0.0;
+                    weights
+                        .iter()
+                        .position(|weight| {
+                            cumulative += weight;
+                            cumulative >= spin
+                        })
+                        .unwrap_or(0)
+                }
+            })
+            .collect()
     }
 
     /// Choice a new representative of the specie at random
@@ -596,5 +596,58 @@ mod tests {
         assert!((specie.organisms[0].adjusted_fitness - 10.0).abs() < EPSILON);
         assert!((specie.organisms[1].adjusted_fitness - 20.0).abs() < EPSILON);
         assert!((specie.organisms[2].adjusted_fitness - 30.0).abs() < EPSILON);
+    }
+
+    /// Species with the given fitnesses (fitness sharing already applied)
+    /// and how many times each organism is picked as a parent in `draws`
+    /// roulette spins with a fixed seed.
+    fn parent_counts(fitnesses: &[f64], draws: usize) -> Vec<usize> {
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        let genome = Genome::new_initialized_with_rng(2, 1, &mut rng);
+        let mut specie = Specie::new(genome.clone());
+        for _ in fitnesses {
+            specie.add(Organism::new(genome.clone()));
+        }
+        set_fitnesses(&mut specie, fitnesses);
+        specie.adjust_fitness();
+        let mut counts = vec![0; fitnesses.len()];
+        for index in specie.select_parents(draws, &mut rng) {
+            counts[index] += 1;
+        }
+        counts
+    }
+
+    /// Criterion of #98: with every fitness in [-100, -90] the fittest
+    /// organism is picked more often than the worst (it used to be uniform).
+    #[test]
+    fn selection_favours_the_fittest_when_all_fitness_is_negative() {
+        let fitnesses = [-90.0, -92.0, -94.0, -96.0, -98.0, -100.0];
+        let draws = 6000;
+        let counts = parent_counts(&fitnesses, draws);
+        let (fittest, worst) = (counts[0], counts[fitnesses.len() - 1]);
+        assert!(fittest > worst, "counts {:?}", counts);
+        // Shifted weights 10, 8, 6, 4, 2, 0: the fittest gets a third of the
+        // draws, well above the uniform share (1/6).
+        assert!(fittest > draws / 4, "counts {:?}", counts);
+        assert_eq!(worst, 0, "counts {:?}", counts);
+    }
+
+    /// With mixed signs a negative organism above the worst still gets a
+    /// share (it used to get weight 0, like the worst).
+    #[test]
+    fn selection_ranks_negative_fitness_with_mixed_signs() {
+        let counts = parent_counts(&[5.0, -1.0, -5.0], 6000);
+        assert!(counts[0] > counts[1], "counts {:?}", counts);
+        assert!(counts[1] > counts[2], "counts {:?}", counts);
+    }
+
+    /// Non-negative fitness keeps its plain proportions (no shift).
+    #[test]
+    fn selection_keeps_proportions_of_non_negative_fitness() {
+        let counts = parent_counts(&[3.0, 1.0, 0.0], 8000);
+        assert_eq!(counts[2], 0, "counts {:?}", counts);
+        let ratio = counts[0] as f64 / counts[1] as f64;
+        assert!((ratio - 3.0).abs() < 0.3, "counts {:?}", counts);
     }
 }
