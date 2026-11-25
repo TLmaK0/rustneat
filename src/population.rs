@@ -717,7 +717,9 @@ mod tests {
             }
             species.push(specie);
         }
-        let parents = species_parents(&species, &MutationConfig::default());
+        // The fittest half of each species.
+        let half = MutationConfig::builder().survival_threshold(0.5).build();
+        let parents = species_parents(&species, &half);
         let fitnesses = |index| {
             let mut f: Vec<f64> = other_species_parents(&parents, index)
                 .iter()

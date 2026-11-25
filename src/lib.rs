@@ -30,7 +30,7 @@ pub use self::environment::Environment;
 pub use self::gene::Gene;
 pub use self::genome::Genome;
 pub use self::innovation::InnovationRegistry;
-pub use self::mutation_config::{MutationConfig, SpeciesAssignment};
+pub use self::mutation_config::{MateSelection, MutationConfig, SpeciesAssignment};
 pub use self::organism::{Organism, OutputActivation};
 pub use self::phenotype::Phenotype;
 pub use self::population::{FitnessError, Population};

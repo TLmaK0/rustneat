@@ -129,11 +129,19 @@ pub(crate) const MUTATE_BIAS: f64 = 0.90f64;
 //   5 is too tight (σ 1.0, replacement 0.1): 47/50 221, 50/50 256.
 // * σ_b 0.5 instead of 1.0 (no replacement): 64 / 65 instead of 70 / 70.
 // σ_w = 1.0 is the scale of the initial weights; 1.5 and 2.0 are faster in
-// XOR (56 / 56 without replacement) but make bigger jumps, so they are left
-// to the problems that want them.
+// XOR (56 / 56 without replacement) but make bigger jumps.
+// #108: σ_w is 2.0 since then. Bench A medians, seeds 1/101/201/301
+// (develop before #108: 52/53/53/51): σ_w 0.5 83/79/79/79, 1.5 42/43/45/44,
+// 2.0 39/40/39/39, 3.0 35/37/35/38 (but 3.0 is slower by the NEAT paper
+// criterion, every output on the right side of 0.5: mean 22.4 generations
+// against 18.2). With survival_threshold 0.2 (the other #108 change),
+// σ_w 1.5 gives 33/32/33/32 and 2.0 30/31/31/30. The champions' weights
+// grow (mean max |w| 10.7 -> 14.5) and are as robust to the order of the
+// patterns as before. Problems with a smaller weight scale set their own σ
+// (the lunar lander uses 0.87).
 pub(crate) const MUTATE_CONNECTION_WEIGHT_PERTURBED_PROBABILITY: f64 = 0.98f64;
 pub(crate) const WEIGHT_GENE_MUTATION_RATE: f64 = 0.5f64;
-pub(crate) const WEIGHT_MUTATE_POWER: f64 = 1f64;
+pub(crate) const WEIGHT_MUTATE_POWER: f64 = 2f64;
 pub(crate) const WEIGHT_MAX: f64 = 30f64;
 pub(crate) const BIAS_GENE_MUTATION_RATE: f64 = 0.5f64;
 pub(crate) const BIAS_PERTURBED_PROBABILITY: f64 = 0.98f64;
@@ -1279,7 +1287,7 @@ mod tests {
     fn default_weight_and_bias_mutation_is_per_gene_gaussian_and_bounded() {
         let config = MutationConfig::default();
         assert_eq!(config.weight_gene_mutation_rate, 0.5);
-        assert_eq!(config.weight_mutate_power, 1.0);
+        assert_eq!(config.weight_mutate_power, 2.0);
         assert_eq!(config.weight_perturbation_rate, 0.98);
         assert_eq!(config.weight_max, 30.0);
         assert_eq!(config.bias_gene_mutation_rate, 0.5);

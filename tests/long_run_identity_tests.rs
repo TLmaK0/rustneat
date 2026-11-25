@@ -31,11 +31,12 @@ fn fnv1a(hash: &mut u64, bytes: &[u8]) {
 /// Digest of a whole run of the #73 scenario: after every generation, the
 /// species ids, every genome (genes, biases, τ genes), every fitness and
 /// the champion fitness.
-fn run_digest(generations: usize) -> u64 {
-    let config = MutationConfig::builder()
-        .target_species(5)
-        .species_stagnation(3, 1)
-        .build();
+fn run_digest(generations: usize, before_108: bool) -> u64 {
+    let mut builder = MutationConfig::builder();
+    if before_108 {
+        builder = builder.survival_threshold(0.5).weight_mutate_power(1.0);
+    }
+    let config = builder.target_species(5).species_stagnation(3, 1).build();
     let mut population =
         Population::create_population_initialized_with_config(30, 2, 1, config).with_seed(19);
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
@@ -58,15 +59,21 @@ fn run_digest(generations: usize) -> u64 {
 
 /// The speed-ups of #101 must not change a single result: the digest of
 /// 300 generations of the #73 scenario (seed 19, 30 organisms) is the one
-/// the code gave before them. Fitness goes through `exp`, whose last bit
+/// the code gave before them. Re-recorded in #108, which changed the
+/// defaults `survival_threshold` (0.5 -> 0.2) and `weight_mutate_power`
+/// (1.0 -> 2.0) on purpose; with those two set back the digest is still
+/// the one recorded before (`before_108`), so the options #108 added
+/// (`mate_only_probability`, `mate_selection`) change nothing by default. Fitness goes through `exp`, whose last bit
 /// may differ between math libraries, so the recorded digest is only
 /// checked on Linux x86_64 (where it was recorded); elsewhere the run must
 /// at least be reproducible.
 #[test]
 fn long_run_gives_the_recorded_results() {
-    let digest = run_digest(300);
-    assert_eq!(digest, run_digest(300), "same seed, different run");
+    let digest = run_digest(300, false);
+    assert_eq!(digest, run_digest(300, false), "same seed, different run");
     if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        assert_eq!(digest, 0xb085_f2fe_3578_d4a4, "digest {:#018x}", digest);
+        assert_eq!(digest, 0xacac_1eb3_62c6_aa78, "digest {:#018x}", digest);
+        let before = run_digest(300, true);
+        assert_eq!(before, 0xb085_f2fe_3578_d4a4, "digest {:#018x}", before);
     }
 }

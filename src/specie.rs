@@ -1,6 +1,6 @@
 use crate::genome::Genome;
 use crate::innovation::InnovationRegistry;
-use crate::mutation_config::MutationConfig;
+use crate::mutation_config::{MateSelection, MutationConfig};
 use crate::organism::Organism;
 use crate::population::shift_to_non_negative;
 use conv::prelude::*;
@@ -219,7 +219,7 @@ impl Specie {
     }
 
     /// Organisms allowed to reproduce with the default configuration: the
-    /// fittest half (at least one).
+    /// fittest `survival_threshold` (at least one).
     #[deprecated(
         note = "ignores the population's `survival_threshold`: use `Specie::parents_with_config`"
     )]
@@ -389,30 +389,48 @@ impl Specie {
             // Mutation only (asexual reproduction)
             organism.mutate_with_registry(config, innovations, rng)
         } else {
-            // Crossover, then mutation
-            let child = self.create_child_by_mate(organism, other_species_parents, config, rng);
-            child.mutate_with_registry(config, innovations, rng)
+            // Crossover, then mutation unless `mate_only_probability` skips
+            // it (never for a crossover with itself). No draw when it is 0,
+            // so the random sequence is the same as before it existed.
+            let (child, with_itself) =
+                self.create_child_by_mate(organism, other_species_parents, config, rng);
+            if !with_itself
+                && config.mate_only_probability > 0f64
+                && rng.gen::<f64>() < config.mate_only_probability
+            {
+                child
+            } else {
+                child.mutate_with_registry(config, innovations, rng)
+            }
         }
     }
 
     /// Crossover of `organism` with a parent of another species (probability
     /// `config.interspecies_mate_rate`, if there is another species) or of
-    /// this one.
+    /// this one, chosen as `config.mate_selection` says. Also returns
+    /// whether the mate is `organism` itself.
     fn create_child_by_mate<R: Rng + ?Sized>(
         &self,
         organism: &Organism,
         other_species_parents: &[&Organism],
         config: &MutationConfig,
         rng: &mut R,
-    ) -> Organism {
+    ) -> (Organism, bool) {
         let mate = if !other_species_parents.is_empty()
             && rng.gen::<f64>() < config.interspecies_mate_rate
         {
             other_species_parents[rng.gen_range(0..other_species_parents.len())]
         } else {
-            &self.organisms[rng.gen_range(0..self.organisms.len())]
+            let index = match config.mate_selection {
+                MateSelection::Uniform => rng.gen_range(0..self.organisms.len()),
+                MateSelection::FitnessProportional => self.select_parents(1, rng)[0],
+            };
+            &self.organisms[index]
         };
-        organism.mate_with_config_and_rng(mate, config, rng)
+        (
+            organism.mate_with_config_and_rng(mate, config, rng),
+            std::ptr::eq(organism, mate),
+        )
     }
 }
 
@@ -525,7 +543,8 @@ mod tests {
         (specie, others)
     }
 
-    /// Only crossover, no mutation, the given interspecies rate.
+    /// Only crossover, no mutation, the given interspecies rate; the
+    /// fittest half reproduces.
     fn crossover_only(interspecies: f64) -> MutationConfig {
         MutationConfig::builder()
             .mutation_probability(0.0)
@@ -535,6 +554,7 @@ mod tests {
             .bias_mutation_rate(0.0)
             .toggle_expression_rate(0.0)
             .interspecies_mate_rate(interspecies)
+            .survival_threshold(0.5)
             .build()
     }
 
@@ -591,11 +611,160 @@ mod tests {
         assert_eq!(children_with_foreign_parent(&specie), 0);
     }
 
+    /// A species of 10 organisms with the same genome and fitness 1..=10:
+    /// a crossover child of two of them is a copy of that genome unless it
+    /// is mutated.
+    fn clones_specie() -> (Specie, Genome) {
+        let genome = Genome::new_initialized_with_rng(2, 1, &mut rand::thread_rng());
+        let mut specie = Specie::new(genome.clone());
+        for fitness in 1..=10 {
+            let mut organism = Organism::new(genome.clone());
+            organism.fitness = fitness as f64;
+            specie.add(organism);
+        }
+        (specie, genome)
+    }
+
+    /// Every child goes through crossover and every mutation changes all
+    /// the weights, unless `mate_only` skips it.
+    fn always_mate_config(mate_only: f64) -> MutationConfig {
+        MutationConfig::builder()
+            .mutation_probability(0.0)
+            .add_connection_rate(0.0)
+            .add_neuron_rate(0.0)
+            .weight_mutation_rate(1.0)
+            .weight_gene_mutation_rate(1.0)
+            .interspecies_mate_rate(0.0)
+            .mate_only_probability(mate_only)
+            .survival_threshold(0.5)
+            .build()
+    }
+
+    fn unchanged_children(specie: &Specie, genome: &Genome) -> usize {
+        specie
+            .organisms
+            .iter()
+            .filter(|organism| weights(&organism.genome) == weights(genome))
+            .count()
+    }
+
+    /// Connections and their weights (`Gene` equality ignores the weight).
+    fn weights(genome: &Genome) -> Vec<(usize, usize, f64)> {
+        genome
+            .get_genes()
+            .iter()
+            .map(|g| (g.in_neuron_id(), g.out_neuron_id(), g.weight()))
+            .collect()
+    }
+
     #[test]
-    fn parents_are_the_fittest_half() {
+    fn default_mate_only_probability_mutates_every_crossover_child() {
+        assert_eq!(MutationConfig::default().mate_only_probability, 0.0);
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        let (mut specie, genome) = clones_specie();
+        specie.generate_offspring_with_innovations(
+            1000,
+            &[],
+            &always_mate_config(0.0),
+            &mut InnovationRegistry::default(),
+            &mut rng,
+        );
+        // Only the copy of the champion keeps the genome.
+        assert_eq!(unchanged_children(&specie, &genome), 1);
+    }
+
+    /// #38 point 3 / NEAT `mate_only_prob`: a crossover child is left
+    /// unmutated with this probability, except when both parents are the
+    /// same organism (the child would be a plain copy).
+    #[test]
+    fn mate_only_probability_skips_the_mutation_of_crossover_children() {
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        for (mate_only, low, high) in [(1.0, 700, 900), (0.5, 330, 480)] {
+            let (mut specie, genome) = clones_specie();
+            specie.generate_offspring_with_innovations(
+                1000,
+                &[],
+                &always_mate_config(mate_only),
+                &mut InnovationRegistry::default(),
+                &mut rng,
+            );
+            // 5 parents: a fifth of the crossovers are with the same
+            // organism and are mutated anyway.
+            let unchanged = unchanged_children(&specie, &genome);
+            assert!(
+                unchanged >= low && unchanged <= high,
+                "mate_only {}: {} unchanged children",
+                mate_only,
+                unchanged
+            );
+        }
+    }
+
+    /// Children (crossover only, no mutation) of a species whose parents
+    /// are four organisms of fitness 10 with weight 1 and one of fitness 1
+    /// with weight 7, that carry the weight 7.
+    fn children_with_weak_weight(selection: MateSelection) -> usize {
+        use rand::SeedableRng;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(1);
+        let with_weight = |weight: f64| {
+            let genes = vec![
+                crate::Gene::new(0, 2, weight, true),
+                crate::Gene::new(1, 2, weight, true),
+            ];
+            Genome::from_genes_with_io(genes, 2, 2, 1)
+        };
+        let mut specie = Specie::new(with_weight(1.0));
+        for fitness in [10.0, 10.0, 10.0, 10.0, 1.0, 0.5, 0.5, 0.5, 0.5, 0.5] {
+            let weight = if fitness == 1.0 { 7.0 } else { 1.0 };
+            let mut organism = Organism::new(with_weight(weight));
+            organism.fitness = fitness;
+            specie.add(organism);
+        }
+        specie.adjust_fitness();
+        let mut config = crossover_only(0.0);
+        config.crossover_weight_averaging_rate = 0.0;
+        config.mate_selection = selection;
+        specie.generate_offspring_with_innovations(
+            1000,
+            &[],
+            &config,
+            &mut InnovationRegistry::default(),
+            &mut rng,
+        );
+        specie
+            .organisms
+            .iter()
+            .filter(|o| o.genome.get_genes().iter().any(|g| g.weight() == 7.0))
+            .count()
+    }
+
+    #[test]
+    fn default_mate_selection_is_uniform_over_the_parents() {
+        assert_eq!(
+            MutationConfig::default().mate_selection,
+            MateSelection::Uniform
+        );
+        // The weak parent is the mate of about a fifth of the crossovers.
+        let weak = children_with_weak_weight(MateSelection::Uniform);
+        assert!(weak > 70, "{} children with the weak weight", weak);
+    }
+
+    /// #98: the mate can also be drawn by fitness, like the first parent.
+    #[test]
+    fn fitness_proportional_mate_selection_favours_the_fittest() {
+        // The weak parent has 1/41 of the fitness.
+        let weak = children_with_weak_weight(MateSelection::FitnessProportional);
+        assert!(weak < 50, "{} children with the weak weight", weak);
+    }
+
+    #[test]
+    fn parents_are_the_fittest_half_with_threshold_one_half() {
         let (specie, _) = two_species();
+        let half = MutationConfig::builder().survival_threshold(0.5).build();
         let mut fitnesses: Vec<f64> = specie
-            .parents_with_config(&MutationConfig::default())
+            .parents_with_config(&half)
             .map(|o| o.fitness)
             .collect();
         fitnesses.sort_by(|a, b| a.partial_cmp(b).unwrap());

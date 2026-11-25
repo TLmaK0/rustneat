@@ -13,7 +13,8 @@ use rustneat::{Gene, Genome, InnovationRegistry, MutationConfig, Organism, Speci
 fn defaults_are_the_values_that_were_hardcoded() {
     let config = MutationConfig::default();
     assert_eq!(config.crossover_weight_averaging_rate, 0.4);
-    assert_eq!(config.survival_threshold, 0.5);
+    // Was 0.5 until #108 (measured on the XOR bench).
+    assert_eq!(config.survival_threshold, 0.2);
     assert_eq!(config.champion_copy_min_offspring, 2);
     assert_eq!(config.split_input_weight, 5.0);
     assert_eq!(config.split_bias, -2.5);
@@ -140,12 +141,12 @@ fn survival_threshold_sets_how_many_organisms_reproduce() {
     assert_eq!(count(1.0), 10);
     // At least one organism always reproduces.
     assert_eq!(count(0.0), 1);
-    // The default is the fittest half.
+    // The default (#108) is the fittest fifth, as in Stanley's NEAT.
     assert_eq!(
         specie
             .parents_with_config(&MutationConfig::default())
             .count(),
-        5
+        2
     );
     let mut best: Vec<f64> = specie
         .parents_with_config(&MutationConfig::builder().survival_threshold(0.3).build())

@@ -48,6 +48,17 @@ pub enum SpeciesAssignment {
     Closest,
 }
 
+/// How a crossover chooses the second parent (the mate) among the
+/// organisms of the species allowed to reproduce. The first parent is
+/// always drawn by fitness (roulette wheel on the shifted adjusted fitness).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MateSelection {
+    /// Any parent with the same probability (the default).
+    Uniform,
+    /// By fitness, like the first parent.
+    FitnessProportional,
+}
+
 /// Configuration for mutation rates in NEAT
 ///
 /// Allows customizing mutation probabilities per problem.
@@ -139,16 +150,32 @@ pub struct MutationConfig {
     /// init reset=1`, seeds 1/101/201/301, 50/50 solved in every case),
     /// median generations: 0.4 gives 52/53/53/51 (mean 52.25), 0.25 gives
     /// 53/55/53/55 (54.0), 0.3 gives 55/53/53/59 (55.0) and 0.5 gives
-    /// 54/53/55/51 (53.25), so 0.4 is kept.
+    /// 54/53/55/51 (53.25), so 0.4 is kept. With the #108 defaults
+    /// (survival 0.2, σ_w 2.0): 0.4 gives 30/31/31/30 and 0.25 30/30/30/30
+    /// (seeds 401/501/601/701: 30/29/28/31 and 29/28/27/30), within the
+    /// noise, so 0.4 is still kept.
     pub mutation_probability: f64,
+    /// Probability that a child of crossover is not mutated (NEAT's
+    /// `mate_only_prob`, 0.2 in Stanley's code). A crossover of an organism
+    /// with itself is always mutated. Default 0: every crossover child is
+    /// mutated. Bench A medians, seeds 1/101/201/301, with the defaults
+    /// before #108 (survival 0.5, σ_w 1.0): 0 gives 52/53/53/51,
+    /// 0.2 56/57/59/54, 0.5 60/59/60/60; always crossover then mutate with
+    /// probability 0.25 (`mutation_probability` 0, this 0.75; #38) gives
+    /// 93/92/92/94.
+    pub mate_only_probability: f64,
+    /// How a crossover chooses the second parent (default
+    /// `MateSelection::Uniform`; by fitness was not faster on bench A with
+    /// the defaults before #108: 55/54/51/55 against 52/53/53/51).
+    pub mate_selection: MateSelection,
     /// Probability that a gene disabled in either parent is disabled in the
     /// child (NEAT paper, section 4.1: 0.75). Otherwise it is enabled.
     pub disabled_gene_inheritance: f64,
     /// Probability that a crossover takes the second parent from another
     /// species (NEAT paper, section 4.1: 0.001). That parent is drawn from
-    /// the organisms allowed to reproduce in the other species (their
-    /// fittest half); with a single species the mate is always from the
-    /// same species.
+    /// the organisms allowed to reproduce in the other species (see
+    /// `survival_threshold`); with a single species the mate is always
+    /// from the same species.
     pub interspecies_mate_rate: f64,
     /// Probability that a crossover gives every matching gene (and every
     /// neuron both parents have) the average of the two parents' weights
@@ -156,9 +183,13 @@ pub struct MutationConfig {
     /// (default 0.4).
     pub crossover_weight_averaging_rate: f64,
     /// Fraction of each species, the fittest first, allowed to reproduce
-    /// (default 0.5: the fittest half; at least one organism always
-    /// reproduces). The same organisms are the candidates for an
-    /// interspecies crossover.
+    /// (at least one organism always reproduces). The same organisms are
+    /// the candidates for an interspecies crossover.
+    ///
+    /// Default 0.2, as `survival_thresh` in Stanley's NEAT code (0.5, the
+    /// fittest half, until #108). Bench A (`xor_bench 50 500 init reset=1`)
+    /// medians for seeds 1/101/201/301: 0.1 33/33/32/34, 0.2 37/38/38/39,
+    /// 0.3 44/42/41/41, 0.5 52/53/53/51, 0.7 70/69/68/69.
     pub survival_threshold: f64,
     /// A species that gets at least this many offspring keeps its champion:
     /// one of the offspring is an unchanged copy of it (default 2). The NEAT
@@ -269,8 +300,9 @@ const SPECIES_ELITISM: usize = 2;
 const MUTATION_PROBABILITY: f64 = 0.4;
 /// Probability that a crossover averages the matching weights.
 const CROSSOVER_WEIGHT_AVERAGING_RATE: f64 = 0.4;
-/// Fraction of each species that reproduces.
-const SURVIVAL_THRESHOLD: f64 = 0.5;
+/// Fraction of each species that reproduces (see
+/// `MutationConfig::survival_threshold`).
+const SURVIVAL_THRESHOLD: f64 = 0.2;
 /// Smallest offspring of a species that keeps an unchanged champion.
 const CHAMPION_COPY_MIN_OFFSPRING: usize = 2;
 /// Initial weights (and replaced weights and biases) are drawn from
@@ -311,6 +343,8 @@ impl Default for MutationConfig {
             compatibility_threshold_max: f64::INFINITY,
             species_assignment: SpeciesAssignment::FirstCompatible,
             mutation_probability: MUTATION_PROBABILITY,
+            mate_only_probability: 0f64,
+            mate_selection: MateSelection::Uniform,
             disabled_gene_inheritance: DISABLED_GENE_INHERITANCE,
             interspecies_mate_rate: INTERSPECIES_MATE_RATE,
             crossover_weight_averaging_rate: CROSSOVER_WEIGHT_AVERAGING_RATE,
@@ -570,6 +604,18 @@ impl MutationConfigBuilder {
     /// Set mutation vs crossover probability (0.4 = 40% mutation, 60% crossover)
     pub fn mutation_probability(mut self, prob: f64) -> Self {
         self.config.mutation_probability = prob;
+        self
+    }
+
+    /// Set the probability that a crossover child is not mutated
+    pub fn mate_only_probability(mut self, prob: f64) -> Self {
+        self.config.mate_only_probability = prob;
+        self
+    }
+
+    /// Set how a crossover chooses the second parent
+    pub fn mate_selection(mut self, selection: MateSelection) -> Self {
+        self.config.mate_selection = selection;
         self
     }
 

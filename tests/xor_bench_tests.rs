@@ -6,7 +6,9 @@
 #[allow(dead_code)]
 mod xor_bench_common;
 
-use rustneat::{Gene, Genome, Integrator, MutationConfig, Organism, OutputActivation};
+use rustneat::{
+    Gene, Genome, Integrator, MateSelection, MutationConfig, Organism, OutputActivation,
+};
 use std::collections::HashSet;
 use xor_bench_common::{
     all_orders, champion_checks, parse_args, summary, RunResult, Xor, SUMMARY_CHECKS, USAGE,
@@ -62,6 +64,8 @@ fn every_tuning_key_sets_its_config_field() {
         "mutp=0.25",
         "tmax=6",
         "assign=1",
+        "mateonly=0.2",
+        "matesel=1",
     ]);
     assert_eq!(c.crossover_weight_averaging_rate, 0.1);
     assert_eq!(c.survival_threshold, 0.3);
@@ -77,6 +81,12 @@ fn every_tuning_key_sets_its_config_field() {
     assert_eq!(c.mutation_probability, 0.25);
     assert_eq!(c.compatibility_threshold_max, 6.0);
     assert_eq!(c.species_assignment, rustneat::SpeciesAssignment::Closest);
+    assert_eq!(c.mate_only_probability, 0.2);
+    assert_eq!(c.mate_selection, MateSelection::FitnessProportional);
+    assert_eq!(
+        config(&["matesel=0"]).mate_selection,
+        MateSelection::Uniform
+    );
 }
 
 #[test]
@@ -131,7 +141,14 @@ fn champion_elitism_can_be_turned_off() {
 
 #[test]
 fn enumerated_keys_reject_unknown_values() {
-    for key in ["integ=2", "out=2", "reeval=2", "assign=2"] {
+    for key in [
+        "integ=2",
+        "out=2",
+        "reeval=2",
+        "assign=2",
+        "matesel=2",
+        "round=2",
+    ] {
         assert!(parse_args(&args(&[key])).is_err(), "{} accepted", key);
     }
 }
@@ -140,7 +157,7 @@ fn enumerated_keys_reject_unknown_values() {
 fn every_key_is_documented_in_the_usage() {
     for key in [
         "xavg", "surv", "champ", "splitw", "splitb", "splitlo", "splithi", "inlo", "inhi", "integ",
-        "step", "out", "stag", "elit", "reeval",
+        "step", "out", "stag", "elit", "reeval", "mateonly", "matesel", "round",
     ] {
         assert!(
             USAGE.contains(&format!("`{}`", key)),
@@ -227,5 +244,57 @@ fn the_summary_names_say_whether_the_state_is_reset() {
             "{} does not say whether it resets",
             name
         );
+    }
+}
+
+/// An organism whose output is `sigmoid(w * x1 - w * x2 + b)`.
+fn linear_xor_organism(w: f64, b: f64) -> Organism {
+    let genes = vec![Gene::new(0, 2, w, true), Gene::new(1, 2, -w, true)];
+    let mut genome = Genome::from_genes_with_io(genes, 2, 2, 1);
+    genome.set_bias(2, b);
+    Organism::with_config(genome, &MutationConfig::default())
+}
+
+/// The NEAT paper counts XOR as solved when every output is on the right
+/// side of 0.5 (Stanley's code: out < 0.5 for 0, >= 0.5 for 1), however
+/// large the error.
+#[test]
+fn rounding_criterion_follows_the_side_of_one_half() {
+    assert!(Xor::rounds_correctly(&[0.49, 0.5, 0.51, 0.0]));
+    assert!(!Xor::rounds_correctly(&[0.5, 0.9, 0.9, 0.1]));
+    assert!(!Xor::rounds_correctly(&[0.1, 0.9, 0.4, 0.1]));
+    // Far from a fitness of 15.5, but rounded correctly.
+    let res = [0.4, 0.6, 0.6, 0.4];
+    assert!(Xor::fit(&res) < 13.0);
+    assert!(Xor::rounds_correctly(&res));
+}
+
+#[test]
+fn round_key_makes_the_champion_checks_count_rounded_outputs() {
+    assert!(!parse_args(&args(&[])).unwrap().round);
+    let bench = parse_args(&args(&["round=1"])).unwrap();
+    assert!(bench.round);
+    // Outputs 0.5, sigmoid(-4), sigmoid(4), 0.5: only (1, 0) is right.
+    let mut o = linear_xor_organism(4.0, 0.0);
+    let c = champion_checks(&bench.env, &mut o);
+    assert!(c.rounds.iter().all(|r| !r), "{:?}", c);
+    let solved = RunResult {
+        solved_gen: Some(3),
+        checks: c,
+        ..Default::default()
+    };
+    assert!(summary(&bench, &[solved]).contains(" still_solved_reset_each=0/1"));
+    // A champion that rounds every pattern correctly passes every check
+    // under `round=1`, whatever its fitness.
+    let mut solved_checks = c;
+    solved_checks.rounds = [true; 5];
+    let solved = RunResult {
+        solved_gen: Some(3),
+        checks: solved_checks,
+        ..Default::default()
+    };
+    let line = summary(&bench, &[solved]);
+    for name in SUMMARY_CHECKS {
+        assert!(line.contains(&format!(" {}=1/1", name)), "{}", line);
     }
 }

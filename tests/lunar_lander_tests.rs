@@ -9,8 +9,8 @@
 mod lunar_lander_common;
 
 use lunar_lander_common::{
-    ChampionFile, ConfigFile, OrganismData, LANDER_STEP_TIME, LANDER_TAU,
-    LANDER_WEIGHT_MUTATE_POWER,
+    ChampionFile, ConfigFile, OrganismData, LANDER_STEP_TIME, LANDER_SURVIVAL_THRESHOLD,
+    LANDER_TAU, LANDER_WEIGHT_MUTATE_POWER,
 };
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -288,7 +288,6 @@ fn new_config_parameters_default_to_the_library_defaults() {
         config.crossover_weight_averaging_rate,
         base.crossover_weight_averaging_rate
     );
-    assert_eq!(config.survival_threshold, base.survival_threshold);
     assert_eq!(
         config.champion_copy_min_offspring,
         base.champion_copy_min_offspring
@@ -311,6 +310,9 @@ fn new_config_parameters_default_to_the_library_defaults() {
     assert_eq!(config.output_activation, OutputActivation::Sigmoid);
     // The lander's own choices
     assert_eq!(config.weight_mutate_power, LANDER_WEIGHT_MUTATE_POWER);
+    // #108 lowered the library default; the lander keeps the fittest half.
+    assert_eq!(config.survival_threshold, LANDER_SURVIVAL_THRESHOLD);
+    assert_eq!(LANDER_SURVIVAL_THRESHOLD, 0.5);
     assert_eq!(
         (config.tau, config.step_time),
         (LANDER_TAU, LANDER_STEP_TIME)

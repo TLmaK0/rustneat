@@ -297,6 +297,12 @@ pub struct ConfigFile {
 /// while a σ of 1.5 (3σ ≈ 4.5) would often saturate it.
 pub const LANDER_WEIGHT_MUTATE_POWER: f64 = 0.87;
 
+/// Fraction of each species that reproduces in the lander: the fittest
+/// half, the library default the lander was tuned with before #108 lowered
+/// it to 0.2 (measured on XOR only; the lander is noisy and was not
+/// measured again, so it keeps its value).
+pub const LANDER_SURVIVAL_THRESHOLD: f64 = 0.5;
+
 impl Default for ConfigFile {
     fn default() -> Self {
         let base = MutationConfig::default();
@@ -333,7 +339,7 @@ impl Default for ConfigFile {
             disabled_gene_inheritance: base.disabled_gene_inheritance,
             interspecies_mate_rate: base.interspecies_mate_rate,
             crossover_weight_averaging_rate: base.crossover_weight_averaging_rate,
-            survival_threshold: base.survival_threshold,
+            survival_threshold: LANDER_SURVIVAL_THRESHOLD,
             champion_copy_min_offspring: base.champion_copy_min_offspring,
             split_input_weight: base.split_input_weight,
             split_bias: base.split_bias,
@@ -396,6 +402,8 @@ impl ConfigFile {
             compatibility_threshold_max: MutationConfig::default().compatibility_threshold_max,
             species_assignment: MutationConfig::default().species_assignment,
             mutation_probability: self.mutation_probability,
+            mate_only_probability: MutationConfig::default().mate_only_probability,
+            mate_selection: MutationConfig::default().mate_selection,
             disabled_gene_inheritance: self.disabled_gene_inheritance,
             interspecies_mate_rate: self.interspecies_mate_rate,
             crossover_weight_averaging_rate: self.crossover_weight_averaging_rate,

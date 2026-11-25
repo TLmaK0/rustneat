@@ -2,7 +2,7 @@
 //! and the `SUMMARY` line. Tested by `tests/xor_bench_tests.rs`.
 
 use rustneat::{
-    Environment, Integrator, MutationConfig, Organism, OutputActivation, Population,
+    Environment, Integrator, MateSelection, MutationConfig, Organism, OutputActivation, Population,
     SpeciesAssignment,
 };
 use std::time::Instant;
@@ -24,6 +24,9 @@ keys (every key not given keeps the library default, MutationConfig::default()):
   bench:       `pop` (population size, default 150), `reset` (0/1: reset the
                CTRNN state before each pattern during training, default 0),
                `target` (fitness that counts as solved, default 15.5 of 16),
+               `round` (0/1: with 1 a run is solved, and a champion check
+               passed, when every output is on the right side of 0.5, the
+               NEAT paper criterion, instead of by `target`),
                `inlo`, `inhi` (values the XOR inputs 0 and 1 are presented
                as, default 0 and 1; `inlo=-1` gives signed inputs),
                `seed` (run i uses Population::with_seed(seed + i), so every
@@ -55,7 +58,10 @@ keys (every key not given keeps the library default, MutationConfig::default()):
                (0 = first compatible species, the default; 1 = closest),
                `stag` (generations without improvement before a species is
                removed), `elit` (best species protected from that removal)
-  reproduction: `mutp` (probability of mutation without crossover), `dis`
+  reproduction: `mutp` (probability of mutation without crossover),
+               `mateonly` (probability that a crossover child is not
+               mutated), `matesel` (0 = mate drawn uniformly among the
+               parents, the default; 1 = by fitness), `dis`
                (probability that a gene disabled in a parent is disabled in
                the child), `xsp` (interspecies crossover rate), `xavg`
                (probability that a crossover averages matching weights),
@@ -68,7 +74,9 @@ The environment variable BENCH_THREADS sets how many runs go in parallel
 (default 6).
 
 champion checks (SUMMARY, counted over the solved runs; the champion is the
-first organism over `target`, its state is reset before every check):
+first organism over `target` (or rounding every output right with
+`round=1`, and then a check passes if the outputs round right), its state is
+reset before every check):
   reproduced_as_trained              patterns in training order, resetting
                                      the state before each pattern only if
                                      `reset=1` (the training evaluation)
@@ -127,6 +135,15 @@ impl Xor {
         res
     }
 
+    /// The NEAT paper criterion: every output on the right side of 0.5
+    /// (below for 0, 0.5 or above for 1, as in Stanley's code).
+    pub fn rounds_correctly(res: &[f64; 4]) -> bool {
+        PATTERNS
+            .iter()
+            .zip(res.iter())
+            .all(|(p, r)| (*r >= 0.5) == (p.2 >= 0.5))
+    }
+
     pub fn fit(res: &[f64; 4]) -> f64 {
         let d: f64 = PATTERNS
             .iter()
@@ -136,10 +153,12 @@ impl Xor {
         16.0 / (1.0 + d)
     }
 
-    /// Fitness with the patterns in `order`, starting from rest.
-    fn fit_from_rest(&self, o: &mut Organism, order: &[usize], reset_each: bool) -> f64 {
+    /// Fitness with the patterns in `order`, starting from rest, and
+    /// whether the outputs round correctly.
+    fn fit_from_rest(&self, o: &mut Organism, order: &[usize], reset_each: bool) -> (f64, bool) {
         o.reset_state();
-        Xor::fit(&self.outputs(o, order, reset_each))
+        let res = self.outputs(o, order, reset_each);
+        (Xor::fit(&res), Xor::rounds_correctly(&res))
     }
 }
 
@@ -177,20 +196,37 @@ pub struct ChampionChecks {
     pub reversed_reset_each: f64,
     /// The lowest fitness over the 24 orders.
     pub all_orders_reset_each: f64,
+    /// Whether the outputs round correctly under each check, in the order
+    /// of `SUMMARY_CHECKS` (all 24 orders for the last one).
+    pub rounds: [bool; 5],
 }
 
 pub fn champion_checks(env: &Xor, c: &mut Organism) -> ChampionChecks {
     const TRAINING: [usize; 4] = [0, 1, 2, 3];
     const REVERSED: [usize; 4] = [3, 2, 1, 0];
+    let as_trained = env.fit_from_rest(c, &TRAINING, env.reset);
+    let reset_each = env.fit_from_rest(c, &TRAINING, true);
+    let reversed_no_reset = env.fit_from_rest(c, &REVERSED, false);
+    let reversed_reset_each = env.fit_from_rest(c, &REVERSED, true);
+    let all_orders = all_orders()
+        .iter()
+        .map(|order| env.fit_from_rest(c, order, true))
+        .fold((f64::INFINITY, true), |(f, r), (fo, ro)| {
+            (f.min(fo), r && ro)
+        });
     ChampionChecks {
-        as_trained: env.fit_from_rest(c, &TRAINING, env.reset),
-        reset_each: env.fit_from_rest(c, &TRAINING, true),
-        reversed_no_reset: env.fit_from_rest(c, &REVERSED, false),
-        reversed_reset_each: env.fit_from_rest(c, &REVERSED, true),
-        all_orders_reset_each: all_orders()
-            .iter()
-            .map(|order| env.fit_from_rest(c, order, true))
-            .fold(f64::INFINITY, f64::min),
+        as_trained: as_trained.0,
+        reset_each: reset_each.0,
+        reversed_no_reset: reversed_no_reset.0,
+        reversed_reset_each: reversed_reset_each.0,
+        all_orders_reset_each: all_orders.0,
+        rounds: [
+            as_trained.1,
+            reset_each.1,
+            reversed_no_reset.1,
+            reversed_reset_each.1,
+            all_orders.1,
+        ],
     }
 }
 
@@ -222,6 +258,9 @@ pub struct Bench {
     pub mode: String,
     pub pop_size: usize,
     pub target: f64,
+    /// Solved by the NEAT paper criterion (`Xor::rounds_correctly`)
+    /// instead of `target`.
+    pub round: bool,
     pub seed: Option<u64>,
     pub cfg: MutationConfig,
     pub env: Xor,
@@ -246,6 +285,7 @@ pub fn parse_args(args: &[String]) -> Result<Bench, String> {
     let mut pop_size = 150usize;
     let mut reset = false;
     let mut target = 15.5f64;
+    let mut round = false;
     let mut seed = None;
     let mut input_range = (0f64, 1f64);
     for kv in &args[4..] {
@@ -378,6 +418,15 @@ pub fn parse_args(args: &[String]) -> Result<Bench, String> {
                 target = v;
                 b
             }
+            "round" if v == 0.0 || v == 1.0 => {
+                round = v == 1.0;
+                b
+            }
+            "round" => return Err(format!("bad value for round: {} (0 or 1)", v)),
+            "mateonly" => b.mate_only_probability(v),
+            "matesel" if v == 0.0 => b.mate_selection(MateSelection::Uniform),
+            "matesel" if v == 1.0 => b.mate_selection(MateSelection::FitnessProportional),
+            "matesel" => return Err(format!("bad value for matesel: {} (0 or 1)", v)),
             "inlo" | "inhi" => {
                 if k == "inlo" {
                     input_range.0 = v;
@@ -406,6 +455,7 @@ pub fn parse_args(args: &[String]) -> Result<Bench, String> {
         mode,
         pop_size,
         target,
+        round,
         seed,
         cfg: b.build(),
         extra: args[4..].to_vec(),
@@ -471,9 +521,14 @@ pub fn run_once(bench: &Bench, seed: Option<u64>) -> RunResult {
             }
             last_champ_fit = c.fitness;
         }
-        for o in pop.get_organisms() {
+        for mut o in pop.get_organisms() {
             r.best_fit = r.best_fit.max(o.fitness);
-            if o.fitness > bench.target && champ.is_none() {
+            let solved = if bench.round {
+                env.fit_from_rest(&mut o, &[0, 1, 2, 3], env.reset).1
+            } else {
+                o.fitness > bench.target
+            };
+            if solved && champ.is_none() {
                 champ = Some(o);
             }
         }
@@ -513,7 +568,17 @@ pub fn summary(bench: &Bench, rs: &[RunResult]) -> String {
     let gens_mean = mean(&gens.iter().map(|&g| g as f64).collect::<Vec<_>>());
     let s: Vec<&RunResult> = rs.iter().filter(|r| r.solved_gen.is_some()).collect();
     let avg = |f: fn(&RunResult) -> f64| mean(&s.iter().map(|r| f(r)).collect::<Vec<_>>());
-    let robust = |f: fn(&RunResult) -> f64| s.iter().filter(|r| f(r) > bench.target).count();
+    let robust = |i: usize, f: fn(&RunResult) -> f64| {
+        s.iter()
+            .filter(|r| {
+                if bench.round {
+                    r.checks.rounds[i]
+                } else {
+                    f(r) > bench.target
+                }
+            })
+            .count()
+    };
     let unsolved_best: Vec<f64> = rs
         .iter()
         .filter(|r| r.solved_gen.is_none())
@@ -529,7 +594,8 @@ pub fn summary(bench: &Bench, rs: &[RunResult]) -> String {
     let checks = SUMMARY_CHECKS
         .iter()
         .zip(check_fits)
-        .map(|(name, f)| format!("{}={}/{}", name, robust(f), solved))
+        .enumerate()
+        .map(|(i, (name, f))| format!("{}={}/{}", name, robust(i, f), solved))
         .collect::<Vec<_>>()
         .join(" ");
     format!(
